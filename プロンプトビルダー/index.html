@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>プロンプトビルダー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #7c6ef2;
+    --accent2: #ba4a9e;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .layout {
+    display: flex;
+    gap: 20px;
+    padding: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    flex: 1 1 380px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 14px; color: var(--muted); }
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .preset-btn {
+    background: #33334a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .preset-btn:hover { background: var(--accent); border-color: var(--accent); }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin: 12px 0 4px;
+  }
+  textarea, input[type=text] {
+    width: 100%;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+  }
+  textarea { min-height: 56px; }
+  .preview {
+    white-space: pre-wrap;
+    background: #14141f;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.7;
+    min-height: 200px;
+  }
+  .copy-btn {
+    margin-top: 14px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border: none;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .copy-btn:hover { opacity: 0.9; }
+  .copied-msg {
+    margin-left: 10px;
+    font-size: 12px;
+    color: #6ee7a0;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .copied-msg.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>プロンプトビルダー</h1>
+  <p>タスク・前提・出力形式・制約を項目ごとに入力して、Claudeに渡すプロンプトを組み立てます</p>
+</header>
+
+<div class="layout">
+  <div class="panel">
+    <h2>テンプレート</h2>
+    <div class="presets" id="presets"></div>
+
+    <label for="task">タスク（何をしてほしいか）</label>
+    <textarea id="task" placeholder="例: このPythonコードをレビューして改善点を指摘して"></textarea>
+
+    <label for="context">背景・前提条件</label>
+    <textarea id="context" placeholder="例: 大学の課題で提出するコード。初心者向けの説明も欲しい"></textarea>
+
+    <label for="format">欲しい出力形式</label>
+    <textarea id="format" placeholder="例: 箇条書きで指摘事項を3〜5個、優先度付きで"></textarea>
+
+    <label for="constraints">制約・避けたいこと</label>
+    <textarea id="constraints" placeholder="例: コード全体の書き直しはしない。日本語で回答"></textarea>
+  </div>
+
+  <div class="panel">
+    <h2>プレビュー</h2>
+    <div class="preview" id="preview">（左のフォームに入力すると、ここにプロンプトが表示されます）</div>
+    <button class="copy-btn" id="copyBtn">クリップボードにコピー</button>
+    <span class="copied-msg" id="copiedMsg">コピーしました！</span>
+  </div>
+</div>
+
+<script>
+  const presets = [
+    {
+      name: "コードレビュー依頼",
+      task: "以下のコードをレビューし、改善点を指摘してください。",
+      context: "言語やフレームワークは添付コードを参照してください。",
+      format: "指摘事項を箇条書きで、優先度（高・中・低）付きでまとめてください。",
+      constraints: "コード全体の書き直しではなく、差分での提案にしてください。"
+    },
+    {
+      name: "要約依頼",
+      task: "以下の文章を要約してください。",
+      context: "対象は初めてこの話題に触れる読者です。",
+      format: "3〜5行程度の簡潔な要約にしてください。",
+      constraints: "専門用語はできるだけ平易な言葉に言い換えてください。"
+    },
+    {
+      name: "アイデア出し依頼",
+      task: "以下のテーマについて、新しいアイデアを出してください。",
+      context: "実現可能性よりも発想の幅を重視したいです。",
+      format: "アイデアを5〜7個、それぞれ1行のタイトルと1〜2行の説明で。",
+      constraints: "既存の類似サービスと似すぎないものを優先してください。"
+    },
+    {
+      name: "壁打ち相談",
+      task: "以下の課題について一緒に考えてほしいです。質問を返してくれても構いません。",
+      context: "まだ考えがまとまっていない初期段階です。",
+      format: "断定せず、選択肢や論点を整理する形で。",
+      constraints: "結論を急がず、こちらの意図を確認しながら進めてください。"
+    }
+  ];
+
+  const fields = {
+    task: document.getElementById("task"),
+    context: document.getElementById("context"),
+    format: document.getElementById("format"),
+    constraints: document.getElementById("constraints")
+  };
+  const preview = document.getElementById("preview");
+  const presetsEl = document.getElementById("presets");
+  const copyBtn = document.getElementById("copyBtn");
+  const copiedMsg = document.getElementById("copiedMsg");
+
+  presets.forEach(p => {
+    const btn = document.createElement("button");
+    btn.className = "preset-btn";
+    btn.textContent = p.name;
+    btn.addEventListener("click", () => {
+      fields.task.value = p.task;
+      fields.context.value = p.context;
+      fields.format.value = p.format;
+      fields.constraints.value = p.constraints;
+      updatePreview();
+    });
+    presetsEl.appendChild(btn);
+  });
+
+  function buildPrompt() {
+    const parts = [];
+    if (fields.task.value.trim()) parts.push(fields.task.value.trim());
+    if (fields.context.value.trim()) parts.push("【前提条件】\n" + fields.context.value.trim());
+    if (fields.format.value.trim()) parts.push("【出力形式】\n" + fields.format.value.trim());
+    if (fields.constraints.value.trim()) parts.push("【制約】\n" + fields.constraints.value.trim());
+    return parts.join("\n\n");
+  }
+
+  function updatePreview() {
+    const built = buildPrompt();
+    preview.textContent = built || "（左のフォームに入力すると、ここにプロンプトが表示されます）";
+  }
+
+  Object.values(fields).forEach(el => el.addEventListener("input", updatePreview));
+
+  copyBtn.addEventListener("click", () => {
+    const text = buildPrompt();
+    if (!text) return;
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand("copy");
+      copiedMsg.classList.add("show");
+      setTimeout(() => copiedMsg.classList.remove("show"), 1500);
+    } catch (e) {
+      alert("コピーに失敗しました。手動で選択してコピーしてください。");
+    }
+    document.body.removeChild(ta);
+  });
+</script>
+</body>
+</html>
