@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIっぽさセルフチェッカー</title>
+<style>
+  :root {
+    --bg:#1e1e2e; --panel:#262638; --accent:#7c5cff; --accent2:#ff5c8a;
+    --text:#e8e6f2; --muted:#9a97b5; --border:#3a3a52;
+    --warn:#e0a840; --ok:#4fd18b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:20px; background:var(--bg); color:var(--text);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  }
+  header { margin-bottom:20px; }
+  header h1 { font-size:20px; margin:0 0 6px; }
+  header p { font-size:13px; color:var(--muted); margin:0; }
+  .layout { display:flex; gap:20px; flex-wrap:wrap; }
+  .panel {
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:16px; flex:1 1 420px; min-width:300px;
+  }
+  .panel h2 { font-size:15px; margin:0 0 10px; color:var(--text); }
+  textarea {
+    width:100%; min-height:320px; resize:vertical;
+    background:#1a1a26; color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:10px; font-size:14px; line-height:1.6;
+    font-family:inherit;
+  }
+  .toolbar { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center; }
+  button {
+    background:var(--accent); color:#fff; border:none; border-radius:6px;
+    padding:8px 14px; font-size:13px; cursor:pointer;
+  }
+  button.secondary { background:transparent; border:1px solid var(--border); color:var(--text); }
+  button:hover { opacity:0.88; }
+  .score-box { display:flex; align-items:center; gap:16px; margin-bottom:14px; }
+  .score-num { font-size:38px; font-weight:bold; color:var(--accent2); }
+  .score-label { font-size:12px; color:var(--muted); max-width:260px; }
+  .note { font-size:11px; color:var(--muted); margin-top:2px; }
+  .result-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; }
+  .result-item {
+    border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:13px;
+  }
+  .result-item .tag { color:var(--warn); font-weight:bold; font-size:12px; margin-right:6px; }
+  .result-item .hint { color:var(--muted); font-size:12px; margin-top:4px; }
+  .empty { color:var(--muted); font-size:13px; }
+  .toggles { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; font-size:12px; color:var(--muted); }
+  .toggles label { display:flex; align-items:center; gap:4px; cursor:pointer; }
+  mark { background:rgba(255,92,138,0.28); color:var(--text); border-radius:3px; padding:0 2px; }
+  .toast {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--ok); color:#123; padding:8px 16px; border-radius:6px;
+    font-size:13px; opacity:0; pointer-events:none; transition:opacity 0.25s;
+  }
+  .toast.show { opacity:1; }
+  @media (max-width:600px) {
+    .score-num { font-size:30px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>AIっぽさセルフチェッカー</h1>
+  <p>文章を貼り付けると、AI生成文によくある紋切り型フレーズや傾向を検出します。提出・送信前のセルフチェック用（あくまで参考値です）。</p>
+</header>
+
+<div class="layout">
+  <div class="panel">
+    <h2>文章を入力</h2>
+    <textarea id="inputText" placeholder="ここにチェックしたい文章を貼り付けてください…"></textarea>
+    <div class="toolbar">
+      <button onclick="runCheck()">チェックする</button>
+      <button class="secondary" onclick="clearAll()">クリア</button>
+      <button class="secondary" onclick="copyResult()">結果をコピー</button>
+    </div>
+    <div class="toggles" id="toggles"></div>
+  </div>
+
+  <div class="panel">
+    <h2>チェック結果</h2>
+    <div class="score-box">
+      <div class="score-num" id="scoreNum">-</div>
+      <div class="score-label">AIっぽさ参考スコア（0〜100）。検出数をもとにした目安であり、AI判定ツールではありません。</div>
+    </div>
+    <ul class="result-list" id="resultList">
+      <li class="empty">まだチェックしていません。</li>
+    </ul>
+    <div class="note" id="styleNote"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast">コピーしました</div>
+
+<script>
+  // 検出パターン定義（カテゴリごとに ON/OFF 切り替え可能）
+  const PATTERN_CATEGORIES = [
+    {
+      id: "cliche_connect",
+      label: "紋切り型の接続・言い回し",
+      hint: "自分の言葉に言い換えると自然になります（例:「〜と言えるでしょう」→「〜だと思う」）",
+      patterns: [
+        /と言えるでしょう/g, /と言えます/g, /と言えるかもしれません/g,
+        /ということです/g, /重要です/g, /非常に重要/g,
+        /総括すると/g, /以上のことから/g, /このように/g,
+        /という点です/g, /と考えられます/g, /と言っても過言ではありません/g
+      ]
+    },
+    {
+      id: "cliche_closing",
+      label: "定型的な書き出し・結び",
+      hint: "定型の挨拶文を削って本題から始めると人間らしい文章になります",
+      patterns: [
+        /いかがでしたでしょうか/g, /参考にしていただければ幸いです/g,
+        /以上、.{0,10}でした/g, /まとめると/g, /結論として/g,
+        /本記事では/g, /この記事では/g
+      ]
+    },
+    {
+      id: "step_structure",
+      label: "「まず/次に/最後に」型の定型構成",
+      hint: "同じ段落で3つ揃うとテンプレっぽく見えます。文をつなげるか順序を崩すと自然になります",
+      patterns: [/まず[、,]/g, /次に[、,]/g, /最後に[、,]/g]
+    }
+  ];
+
+  let activeCategories = new Set(PATTERN_CATEGORIES.map(c => c.id));
+
+  function buildToggles() {
+    const wrap = document.getElementById("toggles");
+    wrap.innerHTML = "";
+    PATTERN_CATEGORIES.forEach(cat => {
+      const label = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = true;
+      cb.addEventListener("change", () => {
+        if (cb.checked) activeCategories.add(cat.id);
+        else activeCategories.delete(cat.id);
+      });
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(cat.label));
+      wrap.appendChild(label);
+    });
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function countBulletLines(text) {
+    const lines = text.split("\n").filter(l => l.trim().length > 0);
+    if (lines.length === 0) return { ratio: 0, total: 0 };
+    const bulletLines = lines.filter(l => /^\s*[・\-●▪◦]|^\s*\d+[\.\)]/.test(l));
+    return { ratio: bulletLines.length / lines.length, total: lines.length };
+  }
+
+  function checkStyleMix(text) {
+    const sentences = text.split(/[。！？\n]/).map(s => s.trim()).filter(s => s.length > 0);
+    let desu = 0, da = 0;
+    sentences.forEach(s => {
+      if (/(です|ます)$/.test(s)) desu++;
+      else if (/(だ|である)$/.test(s)) da++;
+    });
+    return { desu, da, total: sentences.length };
+  }
+
+  function runCheck() {
+    const text = document.getElementById("inputText").value;
+    const resultList = document.getElementById("resultList");
+    const scoreNum = document.getElementById("scoreNum");
+    const styleNote = document.getElementById("styleNote");
+
+    if (!text || text.trim().length === 0) {
+      resultList.innerHTML = '<li class="empty">文章が入力されていません。</li>';
+      scoreNum.textContent = "-";
+      styleNote.textContent = "";
+      return;
+    }
+
+    let totalHits = 0;
+    const items = [];
+
+    PATTERN_CATEGORIES.forEach(cat => {
+      if (!activeCategories.has(cat.id)) return;
+      let catHits = 0;
+      const foundWords = new Set();
+      cat.patterns.forEach(re => {
+        const matches = text.match(re);
+        if (matches) {
+          catHits += matches.length;
+          matches.forEach(m => foundWords.add(m));
+        }
+      });
+      if (catHits > 0) {
+        totalHits += catHits;
+        items.push({
+          tag: cat.label,
+          hint: cat.hint,
+          detail: Array.from(foundWords).join("、") + `（計${catHits}件）`
+        });
+      }
+    });
+
+    // 箇条書き偏重チェック
+    const bullet = countBulletLines(text);
+    if (bullet.total >= 4 && bullet.ratio >= 0.5) {
+      totalHits += 2;
+      items.push({
+        tag: "箇条書き偏重",
+        hint: "箇条書きが全体の半分以上を占めています。地の文を交ぜると自然に見えることがあります",
+        detail: `箇条書き行の割合: ${Math.round(bullet.ratio * 100)}%`
+      });
+    }
+
+    // 敬体・常体混在チェック
+    const style = checkStyleMix(text);
+    let styleMsg = "";
+    if (style.desu > 0 && style.da > 0) {
+      const minority = Math.min(style.desu, style.da);
+      if (minority >= 2) {
+        totalHits += 1;
+        styleMsg = `敬体（です・ます）と常体（だ・である）が混在しています（です/ます: ${style.desu}文、だ/である: ${style.da}文）。どちらかに統一すると読みやすくなります。`;
+      }
+    }
+    styleNote.textContent = styleMsg;
+
+    // 一人称の有無（0〜1点の軽い減点、必須ではない）
+    const hasFirstPerson = /(私は|私が|僕は|僕が|自分は|自分が)/.test(text);
+    if (!hasFirstPerson && text.length > 200) {
+      items.push({
+        tag: "一人称の欠如",
+        hint: "主観が入る場面で一人称（私は〜など）が一度も出てこない場合、機械的な印象になることがあります（必ずしも問題ではありません）",
+        detail: "本文中に「私は/僕は/自分は」等が見つかりませんでした"
+      });
+    }
+
+    // スコア計算（目安。上限100）
+    const rawScore = totalHits * 8;
+    const score = Math.min(100, Math.round(rawScore));
+    scoreNum.textContent = score;
+
+    if (items.length === 0) {
+      resultList.innerHTML = '<li class="empty">目立った紋切り型パターンは検出されませんでした。</li>';
+    } else {
+      resultList.innerHTML = "";
+      items.forEach(it => {
+        const li = document.createElement("li");
+        li.className = "result-item";
+        li.innerHTML =
+          `<span class="tag">${escapeHtml(it.tag)}</span>${escapeHtml(it.detail)}` +
+          `<div class="hint">${escapeHtml(it.hint)}</div>`;
+        resultList.appendChild(li);
+      });
+    }
+  }
+
+  function clearAll() {
+    document.getElementById("inputText").value = "";
+    document.getElementById("resultList").innerHTML = '<li class="empty">まだチェックしていません。</li>';
+    document.getElementById("scoreNum").textContent = "-";
+    document.getElementById("styleNote").textContent = "";
+  }
+
+  function copyResult() {
+    const score = document.getElementById("scoreNum").textContent;
+    const items = Array.from(document.querySelectorAll("#resultList .result-item")).map(li => li.innerText).join("\n---\n");
+    const summary = `AIっぽさ参考スコア: ${score}\n\n${items || "検出項目なし"}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(summary).then(showToast).catch(() => fallbackCopy(summary));
+    } else {
+      fallbackCopy(summary);
+    }
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); showToast(); } catch (e) { /* noop */ }
+    document.body.removeChild(ta);
+  }
+
+  function showToast() {
+    const t = document.getElementById("toast");
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 1600);
+  }
+
+  buildToggles();
+</script>
+
+</body>
+</html>
