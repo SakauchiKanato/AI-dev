@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>コミットメッセージジェネレーター</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --border: #2a2e3a;
+    --text: #e6e8ee;
+    --muted: #8b90a0;
+    --accent: #4f8cff;
+    --accent-2: #3fd08c;
+    --danger: #e2574c;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 20px 28px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 20px;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 24px 28px 40px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .panel h2 {
+    font-size: 14px;
+    margin: 0 0 14px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .type-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .type-btn {
+    background: #1e2230;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 10px 6px;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .type-btn strong { display: block; font-size: 13px; }
+  .type-btn span { color: var(--muted); font-size: 11px; }
+  .type-btn:hover { border-color: var(--accent); }
+  .type-btn.active {
+    border-color: var(--accent);
+    background: #1c2740;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin: 14px 0 6px;
+  }
+  input[type=text], textarea {
+    width: 100%;
+    background: #0f1117;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 9px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+  }
+  textarea { min-height: 70px; }
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .checkbox-row input { width: 16px; height: 16px; }
+  .checkbox-row label { margin: 0; font-size: 13px; color: var(--text); }
+  pre#output {
+    background: #0a0b10;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 120px;
+    margin: 0 0 12px;
+  }
+  #output .empty { color: var(--muted); }
+  button#copy-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    width: 100%;
+  }
+  button#copy-btn:hover { opacity: 0.9; }
+  button#copy-btn.copied { background: var(--accent-2); }
+  .guide {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+  .guide b { color: var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔧 コミットメッセージジェネレーター</h1>
+  <p>Conventional Commits形式のコミットメッセージをフォーム入力から組み立てます</p>
+</header>
+
+<div class="layout">
+  <div class="panel">
+    <h2>入力</h2>
+    <div class="type-grid" id="type-grid"></div>
+
+    <label for="scope">scope（任意・変更範囲。例: auth, ui）</label>
+    <input type="text" id="scope" placeholder="例: office-status">
+
+    <label for="summary">summary（必須・変更内容を一言で）</label>
+    <input type="text" id="summary" placeholder="例: status.jsの進行中表示を修正">
+
+    <label for="body">body（任意・詳細説明。複数行可）</label>
+    <textarea id="body" placeholder="なぜこの変更が必要か、何を変えたかなど"></textarea>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="breaking">
+      <label for="breaking">Breaking Change（互換性を壊す変更）</label>
+    </div>
+    <label for="breaking-desc" id="breaking-desc-label" style="display:none;">Breaking Changeの内容</label>
+    <textarea id="breaking-desc" style="display:none;" placeholder="何が壊れるか、移行方法など"></textarea>
+  </div>
+
+  <div class="panel">
+    <h2>プレビュー</h2>
+    <pre id="output"><span class="empty">左のフォームに入力すると、ここにコミットメッセージが表示されます</span></pre>
+    <button id="copy-btn">コピー</button>
+
+    <div class="guide">
+      <div><b>feat</b> - 新機能の追加</div>
+      <div><b>fix</b> - バグ修正</div>
+      <div><b>docs</b> - ドキュメントのみの変更</div>
+      <div><b>style</b> - フォーマットなど、動作に影響しない変更</div>
+      <div><b>refactor</b> - バグ修正でも機能追加でもないコード変更</div>
+      <div><b>test</b> - テストの追加・修正</div>
+      <div><b>chore</b> - ビルド・補助ツールなどの変更</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var TYPES = [
+    { id: "feat", label: "新機能" },
+    { id: "fix", label: "バグ修正" },
+    { id: "docs", label: "ドキュメント" },
+    { id: "style", label: "フォーマット" },
+    { id: "refactor", label: "リファクタ" },
+    { id: "test", label: "テスト" },
+    { id: "chore", label: "雑務" },
+    { id: "perf", label: "性能改善" },
+    { id: "build", label: "ビルド関連" }
+  ];
+
+  var state = {
+    type: null,
+    scope: "",
+    summary: "",
+    body: "",
+    breaking: false,
+    breakingDesc: ""
+  };
+
+  var grid = document.getElementById("type-grid");
+  TYPES.forEach(function (t) {
+    var btn = document.createElement("button");
+    btn.className = "type-btn";
+    btn.type = "button";
+    btn.innerHTML = "<strong>" + t.id + "</strong><span>" + t.label + "</span>";
+    btn.addEventListener("click", function () {
+      state.type = t.id;
+      Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove("active"); });
+      btn.classList.add("active");
+      render();
+    });
+    grid.appendChild(btn);
+  });
+
+  var scopeEl = document.getElementById("scope");
+  var summaryEl = document.getElementById("summary");
+  var bodyEl = document.getElementById("body");
+  var breakingEl = document.getElementById("breaking");
+  var breakingDescEl = document.getElementById("breaking-desc");
+  var breakingDescLabel = document.getElementById("breaking-desc-label");
+  var output = document.getElementById("output");
+  var copyBtn = document.getElementById("copy-btn");
+
+  scopeEl.addEventListener("input", function () { state.scope = scopeEl.value; render(); });
+  summaryEl.addEventListener("input", function () { state.summary = summaryEl.value; render(); });
+  bodyEl.addEventListener("input", function () { state.body = bodyEl.value; render(); });
+  breakingEl.addEventListener("change", function () {
+    state.breaking = breakingEl.checked;
+    breakingDescEl.style.display = state.breaking ? "block" : "none";
+    breakingDescLabel.style.display = state.breaking ? "block" : "none";
+    render();
+  });
+  breakingDescEl.addEventListener("input", function () { state.breakingDesc = breakingDescEl.value; render(); });
+
+  function buildMessage() {
+    if (!state.type || !state.summary.trim()) return null;
+    var header = state.type;
+    if (state.scope.trim()) header += "(" + state.scope.trim() + ")";
+    if (state.breaking) header += "!";
+    header += ": " + state.summary.trim();
+
+    var parts = [header];
+    if (state.body.trim()) parts.push(state.body.trim());
+    if (state.breaking && state.breakingDesc.trim()) {
+      parts.push("BREAKING CHANGE: " + state.breakingDesc.trim());
+    }
+    return parts.join("\n\n");
+  }
+
+  function render() {
+    var msg = buildMessage();
+    if (!msg) {
+      output.innerHTML = '<span class="empty">左のフォームに入力すると、ここにコミットメッセージが表示されます</span>';
+    } else {
+      output.textContent = msg;
+    }
+  }
+
+  copyBtn.addEventListener("click", function () {
+    var msg = buildMessage();
+    if (!msg) return;
+    var finish = function () {
+      copyBtn.textContent = "コピーしました！";
+      copyBtn.classList.add("copied");
+      setTimeout(function () {
+        copyBtn.textContent = "コピー";
+        copyBtn.classList.remove("copied");
+      }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(msg).then(finish, function () { fallbackCopy(msg, finish); });
+    } else {
+      fallbackCopy(msg, finish);
+    }
+  });
+
+  function fallbackCopy(text, cb) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    cb();
+  }
+
+  render();
+</script>
+</body>
+</html>
