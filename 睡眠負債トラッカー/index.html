@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>睡眠負債トラッカー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #6d9eeb;
+    --accent2: #f7a7c0;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --warn: #e66550;
+    --ok: #43d692;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header {
+    margin-bottom: 20px;
+  }
+  header h1 {
+    font-size: 20px;
+    margin: 0 0 6px 0;
+  }
+  header p {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+  }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px 0;
+    color: var(--text);
+  }
+  #settings-panel { flex: 1 1 260px; }
+  #table-panel { flex: 2 1 480px; }
+  #dashboard-panel { flex: 1 1 100%; }
+
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input[type="number"], input[type="time"] {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 6px 8px;
+    font-size: 13px;
+    width: 100%;
+  }
+  .field { margin-bottom: 14px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: normal; font-size: 12px; }
+  td input { width: 100px; }
+  .day-diff { font-weight: bold; }
+  .diff-plus { color: var(--ok); }
+  .diff-minus { color: var(--warn); }
+
+  button {
+    background: var(--accent);
+    color: #1a1a28;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .dashboard-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .stat-box {
+    flex: 1 1 160px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-box .value { font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+  .stat-box .label { font-size: 12px; color: var(--muted); }
+
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+  .bar-row .bar-label { width: 60px; color: var(--muted); flex-shrink: 0; }
+  .bar-track { flex: 1; background: #1a1a28; border-radius: 4px; height: 14px; position: relative; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; }
+  .bar-fill.plus { background: var(--ok); }
+  .bar-fill.minus { background: var(--warn); }
+  .bar-value { width: 60px; text-align: right; flex-shrink: 0; }
+
+  .warning-box {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: none;
+  }
+  .warning-box.show { display: block; }
+  .warning-box.danger { background: rgba(230,101,80,0.15); border: 1px solid var(--warn); color: #ffb3a7; }
+  .warning-box.safe { background: rgba(67,214,146,0.12); border: 1px solid var(--ok); color: #9ff0c9; }
+
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ok);
+    color: #1a1a28;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+
+  @media (max-width: 480px) {
+    td input { width: 84px; }
+    .stat-box { flex: 1 1 45%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>睡眠負債トラッカー</h1>
+  <p>直近7日間の就寝・起床時刻から、睡眠の「貯金」と「負債」を見える化します</p>
+</header>
+
+<div class="layout">
+  <div class="panel" id="settings-panel">
+    <h2>設定</h2>
+    <div class="field">
+      <label for="ideal-hours">理想の睡眠時間（時間）</label>
+      <input type="number" id="ideal-hours" value="7" min="1" max="12" step="0.5">
+    </div>
+    <div class="field">
+      <label>仮眠1回（20分）で軽減できる負債の目安</label>
+      <div style="font-size:13px; color:var(--muted);">約0.3時間分（あくまで目安。仮眠が根本解決にはなりません）</div>
+    </div>
+    <button class="secondary" id="reset-btn" type="button">入力をリセット</button>
+  </div>
+
+  <div class="panel" id="table-panel">
+    <h2>7日間の記録</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>日</th>
+          <th>就寝時刻</th>
+          <th>起床時刻</th>
+          <th>睡眠時間</th>
+          <th>差分</th>
+        </tr>
+      </thead>
+      <tbody id="days-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="panel" id="dashboard-panel">
+    <h2>ダッシュボード</h2>
+    <div class="dashboard-grid">
+      <div class="stat-box">
+        <div class="value" id="total-debt">0.0h</div>
+        <div class="label">累積負債（負債側の合計）</div>
+      </div>
+      <div class="stat-box">
+        <div class="value" id="net-diff">0.0h</div>
+        <div class="label">7日間の差し引き合計</div>
+      </div>
+      <div class="stat-box">
+        <div class="value" id="avg-sleep">0.0h</div>
+        <div class="label">平均睡眠時間</div>
+      </div>
+      <div class="stat-box">
+        <div class="value" id="nap-count">0回</div>
+        <div class="label">負債解消の仮眠目安回数</div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;" id="bar-chart"></div>
+
+    <div class="warning-box" id="warning-box"></div>
+
+    <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button id="copy-btn" type="button">結果をコピー</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast">コピーしました</div>
+
+<script>
+(function () {
+  var DAY_LABELS = ["1日前", "2日前", "3日前", "4日前", "5日前", "6日前", "7日前"];
+  var tbody = document.getElementById("days-tbody");
+  var idealInput = document.getElementById("ideal-hours");
+
+  // 行を生成
+  DAY_LABELS.forEach(function (label, i) {
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td>' + label + '</td>' +
+      '<td><input type="time" class="bed-time" data-idx="' + i + '"></td>' +
+      '<td><input type="time" class="wake-time" data-idx="' + i + '"></td>' +
+      '<td class="sleep-hours" data-idx="' + i + '">-</td>' +
+      '<td class="day-diff" data-idx="' + i + '">-</td>';
+    tbody.appendChild(tr);
+  });
+
+  function parseTimeToMinutes(str) {
+    if (!str) return null;
+    var parts = str.split(":");
+    if (parts.length !== 2) return null;
+    var h = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return null;
+    return h * 60 + m;
+  }
+
+  function computeSleepHours(bedStr, wakeStr) {
+    var bed = parseTimeToMinutes(bedStr);
+    var wake = parseTimeToMinutes(wakeStr);
+    if (bed === null || wake === null) return null;
+    var diffMin = wake - bed;
+    // 就寝が夜、起床が翌朝の想定。マイナスなら日をまたいだとみなす
+    if (diffMin <= 0) diffMin += 24 * 60;
+    // 極端な値（24時間以上）は入力ミスとして無効扱い
+    if (diffMin > 20 * 60) return null;
+    return diffMin / 60;
+  }
+
+  function fmt(n) {
+    if (n === null || isNaN(n)) return "-";
+    var rounded = Math.round(n * 10) / 10;
+    return (rounded > 0 ? "+" : "") + rounded.toFixed(1) + "h";
+  }
+
+  function fmtPlain(n) {
+    if (n === null || isNaN(n)) return "-";
+    return (Math.round(n * 10) / 10).toFixed(1) + "h";
+  }
+
+  function recalc() {
+    var ideal = parseFloat(idealInput.value);
+    if (isNaN(ideal) || ideal <= 0) ideal = 7;
+
+    var totalDebt = 0; // 負債分のみの合計（正の値）
+    var netDiff = 0;   // 差し引き合計（貯金-負債）
+    var sleepValues = [];
+    var barData = [];
+
+    for (var i = 0; i < DAY_LABELS.length; i++) {
+      var bedInput = tbody.querySelector('.bed-time[data-idx="' + i + '"]');
+      var wakeInput = tbody.querySelector('.wake-time[data-idx="' + i + '"]');
+      var sleepCell = tbody.querySelector('.sleep-hours[data-idx="' + i + '"]');
+      var diffCell = tbody.querySelector('.day-diff[data-idx="' + i + '"]');
+
+      var hours = computeSleepHours(bedInput.value, wakeInput.value);
+
+      diffCell.classList.remove("diff-plus", "diff-minus");
+
+      if (hours === null) {
+        sleepCell.textContent = "-";
+        diffCell.textContent = "-";
+        barData.push(null);
+        continue;
+      }
+
+      sleepValues.push(hours);
+      sleepCell.textContent = fmtPlain(hours);
+
+      var diff = hours - ideal;
+      diffCell.textContent = fmt(diff);
+      if (diff < 0) {
+        diffCell.classList.add("diff-minus");
+        totalDebt += Math.abs(diff);
+      } else if (diff > 0) {
+        diffCell.classList.add("diff-plus");
+      }
+      netDiff += diff;
+      barData.push({ label: DAY_LABELS[i], diff: diff });
+    }
+
+    document.getElementById("total-debt").textContent = fmtPlain(totalDebt) + (totalDebt > 0 ? "" : "");
+    document.getElementById("net-diff").textContent = fmt(netDiff);
+    document.getElementById("avg-sleep").textContent = sleepValues.length
+      ? fmtPlain(sleepValues.reduce(function (a, b) { return a + b; }, 0) / sleepValues.length)
+      : "-";
+
+    var napCount = totalDebt > 0 ? Math.ceil(totalDebt / 0.3) : 0;
+    document.getElementById("nap-count").textContent = napCount + "回";
+
+    renderBarChart(barData);
+    renderWarning(totalDebt, sleepValues.length);
+  }
+
+  function renderBarChart(barData) {
+    var container = document.getElementById("bar-chart");
+    container.innerHTML = "";
+    var maxAbs = 0;
+    barData.forEach(function (d) {
+      if (d && Math.abs(d.diff) > maxAbs) maxAbs = Math.abs(d.diff);
+    });
+    if (maxAbs === 0) maxAbs = 1;
+
+    barData.forEach(function (d) {
+      var row = document.createElement("div");
+      row.className = "bar-row";
+
+      var labelEl = document.createElement("div");
+      labelEl.className = "bar-label";
+      labelEl.textContent = d ? d.label : "-";
+      row.appendChild(labelEl);
+
+      var track = document.createElement("div");
+      track.className = "bar-track";
+      if (d) {
+        var fill = document.createElement("div");
+        fill.className = "bar-fill " + (d.diff >= 0 ? "plus" : "minus");
+        var pct = Math.min(100, (Math.abs(d.diff) / maxAbs) * 100);
+        fill.style.width = pct + "%";
+        track.appendChild(fill);
+      }
+      row.appendChild(track);
+
+      var valueEl = document.createElement("div");
+      valueEl.className = "bar-value";
+      valueEl.textContent = d ? fmt(d.diff) : "未入力";
+      row.appendChild(valueEl);
+
+      container.appendChild(row);
+    });
+  }
+
+  function renderWarning(totalDebt, inputCount) {
+    var box = document.getElementById("warning-box");
+    box.classList.remove("show", "danger", "safe");
+
+    if (inputCount === 0) {
+      return;
+    }
+
+    if (totalDebt >= 5) {
+      box.classList.add("show", "danger");
+      box.textContent = "⚠ 累積負債が " + fmtPlain(totalDebt) + " に達しています。今夜は早めに寝る、休日にまとめて眠るなど、意識的に回復時間を確保しましょう。";
+    } else if (totalDebt > 0) {
+      box.classList.add("show", "safe");
+      box.textContent = "累積負債は " + fmtPlain(totalDebt) + " です。今のところ大きな負債ではありませんが、油断せず生活リズムを保ちましょう。";
+    } else {
+      box.classList.add("show", "safe");
+      box.textContent = "睡眠負債はありません。良いペースです。";
+    }
+  }
+
+  function buildResultText() {
+    var ideal = idealInput.value || "7";
+    var lines = [];
+    lines.push("【睡眠負債トラッカー】理想睡眠時間: " + ideal + "h");
+    lines.push("累積負債: " + document.getElementById("total-debt").textContent);
+    lines.push("7日間の差し引き合計: " + document.getElementById("net-diff").textContent);
+    lines.push("平均睡眠時間: " + document.getElementById("avg-sleep").textContent);
+    lines.push("負債解消の仮眠目安: " + document.getElementById("nap-count").textContent);
+    return lines.join("\n");
+  }
+
+  function showToast(msg) {
+    var toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(function () {
+      toast.classList.remove("show");
+    }, 1800);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast("コピーしました");
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showToast("コピーしました");
+    } catch (e) {
+      showToast("コピーに失敗しました");
+    }
+    document.body.removeChild(ta);
+  }
+
+  document.getElementById("copy-btn").addEventListener("click", function () {
+    copyText(buildResultText());
+  });
+
+  document.getElementById("reset-btn").addEventListener("click", function () {
+    var inputs = tbody.querySelectorAll("input");
+    inputs.forEach(function (input) { input.value = ""; });
+    idealInput.value = "7";
+    recalc();
+  });
+
+  idealInput.addEventListener("input", recalc);
+  tbody.addEventListener("input", function (e) {
+    if (e.target.classList.contains("bed-time") || e.target.classList.contains("wake-time")) {
+      recalc();
+    }
+  });
+
+  recalc();
+})();
+</script>
+
+</body>
+</html>
