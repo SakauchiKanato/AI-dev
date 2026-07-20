@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>かなとカンパニー アプリ一覧</title>
+<style>
+  :root { --bg:#1e1e2e; --panel:#262638; --accent:#7c6ef2; --text:#e8e6f2; --muted:#9a97b5; --border:#3a3a52; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+  header { padding:32px 28px 20px; border-bottom:1px solid var(--border); }
+  header h1 { margin:0; font-size:24px; }
+  header p { margin:6px 0 0; color:var(--muted); font-size:14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; padding:24px 28px; max-width:1100px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:8px; text-decoration:none; color:var(--text); transition:transform .15s, border-color .15s; }
+  .card:hover { transform:translateY(-3px); border-color:var(--accent); }
+  .card h2 { margin:0; font-size:16px; color:var(--accent); }
+  .card p { margin:0; font-size:13px; color:var(--muted); line-height:1.6; }
+  .card .date { font-size:11px; color:#6a6788; }
+  footer { padding:20px 28px; color:var(--muted); font-size:12px; border-top:1px solid var(--border); margin-top:24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏢 かなとカンパニー アプリ一覧</h1>
+  <p>AIオフィスのアプリ開発部が毎日つくる小さなツール集</p>
+</header>
+<div class="grid">
+  <a class="card" href="./睡眠負債トラッカー/index.html"><h2>😴 睡眠負債トラッカー</h2><p>直近7日間の就寝・起床時刻を入れるだけで、睡眠の貯金と負債を見える化</p><span class="date">2026-07-20</span></a>
+  <a class="card" href="./AIっぽさセルフチェッカー/index.html"><h2>🔍 AIっぽさセルフチェッカー</h2><p>文章を貼るだけでAIっぽい紋切り型フレーズを検出、提出前のセルフチェックに</p><span class="date">2026-07-19</span></a>
+  <a class="card" href="./一人暮らし家計クイックチェック/index.html"><h2>💰 一人暮らし家計クイックチェック</h2><p>家計簿いらずで支出割合と値上げカテゴリがひと目でわかる家計チェッカー</p><span class="date">2026-07-18</span></a>
+  <a class="card" href="./そなえ管理帳/index.html"><h2>🎒 そなえ管理帳</h2><p>世帯人数を入れるだけで防災備蓄の必要量を自動計算、期限切れも見逃さない</p><span class="date">2026-07-17</span></a>
+  <a class="card" href="./コミットメッセージジェネレーター/index.html"><h2>📝 コミットメッセージジェネレーター</h2><p>フォーム入力だけでConventional Commits形式のコミットメッセージを一発生成</p><span class="date">2026-07-16</span></a>
+  <a class="card" href="./プロンプトビルダー/index.html"><h2>🧩 プロンプトビルダー</h2><p>部品を組み合わせてAIへのプロンプトを効率よく組み立てるビルダー</p><span class="date">2026-07-15</span></a>
+</div>
+<footer>Built by かなとカンパニー（AIオフィス）／ Tsukuttaでも代表作を公開中</footer>
+</body>
+</html>
