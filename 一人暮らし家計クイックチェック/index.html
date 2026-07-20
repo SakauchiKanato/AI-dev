@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一人暮らし家計クイックチェック</title>
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --panel: #ffffff;
+    --ink: #2b2620;
+    --accent: #ba7517;
+    --accent2: #1d9e75;
+    --warn: #d85a30;
+    --border: #d8d0c2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 24px;
+  }
+  h1 {
+    font-size: 1.4rem;
+    margin-bottom: 4px;
+  }
+  .sub {
+    color: #6b6155;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  @media (max-width: 800px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .panel h2 {
+    font-size: 1.05rem;
+    margin-top: 0;
+    margin-bottom: 12px;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 6px;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    color: #56503f;
+  }
+  input[type=number], input[type=text] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr auto;
+    gap: 8px;
+    align-items: end;
+    margin-bottom: 8px;
+  }
+  .row input[type=number] { margin-bottom: 0; }
+  .row input[type=text] { margin-bottom: 0; }
+  .row .cat-name {
+    font-size: 0.9rem;
+    padding: 8px 4px;
+    display: flex;
+    align-items: center;
+  }
+  .head-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr auto;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: #8a8071;
+    margin-bottom: 6px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+  .btn-add {
+    background: var(--accent2);
+    color: white;
+    margin-top: 8px;
+  }
+  .btn-del {
+    background: #eee;
+    color: #a04030;
+    padding: 6px 8px;
+  }
+  .btn-calc {
+    background: var(--accent);
+    color: white;
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    margin-top: 10px;
+  }
+  .dashboard {
+    grid-column: 1 / -1;
+  }
+  .stat-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .stat-box {
+    flex: 1;
+    min-width: 150px;
+    background: #faf7f0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    text-align: center;
+  }
+  .stat-box .num {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--accent);
+  }
+  .stat-box.good .num { color: var(--accent2); }
+  .stat-box.bad .num { color: var(--warn); }
+  .stat-box .label {
+    font-size: 0.8rem;
+    color: #6b6155;
+  }
+  .bar-wrap {
+    margin-bottom: 10px;
+  }
+  .bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    margin-bottom: 3px;
+  }
+  .bar-bg {
+    background: #eee6d8;
+    border-radius: 5px;
+    height: 16px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    background: var(--accent2);
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.3s;
+  }
+  .bar-fill.warn { background: var(--warn); }
+  .warning-list {
+    margin-top: 14px;
+  }
+  .warning-item {
+    background: #fbe9e4;
+    border-left: 4px solid var(--warn);
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    font-size: 0.88rem;
+  }
+  .no-warning {
+    color: #6b6155;
+    font-size: 0.88rem;
+  }
+  .empty-state {
+    color: #8a8071;
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 20px;
+  }
+</style>
+</head>
+<body>
+
+<h1>一人暮らし家計クイックチェック</h1>
+<div class="sub">収入に対する支出の割合をサクッと把握。値上げなど支出増にも早めに気づけます。</div>
+
+<div class="grid">
+
+  <div class="panel">
+    <h2>収入・目標</h2>
+    <label for="income">今月の収入（円）</label>
+    <input type="number" id="income" min="0" placeholder="例: 120000">
+    <label for="goal">目標貯金額（円）</label>
+    <input type="number" id="goal" min="0" placeholder="例: 20000">
+  </div>
+
+  <div class="panel">
+    <h2>支出カテゴリ</h2>
+    <div class="head-row">
+      <div>カテゴリ</div>
+      <div>今回（円）</div>
+      <div>前回（円）</div>
+      <div></div>
+    </div>
+    <div id="catRows"></div>
+    <button class="btn-add" id="addCatBtn">＋ カテゴリを追加</button>
+  </div>
+
+  <div class="panel dashboard">
+    <h2>ダッシュボード</h2>
+    <button class="btn-calc" id="calcBtn">計算する</button>
+    <div id="dashboardResult"></div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var DEFAULT_CATEGORIES = ["家賃", "光熱費", "通信費", "食費", "日用品"];
+  var catRowsEl = document.getElementById("catRows");
+  var rowIdCounter = 0;
+
+  function createRow(name, current, prev) {
+    rowIdCounter++;
+    var id = "row" + rowIdCounter;
+    var row = document.createElement("div");
+    row.className = "row";
+    row.dataset.rowId = id;
+
+    var nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.placeholder = "カテゴリ名";
+    nameInput.className = "cat-name-input";
+    nameInput.value = name || "";
+
+    var curInput = document.createElement("input");
+    curInput.type = "number";
+    curInput.min = "0";
+    curInput.placeholder = "0";
+    curInput.className = "cat-current";
+    if (current !== undefined) curInput.value = current;
+
+    var prevInput = document.createElement("input");
+    prevInput.type = "number";
+    prevInput.min = "0";
+    prevInput.placeholder = "0";
+    prevInput.className = "cat-prev";
+    if (prev !== undefined) prevInput.value = prev;
+
+    var delBtn = document.createElement("button");
+    delBtn.className = "btn-del";
+    delBtn.textContent = "×";
+    delBtn.type = "button";
+    delBtn.addEventListener("click", function () {
+      row.remove();
+    });
+
+    row.appendChild(nameInput);
+    row.appendChild(curInput);
+    row.appendChild(prevInput);
+    row.appendChild(delBtn);
+    return row;
+  }
+
+  function addDefaultRows() {
+    DEFAULT_CATEGORIES.forEach(function (name) {
+      catRowsEl.appendChild(createRow(name));
+    });
+  }
+
+  document.getElementById("addCatBtn").addEventListener("click", function () {
+    catRowsEl.appendChild(createRow(""));
+  });
+
+  function collectCategories() {
+    var rows = catRowsEl.querySelectorAll(".row");
+    var cats = [];
+    rows.forEach(function (row) {
+      var name = row.querySelector(".cat-name-input").value.trim();
+      var curRaw = row.querySelector(".cat-current").value;
+      var prevRaw = row.querySelector(".cat-prev").value;
+      var current = curRaw === "" ? 0 : parseFloat(curRaw);
+      var prev = prevRaw === "" ? null : parseFloat(prevRaw);
+      if (isNaN(current) || current < 0) current = 0;
+      if (prev !== null && (isNaN(prev) || prev < 0)) prev = null;
+      if (name === "" && current === 0 && (prev === null || prev === 0)) {
+        return; // 完全に空の行はスキップ
+      }
+      cats.push({
+        name: name === "" ? "(名称未設定)" : name,
+        current: current,
+        prev: prev
+      });
+    });
+    return cats;
+  }
+
+  function formatYen(n) {
+    return "¥" + Math.round(n).toLocaleString("ja-JP");
+  }
+
+  function calculate() {
+    var incomeRaw = document.getElementById("income").value;
+    var goalRaw = document.getElementById("goal").value;
+    var income = incomeRaw === "" ? 0 : parseFloat(incomeRaw);
+    var goal = goalRaw === "" ? 0 : parseFloat(goalRaw);
+    if (isNaN(income) || income < 0) income = 0;
+    if (isNaN(goal) || goal < 0) goal = 0;
+
+    var cats = collectCategories();
+    var resultEl = document.getElementById("dashboardResult");
+
+    if (cats.length === 0) {
+      resultEl.innerHTML = '<div class="empty-state">支出カテゴリを1つ以上入力してください。</div>';
+      return;
+    }
+
+    var total = cats.reduce(function (sum, c) { return sum + c.current; }, 0);
+    var ratio = income > 0 ? (total / income) * 100 : null;
+    var remaining = income - total;
+    var goalAchieved = income > 0 && remaining >= goal;
+    var maxCat = cats.reduce(function (m, c) { return c.current > m ? c.current : m; }, 0);
+
+    // 警告対象（前回入力があり、10%以上の増加）
+    var warnings = [];
+    cats.forEach(function (c) {
+      if (c.prev !== null && c.prev > 0) {
+        var diffPct = ((c.current - c.prev) / c.prev) * 100;
+        if (diffPct >= 10) {
+          warnings.push({
+            name: c.name,
+            diffPct: diffPct,
+            current: c.current,
+            prev: c.prev
+          });
+        }
+      }
+    });
+
+    var html = "";
+
+    // 統計ボックス
+    html += '<div class="stat-row">';
+    html += '<div class="stat-box"><div class="num">' + formatYen(total) + '</div><div class="label">支出合計</div></div>';
+    html += '<div class="stat-box ' + (ratio !== null && ratio <= 70 ? "good" : (ratio !== null && ratio > 90 ? "bad" : "")) + '"><div class="num">' + (ratio !== null ? ratio.toFixed(1) + "%" : "—") + '</div><div class="label">収入に対する支出割合</div></div>';
+    html += '<div class="stat-box ' + (goalAchieved ? "good" : "bad") + '"><div class="num">' + (income > 0 ? (goalAchieved ? "達成見込み" : "未達見込み") : "収入未入力") + '</div><div class="label">目標貯金 ' + formatYen(goal) + ' に対して</div></div>';
+    html += '<div class="stat-box"><div class="num">' + formatYen(remaining) + '</div><div class="label">収入 − 支出（手元に残る額）</div></div>';
+    html += '</div>';
+
+    // 横棒グラフ
+    html += '<div class="bars">';
+    cats.forEach(function (c) {
+      var pct = maxCat > 0 ? (c.current / maxCat) * 100 : 0;
+      var isWarn = warnings.some(function (w) { return w.name === c.name; });
+      html += '<div class="bar-wrap">';
+      html += '<div class="bar-label"><span>' + escapeHtml(c.name) + '</span><span>' + formatYen(c.current) + '</span></div>';
+      html += '<div class="bar-bg"><div class="bar-fill' + (isWarn ? " warn" : "") + '" style="width:' + pct + '%"></div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+
+    // 警告リスト
+    html += '<div class="warning-list">';
+    html += '<h2 style="font-size:0.95rem;border:none;margin-bottom:8px;">前回比の警告（+10%以上の増加）</h2>';
+    if (warnings.length === 0) {
+      html += '<div class="no-warning">大きな支出増は見つかりませんでした。</div>';
+    } else {
+      warnings.forEach(function (w) {
+        html += '<div class="warning-item">⚠️ ' + escapeHtml(w.name) + ': ' + formatYen(w.prev) + ' → ' + formatYen(w.current) + '（+' + w.diffPct.toFixed(1) + '%）</div>';
+      });
+    }
+    html += '</div>';
+
+    resultEl.innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  document.getElementById("calcBtn").addEventListener("click", calculate);
+
+  // 初期化
+  addDefaultRows();
+})();
+</script>
+
+</body>
+</html>
