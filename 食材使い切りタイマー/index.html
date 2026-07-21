@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>食材使い切りタイマー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #43d692;
+    --accent-dark: #2fae74;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --danger: #f6685e;
+    --danger-bg: rgba(246,104,94,0.12);
+    --warn: #f2c960;
+    --warn-bg: rgba(242,201,96,0.12);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 20px;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px;
+    color: var(--text);
+  }
+  #form-panel { flex: 1 1 260px; min-width: 240px; }
+  #list-panel { flex: 2 1 380px; min-width: 280px; }
+  #bottom-row { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 20px; }
+  #recipe-panel, #dashboard-panel { flex: 1 1 280px; min-width: 240px; }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input, select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #1a1a28;
+    color: var(--text);
+    font-size: 14px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: bold;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #10241c;
+    margin-top: 14px;
+    width: 100%;
+  }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-small {
+    padding: 5px 9px;
+    font-size: 12px;
+    margin-left: 6px;
+    background: #33334a;
+    color: var(--text);
+  }
+  .btn-small:hover { background: #40405c; }
+  .btn-small.used { background: var(--accent); color: #10241c; }
+  .btn-small.wasted { background: var(--danger); color: #2a0e0c; }
+
+  #filter-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  #filter-row select { width: auto; flex: 1 1 160px; }
+
+  .item {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .item.danger { background: var(--danger-bg); border-color: var(--danger); }
+  .item.warn { background: var(--warn-bg); border-color: var(--warn); }
+  .item-info { font-size: 13px; }
+  .item-name { font-weight: bold; }
+  .item-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: #33334a;
+    color: var(--muted);
+    margin-right: 6px;
+  }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 16px 0; }
+
+  .recipe-block { margin-bottom: 10px; font-size: 13px; }
+  .recipe-block .cat { color: var(--accent); font-weight: bold; margin-bottom: 4px; }
+  .recipe-block ul { margin: 4px 0 0 18px; padding: 0; color: var(--text); }
+  .recipe-block li { margin-bottom: 2px; }
+
+  .dash-row { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+  .dash-row:last-of-type { border-bottom: none; }
+  .dash-big { font-size: 26px; font-weight: bold; color: var(--accent); text-align: center; margin: 10px 0; }
+
+  #copy-toast {
+    display: none;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  @media (max-width: 480px) {
+    .layout, #bottom-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>食材使い切りタイマー</h1>
+  <p>買った食材の期限を管理して、フードロスを減らす一人暮らし向けツール</p>
+</header>
+
+<div class="layout">
+  <div class="panel" id="form-panel">
+    <h2>食材を登録</h2>
+    <label for="input-name">食材名</label>
+    <input type="text" id="input-name" placeholder="例: 豚こま肉">
+
+    <label for="input-category">カテゴリ</label>
+    <select id="input-category">
+      <option value="野菜">野菜</option>
+      <option value="肉">肉</option>
+      <option value="魚介">魚介</option>
+      <option value="乳製品">乳製品</option>
+      <option value="主食">主食（米・パン・麺）</option>
+      <option value="その他">その他</option>
+    </select>
+
+    <label for="input-bought">購入日</label>
+    <input type="date" id="input-bought">
+
+    <label for="input-expiry">期限日</label>
+    <input type="date" id="input-expiry">
+
+    <button class="btn-primary" id="btn-add">追加する</button>
+  </div>
+
+  <div class="panel" id="list-panel">
+    <h2>登録中の食材（期限順）</h2>
+    <div id="filter-row">
+      <select id="filter-category">
+        <option value="all">すべてのカテゴリ</option>
+        <option value="野菜">野菜</option>
+        <option value="肉">肉</option>
+        <option value="魚介">魚介</option>
+        <option value="乳製品">乳製品</option>
+        <option value="主食">主食（米・パン・麺）</option>
+        <option value="その他">その他</option>
+      </select>
+      <button class="btn-small" id="btn-copy">一覧をコピー</button>
+    </div>
+    <div id="item-list"></div>
+    <div id="copy-toast">コピーしました</div>
+  </div>
+
+  <div id="bottom-row">
+    <div class="panel" id="recipe-panel">
+      <h2>期限が近い食材の使い切り提案</h2>
+      <div id="recipe-list"></div>
+    </div>
+
+    <div class="panel" id="dashboard-panel">
+      <h2>フードロス削減ダッシュボード</h2>
+      <div class="dash-big" id="dash-rate">--%</div>
+      <div class="dash-row"><span>使った食材</span><span id="dash-used">0</span></div>
+      <div class="dash-row"><span>捨てた食材</span><span id="dash-wasted">0</span></div>
+      <div class="dash-row"><span>登録中（未処理）</span><span id="dash-active">0</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---- 状態（localStorage不使用。JS変数のみで保持） ----
+  var items = []; // { id, name, category, bought, expiry, status: 'active'|'used'|'wasted' }
+  var nextId = 1;
+  var usedCount = 0;
+  var wastedCount = 0;
+
+  var recipeMap = {
+    "野菜": ["味噌汁の具にする", "ざく切りにして炒め物にする", "浅漬け・塩もみにして日持ちさせる"],
+    "肉": ["小分けにして下味冷凍する", "野菜と一緒に炒め物にする", "スープ・鍋の具にする"],
+    "魚介": ["塩焼き・ホイル焼きにする", "刺身用なら漬けにして丼にする", "アラも含めて出汁・味噌汁にする"],
+    "乳製品": ["スープやグラタンに使い切る", "お菓子・パン作りに使う", "ヨーグルトはスムージーに混ぜる"],
+    "主食": ["冷凍保存して後日使う", "チャーハン・雑炊にして具材と一緒に消費する", "パンはラスク・フレンチトーストにする"],
+    "その他": ["冷凍できるか確認して保存する", "他の食材と組み合わせて一品にする", "早めに使う予定をメモしておく"]
+  };
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str == null ? "" : String(str);
+    return div.innerHTML;
+  }
+
+  function todayStr() {
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
+  function daysLeft(expiry) {
+    if (!expiry) return null;
+    var today = new Date(todayStr() + "T00:00:00");
+    var exp = new Date(expiry + "T00:00:00");
+    if (isNaN(exp.getTime())) return null;
+    var diffMs = exp.getTime() - today.getTime();
+    return Math.round(diffMs / 86400000);
+  }
+
+  document.getElementById("input-bought").value = todayStr();
+
+  document.getElementById("btn-add").addEventListener("click", function () {
+    var nameEl = document.getElementById("input-name");
+    var categoryEl = document.getElementById("input-category");
+    var boughtEl = document.getElementById("input-bought");
+    var expiryEl = document.getElementById("input-expiry");
+
+    var name = nameEl.value.trim();
+    if (!name) {
+      nameEl.focus();
+      nameEl.style.borderColor = "var(--danger)";
+      setTimeout(function () { nameEl.style.borderColor = "var(--border)"; }, 1200);
+      return;
+    }
+    if (!expiryEl.value) {
+      expiryEl.focus();
+      expiryEl.style.borderColor = "var(--danger)";
+      setTimeout(function () { expiryEl.style.borderColor = "var(--border)"; }, 1200);
+      return;
+    }
+
+    items.push({
+      id: nextId++,
+      name: name,
+      category: categoryEl.value,
+      bought: boughtEl.value || todayStr(),
+      expiry: expiryEl.value,
+      status: "active"
+    });
+
+    nameEl.value = "";
+    expiryEl.value = "";
+    boughtEl.value = todayStr();
+    nameEl.focus();
+
+    render();
+  });
+
+  document.getElementById("filter-category").addEventListener("change", render);
+
+  document.getElementById("item-list").addEventListener("click", function (e) {
+    var target = e.target;
+    if (!target.dataset || !target.dataset.action) return;
+    var id = Number(target.dataset.id);
+    var item = items.find(function (it) { return it.id === id; });
+    if (!item) return;
+
+    if (target.dataset.action === "used") {
+      item.status = "used";
+      usedCount++;
+    } else if (target.dataset.action === "wasted") {
+      item.status = "wasted";
+      wastedCount++;
+    }
+    render();
+  });
+
+  document.getElementById("btn-copy").addEventListener("click", function () {
+    var active = items.filter(function (it) { return it.status === "active"; });
+    var lines = active
+      .slice()
+      .sort(sortByExpiry)
+      .map(function (it) {
+        var dl = daysLeft(it.expiry);
+        var dlText = dl === null ? "期限未設定" : (dl < 0 ? "期限切れ(" + Math.abs(dl) + "日経過)" : dl === 0 ? "本日まで" : "あと" + dl + "日");
+        return "・" + it.name + "（" + it.category + "）期限:" + (it.expiry || "未設定") + " [" + dlText + "]";
+      });
+    var text = lines.length ? lines.join("\n") : "登録中の食材はありません";
+    copyToClipboard(text);
+  });
+
+  function copyToClipboard(text) {
+    var toast = document.getElementById("copy-toast");
+    function showToast() {
+      toast.style.display = "block";
+      setTimeout(function () { toast.style.display = "none"; }, 1600);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showToast).catch(function () {
+        fallbackCopy(text, showToast);
+      });
+    } else {
+      fallbackCopy(text, showToast);
+    }
+  }
+
+  function fallbackCopy(text, cb) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    if (cb) cb();
+  }
+
+  function sortByExpiry(a, b) {
+    var da = a.expiry ? new Date(a.expiry).getTime() : Infinity;
+    var db = b.expiry ? new Date(b.expiry).getTime() : Infinity;
+    return da - db;
+  }
+
+  function render() {
+    renderList();
+    renderRecipes();
+    renderDashboard();
+  }
+
+  function renderList() {
+    var listEl = document.getElementById("item-list");
+    var filter = document.getElementById("filter-category").value;
+    var active = items.filter(function (it) { return it.status === "active"; });
+    if (filter !== "all") {
+      active = active.filter(function (it) { return it.category === filter; });
+    }
+    active.sort(sortByExpiry);
+
+    if (active.length === 0) {
+      listEl.innerHTML = '<div class="empty">登録中の食材はありません</div>';
+      return;
+    }
+
+    listEl.innerHTML = active.map(function (it) {
+      var dl = daysLeft(it.expiry);
+      var cls = "";
+      var badgeText = "";
+      if (dl === null) {
+        badgeText = "期限未設定";
+      } else if (dl <= 1) {
+        cls = "danger";
+        badgeText = dl < 0 ? "期限切れ" : (dl === 0 ? "本日まで" : "あと1日");
+      } else if (dl <= 3) {
+        cls = "warn";
+        badgeText = "あと" + dl + "日";
+      } else {
+        badgeText = "あと" + dl + "日";
+      }
+      return (
+        '<div class="item ' + cls + '">' +
+          '<div class="item-info">' +
+            '<span class="badge">' + escapeHtml(it.category) + '</span>' +
+            '<span class="item-name">' + escapeHtml(it.name) + '</span>' +
+            '<div class="item-sub">購入: ' + escapeHtml(it.bought || "-") + ' ／ 期限: ' + escapeHtml(it.expiry || "-") + ' ／ ' + badgeText + '</div>' +
+          '</div>' +
+          '<div>' +
+            '<button class="btn-small used" data-action="used" data-id="' + it.id + '">使った</button>' +
+            '<button class="btn-small wasted" data-action="wasted" data-id="' + it.id + '">捨てた</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join("");
+  }
+
+  function renderRecipes() {
+    var recipeEl = document.getElementById("recipe-list");
+    var soon = items.filter(function (it) {
+      if (it.status !== "active") return false;
+      var dl = daysLeft(it.expiry);
+      return dl !== null && dl <= 3;
+    });
+
+    if (soon.length === 0) {
+      recipeEl.innerHTML = '<div class="empty">期限が近い食材はありません</div>';
+      return;
+    }
+
+    var categories = [];
+    soon.forEach(function (it) {
+      if (categories.indexOf(it.category) === -1) categories.push(it.category);
+    });
+
+    recipeEl.innerHTML = categories.map(function (cat) {
+      var names = soon.filter(function (it) { return it.category === cat; }).map(function (it) { return it.name; }).join("、");
+      var ideas = recipeMap[cat] || recipeMap["その他"];
+      return (
+        '<div class="recipe-block">' +
+          '<div class="cat">' + escapeHtml(cat) + '（' + escapeHtml(names) + '）</div>' +
+          '<ul>' + ideas.map(function (idea) { return '<li>' + escapeHtml(idea) + '</li>'; }).join("") + '</ul>' +
+        '</div>'
+      );
+    }).join("");
+  }
+
+  function renderDashboard() {
+    var activeCount = items.filter(function (it) { return it.status === "active"; }).length;
+    document.getElementById("dash-used").textContent = usedCount;
+    document.getElementById("dash-wasted").textContent = wastedCount;
+    document.getElementById("dash-active").textContent = activeCount;
+
+    var total = usedCount + wastedCount;
+    var rate = total === 0 ? null : Math.round((usedCount / total) * 100);
+    document.getElementById("dash-rate").textContent = rate === null ? "--%" : rate + "%";
+  }
+
+  render();
+</script>
+
+</body>
+</html>
