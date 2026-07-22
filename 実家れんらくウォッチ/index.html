@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>実家れんらくウォッチ</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #e0834f;
+    --accent-dark: #b8623a;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --danger: #e5626b;
+    --warn: #e0b84f;
+    --ok: #5fbf88;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 20px;
+  }
+  header h1 { font-size: 20px; margin: 0 0 4px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 20px 0; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 320px;
+    min-width: 280px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px 0;
+    color: var(--text);
+  }
+  .panel.full { flex: 1 1 100%; }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin: 10px 0 4px;
+  }
+  input[type="text"], input[type="number"], input[type="date"], select, textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 44px; }
+  .row2 {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .row2 > div { flex: 1 1 120px; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    padding: 8px 14px;
+    font-family: inherit;
+  }
+  .btn-accent {
+    background: var(--accent);
+    color: #1e1e2e;
+    font-weight: bold;
+  }
+  .btn-accent:hover { background: var(--accent-dark); }
+  .btn-sub {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-sub:hover { border-color: var(--accent); }
+  .btn-danger {
+    background: var(--bg);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+  }
+  #addBtn { margin-top: 14px; width: 100%; }
+  .empty-msg { color: var(--muted); font-size: 13px; }
+  .card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .card.overdue { border-left-color: var(--danger); }
+  .card.soon { border-left-color: var(--warn); }
+  .card.ok { border-left-color: var(--ok); }
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .card-name { font-size: 14px; font-weight: bold; }
+  .card-relation { font-size: 12px; color: var(--muted); }
+  .card-status {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  .card-status.overdue { background: rgba(229,98,107,0.2); color: var(--danger); }
+  .card-status.soon { background: rgba(224,184,79,0.2); color: var(--warn); }
+  .card-status.ok { background: rgba(95,191,136,0.2); color: var(--ok); }
+  .card-meta { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .card-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .dashboard {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .coverage-num {
+    font-size: 32px;
+    font-weight: bold;
+    color: var(--accent);
+  }
+  .coverage-label { font-size: 12px; color: var(--muted); }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ok);
+    color: #1e1e2e;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .toast.show { opacity: 1; }
+  #customFreqWrap { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>実家れんらくウォッチ</h1>
+  <p>実家の家族・親戚への連絡が滞っていないか、ひと目で確認できる安否確認リマインダー</p>
+</header>
+
+<div class="layout">
+  <div class="panel">
+    <h2>連絡相手を登録</h2>
+    <label for="nameInput">名前</label>
+    <input type="text" id="nameInput" placeholder="例: 母">
+
+    <label for="relationInput">続柄・関係</label>
+    <input type="text" id="relationInput" placeholder="例: 家族 / 祖母 / 叔父 など">
+
+    <label for="freqSelect">希望連絡頻度</label>
+    <select id="freqSelect">
+      <option value="1">毎日（1日）</option>
+      <option value="7" selected>週1（7日）</option>
+      <option value="30">月1（30日）</option>
+      <option value="custom">カスタム</option>
+    </select>
+    <div id="customFreqWrap">
+      <label for="customFreqInput">カスタム日数</label>
+      <input type="number" id="customFreqInput" min="1" placeholder="例: 14">
+    </div>
+
+    <label for="lastContactInput">最終連絡日</label>
+    <input type="date" id="lastContactInput">
+
+    <label for="memoInput">メモ（前回話した内容・次に聞きたいこと）</label>
+    <textarea id="memoInput" placeholder="任意"></textarea>
+
+    <button id="addBtn" class="btn-accent">登録する</button>
+  </div>
+
+  <div class="panel">
+    <h2>ダッシュボード</h2>
+    <div class="dashboard">
+      <div>
+        <div class="coverage-num" id="coverageNum">-</div>
+        <div class="coverage-label">希望頻度内で連絡できている割合</div>
+      </div>
+      <div style="font-size:12px; color: var(--muted); flex:1 1 160px;">
+        登録人数: <span id="totalCount">0</span>人／
+        連絡が必要: <span id="overdueCount">0</span>人
+      </div>
+    </div>
+    <button id="copyBtn" class="btn-sub" style="margin-top:16px; width:100%;">一覧をコピー</button>
+  </div>
+
+  <div class="panel full">
+    <h2>連絡優先順リスト</h2>
+    <div id="listArea">
+      <p class="empty-msg">まだ誰も登録されていません。左のフォームから連絡相手を登録してください。</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  var contacts = [];
+  var nextId = 1;
+
+  var freqSelect = document.getElementById('freqSelect');
+  var customFreqWrap = document.getElementById('customFreqWrap');
+  var customFreqInput = document.getElementById('customFreqInput');
+  var lastContactInput = document.getElementById('lastContactInput');
+
+  function todayStr() {
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  lastContactInput.value = todayStr();
+  lastContactInput.max = todayStr();
+
+  freqSelect.addEventListener('change', function () {
+    customFreqWrap.style.display = (freqSelect.value === 'custom') ? 'block' : 'none';
+  });
+
+  function daysSince(dateStr) {
+    // 未入力や不正な日付は「今日連絡した」扱い（経過0日）にする
+    if (!dateStr) return 0;
+    var last = new Date(dateStr + 'T00:00:00');
+    if (isNaN(last.getTime())) return 0;
+    var today = new Date(todayStr() + 'T00:00:00');
+    var diffMs = today.getTime() - last.getTime();
+    var diffDays = Math.round(diffMs / 86400000);
+    // 未来日付が入力された場合は0日扱いにする（マイナスにしない）
+    return diffDays < 0 ? 0 : diffDays;
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function addContact() {
+    var name = document.getElementById('nameInput').value.trim();
+    var relation = document.getElementById('relationInput').value.trim();
+    var memo = document.getElementById('memoInput').value.trim();
+    var lastContact = lastContactInput.value || todayStr();
+
+    if (!name) {
+      showToast('名前を入力してください', true);
+      return;
+    }
+
+    var freq;
+    if (freqSelect.value === 'custom') {
+      freq = parseInt(customFreqInput.value, 10);
+      if (!freq || freq <= 0) {
+        showToast('カスタム日数は1以上の数字を入力してください', true);
+        return;
+      }
+    } else {
+      freq = parseInt(freqSelect.value, 10);
+    }
+
+    contacts.push({
+      id: nextId++,
+      name: name,
+      relation: relation,
+      freqDays: freq,
+      lastContact: lastContact,
+      memo: memo
+    });
+
+    document.getElementById('nameInput').value = '';
+    document.getElementById('relationInput').value = '';
+    document.getElementById('memoInput').value = '';
+    customFreqInput.value = '';
+    lastContactInput.value = todayStr();
+
+    render();
+    showToast('登録しました');
+  }
+
+  function markContacted(id) {
+    var c = contacts.find(function (x) { return x.id === id; });
+    if (!c) return;
+    c.lastContact = todayStr();
+    render();
+    showToast('連絡日を更新しました');
+  }
+
+  function deleteContact(id) {
+    contacts = contacts.filter(function (x) { return x.id !== id; });
+    render();
+  }
+
+  function updateMemo(id, value) {
+    var c = contacts.find(function (x) { return x.id === id; });
+    if (!c) return;
+    c.memo = value;
+  }
+
+  function statusOf(c) {
+    var elapsed = daysSince(c.lastContact);
+    var remaining = c.freqDays - elapsed;
+    if (remaining < 0) return { level: 'overdue', remaining: remaining, label: (Math.abs(remaining)) + '日超過' };
+    if (remaining <= 1) return { level: 'soon', remaining: remaining, label: '残り' + remaining + '日' };
+    return { level: 'ok', remaining: remaining, label: '残り' + remaining + '日' };
+  }
+
+  function render() {
+    var listArea = document.getElementById('listArea');
+    listArea.innerHTML = '';
+
+    if (contacts.length === 0) {
+      listArea.innerHTML = '<p class="empty-msg">まだ誰も登録されていません。左のフォームから連絡相手を登録してください。</p>';
+      document.getElementById('coverageNum').textContent = '-';
+      document.getElementById('totalCount').textContent = '0';
+      document.getElementById('overdueCount').textContent = '0';
+      return;
+    }
+
+    var withStatus = contacts.map(function (c) {
+      return { c: c, s: statusOf(c) };
+    });
+    withStatus.sort(function (a, b) { return a.s.remaining - b.s.remaining; });
+
+    withStatus.forEach(function (item) {
+      var c = item.c;
+      var s = item.s;
+
+      var card = document.createElement('div');
+      card.className = 'card ' + s.level;
+
+      var top = document.createElement('div');
+      top.className = 'card-top';
+
+      var left = document.createElement('div');
+      var nameEl = document.createElement('div');
+      nameEl.className = 'card-name';
+      nameEl.textContent = c.name;
+      left.appendChild(nameEl);
+      if (c.relation) {
+        var relEl = document.createElement('div');
+        relEl.className = 'card-relation';
+        relEl.textContent = c.relation;
+        left.appendChild(relEl);
+      }
+      top.appendChild(left);
+
+      var statusEl = document.createElement('div');
+      statusEl.className = 'card-status ' + s.level;
+      statusEl.textContent = s.label;
+      top.appendChild(statusEl);
+
+      card.appendChild(top);
+
+      var meta = document.createElement('div');
+      meta.className = 'card-meta';
+      meta.textContent = '最終連絡日: ' + c.lastContact + '（希望頻度: ' + c.freqDays + '日ごと）';
+      card.appendChild(meta);
+
+      var memoLabel = document.createElement('label');
+      memoLabel.textContent = 'メモ';
+      memoLabel.style.marginTop = '8px';
+      card.appendChild(memoLabel);
+
+      var memoBox = document.createElement('textarea');
+      memoBox.value = c.memo || '';
+      memoBox.placeholder = '前回話した内容・次に聞きたいこと';
+      memoBox.addEventListener('input', function () {
+        updateMemo(c.id, memoBox.value);
+      });
+      card.appendChild(memoBox);
+
+      var actions = document.createElement('div');
+      actions.className = 'card-actions';
+
+      var contactedBtn = document.createElement('button');
+      contactedBtn.className = 'btn-accent';
+      contactedBtn.textContent = '連絡した';
+      contactedBtn.addEventListener('click', function () { markContacted(c.id); });
+      actions.appendChild(contactedBtn);
+
+      var deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn-danger';
+      deleteBtn.textContent = '削除';
+      deleteBtn.addEventListener('click', function () {
+        if (confirm(c.name + 'さんを削除しますか？')) deleteContact(c.id);
+      });
+      actions.appendChild(deleteBtn);
+
+      card.appendChild(actions);
+      listArea.appendChild(card);
+    });
+
+    var okCount = withStatus.filter(function (item) { return item.s.remaining >= 0; }).length;
+    var overdueCount = withStatus.length - okCount;
+    var coverage = Math.round((okCount / withStatus.length) * 100);
+
+    document.getElementById('coverageNum').textContent = coverage + '%';
+    document.getElementById('totalCount').textContent = withStatus.length;
+    document.getElementById('overdueCount').textContent = overdueCount;
+  }
+
+  function showToast(msg, isWarn) {
+    var toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.style.background = isWarn ? '#e5626b' : '#5fbf88';
+    toast.classList.add('show');
+    setTimeout(function () { toast.classList.remove('show'); }, 1800);
+  }
+
+  function copyList() {
+    if (contacts.length === 0) {
+      showToast('登録がありません', true);
+      return;
+    }
+    var withStatus = contacts.map(function (c) { return { c: c, s: statusOf(c) }; });
+    withStatus.sort(function (a, b) { return a.s.remaining - b.s.remaining; });
+
+    var lines = ['【実家れんらくウォッチ】' + todayStr() + '時点'];
+    withStatus.forEach(function (item) {
+      lines.push('・' + item.c.name + '（' + (item.c.relation || '関係未設定') + '）: ' + item.s.label + '　最終連絡 ' + item.c.lastContact);
+    });
+    var text = lines.join('\n');
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast('コピーしました');
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('コピーしました');
+    } catch (e) {
+      showToast('コピーに失敗しました', true);
+    }
+    document.body.removeChild(ta);
+  }
+
+  document.getElementById('addBtn').addEventListener('click', addContact);
+  document.getElementById('copyBtn').addEventListener('click', copyList);
+
+  render();
+</script>
+</body>
+</html>
