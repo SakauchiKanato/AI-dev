@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>サブスク整理カルテ</title>
+<style>
+  :root {
+    --bg:#1e1e2e;
+    --panel:#262638;
+    --accent:#3ea6a0;
+    --accent2:#e07a5f;
+    --text:#e8e6f2;
+    --muted:#9a97b5;
+    --border:#3a3a52;
+    --warn:#e07a5f;
+    --ok:#3ea6a0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px;
+    color: var(--text);
+  }
+  #form-panel { flex: 1 1 320px; }
+  #list-panel { flex: 2 1 480px; }
+  #dashboard-panel { flex: 1 1 320px; }
+  #review-panel { flex: 1 1 320px; }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input, select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #1a1a28;
+    color: var(--text);
+    font-size: 14px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    background: var(--accent);
+    color: #10221f;
+    font-weight: bold;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  button.danger {
+    background: var(--warn);
+    color: #2a140f;
+  }
+  #add-btn { width: 100%; margin-top: 14px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: normal; font-size: 12px; }
+  .cat-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    background: #33334a;
+    color: var(--muted);
+  }
+  .freq-low { color: var(--warn); font-weight: bold; }
+  .empty-msg { color: var(--muted); font-size: 13px; padding: 10px 0; }
+
+  .bar-row { margin-bottom: 10px; }
+  .bar-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; color: var(--muted); }
+  .bar-bg { background: #1a1a28; border-radius: 4px; overflow: hidden; height: 14px; border: 1px solid var(--border); }
+  .bar-fill { height: 100%; background: var(--accent); }
+
+  .stat-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-value { font-weight: bold; }
+
+  .review-item {
+    background: #1a1a28;
+    border: 1px solid var(--warn);
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .review-item .name { font-weight: bold; }
+  .review-item .reason { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: #10221f;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tabs button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .tabs button.active {
+    background: var(--accent);
+    color: #10221f;
+    border-color: var(--accent);
+  }
+
+  @media (max-width: 600px) {
+    .layout { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>サブスク整理カルテ</h1>
+  <p>動画・音楽・AI・ゲームなどのサブスクを一覧で管理し、見直し候補を見つけて固定費をスリムにする</p>
+</header>
+
+<div class="layout">
+
+  <div id="form-panel" class="panel">
+    <h2>サブスクを登録</h2>
+    <label for="input-name">サービス名</label>
+    <input type="text" id="input-name" placeholder="例: Netflix">
+
+    <label for="input-price">月額（円）</label>
+    <input type="number" id="input-price" placeholder="例: 1490" min="0">
+
+    <label for="input-category">カテゴリ</label>
+    <select id="input-category">
+      <option value="動画">動画</option>
+      <option value="音楽">音楽</option>
+      <option value="AI">AI</option>
+      <option value="ゲーム">ゲーム</option>
+      <option value="その他">その他</option>
+    </select>
+
+    <label for="input-date">契約日</label>
+    <input type="date" id="input-date">
+
+    <label for="input-freq">使用頻度</label>
+    <select id="input-freq">
+      <option value="よく使う">よく使う</option>
+      <option value="たまに">たまに</option>
+      <option value="ほぼ使ってない">ほぼ使ってない</option>
+    </select>
+
+    <button id="add-btn">追加する</button>
+  </div>
+
+  <div id="list-panel" class="panel">
+    <h2>サブスク一覧</h2>
+    <div class="tabs">
+      <button id="tab-active" class="active">契約中</button>
+      <button id="tab-cancelled">解約済み</button>
+    </div>
+    <div id="list-active">
+      <table>
+        <thead>
+          <tr><th>サービス名</th><th>月額</th><th>カテゴリ</th><th>使用頻度</th><th>契約日</th><th></th></tr>
+        </thead>
+        <tbody id="active-tbody"></tbody>
+      </table>
+      <div id="active-empty" class="empty-msg">まだ登録がありません。左のフォームから追加してください。</div>
+    </div>
+    <div id="list-cancelled" style="display:none;">
+      <table>
+        <thead>
+          <tr><th>サービス名</th><th>月額</th><th>カテゴリ</th><th>解約日</th></tr>
+        </thead>
+        <tbody id="cancelled-tbody"></tbody>
+      </table>
+      <div id="cancelled-empty" class="empty-msg">解約済みのサブスクはありません。</div>
+    </div>
+    <button id="copy-btn" class="secondary" style="margin-top:12px;">一覧をコピー</button>
+  </div>
+
+  <div id="review-panel" class="panel">
+    <h2>見直し候補</h2>
+    <div id="review-list"></div>
+    <div id="review-empty" class="empty-msg">見直し候補はありません。</div>
+  </div>
+
+  <div id="dashboard-panel" class="panel">
+    <h2>ダッシュボード</h2>
+    <div class="stat-row"><span>月額合計</span><span class="stat-value" id="total-monthly">¥0</span></div>
+    <div class="stat-row"><span>年間換算</span><span class="stat-value" id="total-yearly">¥0</span></div>
+    <div class="stat-row"><span>解約で削減できた月額</span><span class="stat-value" id="saved-monthly">¥0</span></div>
+    <div class="stat-row"><span>解約で削減できた年額</span><span class="stat-value" id="saved-yearly">¥0</span></div>
+    <h2 style="margin-top:16px;">カテゴリ別内訳</h2>
+    <div id="category-bars"></div>
+  </div>
+
+</div>
+
+<div id="toast">コピーしました</div>
+
+<script>
+  const CATEGORIES = ["動画", "音楽", "AI", "ゲーム", "その他"];
+  let subs = [];
+  let cancelled = [];
+  let idCounter = 1;
+
+  const el = (id) => document.getElementById(id);
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatYen(n) {
+    if (!isFinite(n)) return "¥0";
+    return "¥" + Math.round(n).toLocaleString('ja-JP');
+  }
+
+  function showToast(msg) {
+    const t = el('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1500);
+  }
+
+  function addSub() {
+    const name = el('input-name').value.trim();
+    const priceRaw = el('input-price').value;
+    const price = parseFloat(priceRaw);
+    const category = el('input-category').value;
+    const date = el('input-date').value;
+    const freq = el('input-freq').value;
+
+    if (!name) {
+      showToast('サービス名を入力してください');
+      return;
+    }
+    if (priceRaw === '' || isNaN(price) || price < 0) {
+      showToast('正しい月額を入力してください');
+      return;
+    }
+
+    subs.push({
+      id: idCounter++,
+      name: name.slice(0, 100),
+      price: price,
+      category: category,
+      date: date || '未入力',
+      freq: freq
+    });
+
+    el('input-name').value = '';
+    el('input-price').value = '';
+    el('input-date').value = '';
+    el('input-freq').value = 'よく使う';
+
+    render();
+    showToast('追加しました');
+  }
+
+  function cancelSub(id) {
+    const idx = subs.findIndex(s => s.id === id);
+    if (idx === -1) return;
+    const sub = subs.splice(idx, 1)[0];
+    sub.cancelDate = new Date().toISOString().slice(0, 10);
+    cancelled.unshift(sub);
+    render();
+    showToast(sub.name + ' を解約済みにしました');
+  }
+
+  function render() {
+    renderActiveList();
+    renderCancelledList();
+    renderReview();
+    renderDashboard();
+  }
+
+  function renderActiveList() {
+    const tbody = el('active-tbody');
+    tbody.innerHTML = '';
+    if (subs.length === 0) {
+      el('active-empty').style.display = 'block';
+    } else {
+      el('active-empty').style.display = 'none';
+      subs.forEach(sub => {
+        const tr = document.createElement('tr');
+        const freqClass = sub.freq === 'ほぼ使ってない' ? 'freq-low' : '';
+        tr.innerHTML = `
+          <td>${escapeHtml(sub.name)}</td>
+          <td>${formatYen(sub.price)}</td>
+          <td><span class="cat-tag">${escapeHtml(sub.category)}</span></td>
+          <td class="${freqClass}">${escapeHtml(sub.freq)}</td>
+          <td>${escapeHtml(sub.date)}</td>
+          <td><button class="danger" data-id="${sub.id}">解約した</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('button[data-id]').forEach(btn => {
+        btn.addEventListener('click', () => cancelSub(parseInt(btn.dataset.id, 10)));
+      });
+    }
+  }
+
+  function renderCancelledList() {
+    const tbody = el('cancelled-tbody');
+    tbody.innerHTML = '';
+    if (cancelled.length === 0) {
+      el('cancelled-empty').style.display = 'block';
+    } else {
+      el('cancelled-empty').style.display = 'none';
+      cancelled.forEach(sub => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(sub.name)}</td>
+          <td>${formatYen(sub.price)}</td>
+          <td><span class="cat-tag">${escapeHtml(sub.category)}</span></td>
+          <td>${escapeHtml(sub.cancelDate)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  }
+
+  function renderReview() {
+    const list = el('review-list');
+    list.innerHTML = '';
+    const candidates = subs
+      .filter(s => s.freq === 'ほぼ使ってない')
+      .sort((a, b) => b.price - a.price);
+
+    if (candidates.length === 0) {
+      el('review-empty').style.display = 'block';
+    } else {
+      el('review-empty').style.display = 'none';
+      candidates.forEach(sub => {
+        const div = document.createElement('div');
+        div.className = 'review-item';
+        div.innerHTML = `
+          <div class="name">${escapeHtml(sub.name)}（${formatYen(sub.price)}/月）</div>
+          <div class="reason">使用頻度「ほぼ使ってない」— 解約を検討してみては？</div>
+        `;
+        list.appendChild(div);
+      });
+    }
+  }
+
+  function renderDashboard() {
+    const totalMonthly = subs.reduce((sum, s) => sum + s.price, 0);
+    const totalYearly = totalMonthly * 12;
+    const savedMonthly = cancelled.reduce((sum, s) => sum + s.price, 0);
+    const savedYearly = savedMonthly * 12;
+
+    el('total-monthly').textContent = formatYen(totalMonthly);
+    el('total-yearly').textContent = formatYen(totalYearly);
+    el('saved-monthly').textContent = formatYen(savedMonthly);
+    el('saved-yearly').textContent = formatYen(savedYearly);
+
+    const barsDiv = el('category-bars');
+    barsDiv.innerHTML = '';
+    if (subs.length === 0) {
+      barsDiv.innerHTML = '<div class="empty-msg">データがありません</div>';
+      return;
+    }
+    CATEGORIES.forEach(cat => {
+      const catTotal = subs.filter(s => s.category === cat).reduce((sum, s) => sum + s.price, 0);
+      if (catTotal === 0) return;
+      const pct = totalMonthly > 0 ? (catTotal / totalMonthly) * 100 : 0;
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      row.innerHTML = `
+        <div class="bar-label"><span>${escapeHtml(cat)}</span><span>${formatYen(catTotal)}</span></div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${pct.toFixed(1)}%;"></div></div>
+      `;
+      barsDiv.appendChild(row);
+    });
+  }
+
+  function copyList() {
+    let text = 'サブスク整理カルテ 一覧\n\n[契約中]\n';
+    if (subs.length === 0) {
+      text += '（なし）\n';
+    } else {
+      subs.forEach(s => {
+        text += `- ${s.name} / ${formatYen(s.price)}/月 / ${s.category} / ${s.freq} / 契約日:${s.date}\n`;
+      });
+    }
+    text += '\n[解約済み]\n';
+    if (cancelled.length === 0) {
+      text += '（なし）\n';
+    } else {
+      cancelled.forEach(s => {
+        text += `- ${s.name} / ${formatYen(s.price)}/月 / ${s.category} / 解約日:${s.cancelDate}\n`;
+      });
+    }
+    const totalMonthly = subs.reduce((sum, s) => sum + s.price, 0);
+    const savedMonthly = cancelled.reduce((sum, s) => sum + s.price, 0);
+    text += `\n月額合計: ${formatYen(totalMonthly)}\n削減できた月額: ${formatYen(savedMonthly)}\n`;
+
+    copyToClipboard(text);
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('コピーしました');
+      }).catch(() => {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('コピーしました');
+    } catch (e) {
+      showToast('コピーに失敗しました');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function switchTab(tab) {
+    if (tab === 'active') {
+      el('list-active').style.display = 'block';
+      el('list-cancelled').style.display = 'none';
+      el('tab-active').classList.add('active');
+      el('tab-cancelled').classList.remove('active');
+    } else {
+      el('list-active').style.display = 'none';
+      el('list-cancelled').style.display = 'block';
+      el('tab-active').classList.remove('active');
+      el('tab-cancelled').classList.add('active');
+    }
+  }
+
+  el('add-btn').addEventListener('click', addSub);
+  el('copy-btn').addEventListener('click', copyList);
+  el('tab-active').addEventListener('click', () => switchTab('active'));
+  el('tab-cancelled').addEventListener('click', () => switchTab('cancelled'));
+
+  render();
+</script>
+
+</body>
+</html>
