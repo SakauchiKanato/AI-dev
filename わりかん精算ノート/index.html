@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>わりかん精算ノート</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #3fae7e;
+    --accent2: #d97a3f;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --danger: #d85a5a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 4px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 320px;
+    min-width: 280px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px 0;
+    color: var(--text);
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  input[type="text"], input[type="number"], select {
+    width: 100%;
+    padding: 8px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  input:focus, select:focus { outline: 1px solid var(--accent); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 100px; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    margin-top: 10px;
+  }
+  .btn-primary { background: var(--accent); color: #10241a; }
+  .btn-secondary { background: #38384e; color: var(--text); }
+  .btn-danger { background: var(--danger); color: #2a0f0f; }
+  .btn-small { padding: 4px 8px; font-size: 12px; margin-top: 0; }
+  ul.chip-list { list-style: none; padding: 0; margin: 8px 0 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .chip button {
+    margin: 0;
+    padding: 0 4px;
+    background: none;
+    color: var(--danger);
+    font-size: 13px;
+  }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: normal; }
+  .empty-note { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .dashboard-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+  .stat {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    flex: 1 1 140px;
+  }
+  .stat .label { font-size: 11px; color: var(--muted); }
+  .stat .value { font-size: 18px; font-weight: bold; margin-top: 2px; }
+  .transfer-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background: #1a1a28;
+    border-radius: 6px;
+    margin-top: 6px;
+    font-size: 14px;
+  }
+  .transfer-item .arrow { color: var(--accent2); font-weight: bold; }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #10241a;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .toast.show { opacity: 1; }
+  .method-toggle { display: flex; gap: 6px; margin-top: 6px; }
+  .method-toggle button { flex: 1; margin-top: 0; background: #1a1a28; color: var(--muted); border: 1px solid var(--border); }
+  .method-toggle button.active { background: var(--accent); color: #10241a; border-color: var(--accent); }
+  @media (max-width: 480px) {
+    body { padding: 12px; }
+    .panel { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>わりかん精算ノート</h1>
+  <p>誰がいくら立て替えたかを記録すると、送金回数が最小になるよう自動で精算してくれます</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel" id="panel-people">
+    <h2>① 参加者</h2>
+    <label for="person-name">名前を追加</label>
+    <div class="row">
+      <input type="text" id="person-name" placeholder="例: たなか" maxlength="30">
+      <button class="btn-primary" style="flex:0 0 auto;" onclick="addPerson()">追加</button>
+    </div>
+    <ul class="chip-list" id="person-list"></ul>
+    <p class="empty-note" id="person-empty">まだ参加者がいません</p>
+
+    <label for="split-method-label" style="margin-top:16px;">精算方式</label>
+    <div class="method-toggle">
+      <button id="method-equal" class="active" onclick="setMethod('equal')">均等割り</button>
+      <button id="method-weight" onclick="setMethod('weight')">傾斜配分（重み）</button>
+    </div>
+    <div id="weight-inputs" style="display:none; margin-top:10px;"></div>
+  </div>
+
+  <div class="panel" id="panel-payments">
+    <h2>② 立替払いの記録</h2>
+    <label for="pay-person">支払った人</label>
+    <select id="pay-person"></select>
+    <div class="row">
+      <div>
+        <label for="pay-amount">金額（円）</label>
+        <input type="number" id="pay-amount" min="0" placeholder="例: 3000">
+      </div>
+      <div>
+        <label for="pay-purpose">何のため（任意）</label>
+        <input type="text" id="pay-purpose" placeholder="例: 飲み会代" maxlength="40">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="addPayment()">記録する</button>
+
+    <table id="payment-table" style="display:none;">
+      <thead><tr><th>支払った人</th><th>金額</th><th>用途</th><th></th></tr></thead>
+      <tbody id="payment-tbody"></tbody>
+    </table>
+    <p class="empty-note" id="payment-empty">まだ立替払いの記録がありません</p>
+  </div>
+
+</div>
+
+<div class="layout" style="margin-top:20px;">
+  <div class="panel" style="flex-basis:100%;">
+    <h2>③ 精算結果</h2>
+    <div class="dashboard-row">
+      <div class="stat">
+        <div class="label">支払い総額</div>
+        <div class="value" id="stat-total">¥0</div>
+      </div>
+      <div class="stat">
+        <div class="label">参加人数</div>
+        <div class="value" id="stat-count">0人</div>
+      </div>
+      <div class="stat">
+        <div class="label">1人あたり負担額（均等時の目安）</div>
+        <div class="value" id="stat-per-person">¥0</div>
+      </div>
+    </div>
+
+    <div id="transfer-list" style="margin-top:14px;"></div>
+    <p class="empty-note" id="transfer-empty">参加者と支払いを登録すると、精算方法が表示されます</p>
+
+    <button class="btn-secondary" onclick="copyResult()">結果をコピー</button>
+  </div>
+</div>
+
+<div class="toast" id="toast">コピーしました</div>
+
+<script>
+  var people = []; // { id, name, weight }
+  var payments = []; // { id, personId, amount, purpose }
+  var method = 'equal'; // 'equal' | 'weight'
+  var nextPersonId = 1;
+  var nextPaymentId = 1;
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function addPerson() {
+    var input = document.getElementById('person-name');
+    var name = input.value.trim();
+    if (!name) return;
+    if (people.some(function (p) { return p.name === name; })) {
+      alert('同じ名前の参加者が既にいます');
+      return;
+    }
+    people.push({ id: nextPersonId++, name: name, weight: 1 });
+    input.value = '';
+    renderPeople();
+    renderPaymentPersonSelect();
+    renderWeightInputs();
+    renderResult();
+  }
+
+  function removePerson(id) {
+    people = people.filter(function (p) { return p.id !== id; });
+    payments = payments.filter(function (pay) { return pay.personId !== id; });
+    renderPeople();
+    renderPaymentPersonSelect();
+    renderPayments();
+    renderWeightInputs();
+    renderResult();
+  }
+
+  function renderPeople() {
+    var list = document.getElementById('person-list');
+    var empty = document.getElementById('person-empty');
+    list.innerHTML = '';
+    if (people.length === 0) {
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    people.forEach(function (p) {
+      var li = document.createElement('li');
+      li.className = 'chip';
+      li.innerHTML = '<span>' + escapeHtml(p.name) + '</span>';
+      var btn = document.createElement('button');
+      btn.textContent = '×';
+      btn.onclick = function () { removePerson(p.id); };
+      li.appendChild(btn);
+      list.appendChild(li);
+    });
+  }
+
+  function renderPaymentPersonSelect() {
+    var sel = document.getElementById('pay-person');
+    var prevValue = sel.value;
+    sel.innerHTML = '';
+    if (people.length === 0) {
+      var opt = document.createElement('option');
+      opt.textContent = '先に参加者を登録してください';
+      opt.value = '';
+      sel.appendChild(opt);
+      return;
+    }
+    people.forEach(function (p) {
+      var opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      sel.appendChild(opt);
+    });
+    if (prevValue && people.some(function (p) { return String(p.id) === prevValue; })) {
+      sel.value = prevValue;
+    }
+  }
+
+  function setMethod(m) {
+    method = m;
+    document.getElementById('method-equal').classList.toggle('active', m === 'equal');
+    document.getElementById('method-weight').classList.toggle('active', m === 'weight');
+    document.getElementById('weight-inputs').style.display = (m === 'weight') ? 'block' : 'none';
+    renderResult();
+  }
+
+  function renderWeightInputs() {
+    var container = document.getElementById('weight-inputs');
+    container.innerHTML = '';
+    if (people.length === 0) return;
+    people.forEach(function (p) {
+      var wrap = document.createElement('div');
+      wrap.style.marginTop = '6px';
+      var label = document.createElement('label');
+      label.style.marginTop = '0';
+      label.textContent = p.name + ' の重み';
+      var input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.step = '0.1';
+      input.value = p.weight;
+      input.oninput = function () {
+        var v = parseFloat(input.value);
+        p.weight = (isNaN(v) || v < 0) ? 0 : v;
+        renderResult();
+      };
+      wrap.appendChild(label);
+      wrap.appendChild(input);
+      container.appendChild(wrap);
+    });
+  }
+
+  function addPayment() {
+    var personSel = document.getElementById('pay-person');
+    var amountInput = document.getElementById('pay-amount');
+    var purposeInput = document.getElementById('pay-purpose');
+
+    if (people.length === 0) {
+      alert('先に参加者を登録してください');
+      return;
+    }
+    var personId = parseInt(personSel.value, 10);
+    var amount = parseFloat(amountInput.value);
+    if (!personId || isNaN(personId)) {
+      alert('支払った人を選択してください');
+      return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+      alert('金額は0より大きい数値を入力してください');
+      return;
+    }
+    payments.push({
+      id: nextPaymentId++,
+      personId: personId,
+      amount: Math.round(amount),
+      purpose: purposeInput.value.trim()
+    });
+    amountInput.value = '';
+    purposeInput.value = '';
+    renderPayments();
+    renderResult();
+  }
+
+  function removePayment(id) {
+    payments = payments.filter(function (p) { return p.id !== id; });
+    renderPayments();
+    renderResult();
+  }
+
+  function personName(id) {
+    var p = people.find(function (pp) { return pp.id === id; });
+    return p ? p.name : '(削除済み)';
+  }
+
+  function renderPayments() {
+    var table = document.getElementById('payment-table');
+    var tbody = document.getElementById('payment-tbody');
+    var empty = document.getElementById('payment-empty');
+    tbody.innerHTML = '';
+    if (payments.length === 0) {
+      table.style.display = 'none';
+      empty.style.display = 'block';
+      return;
+    }
+    table.style.display = 'table';
+    empty.style.display = 'none';
+    payments.forEach(function (pay) {
+      var tr = document.createElement('tr');
+      var tdName = document.createElement('td');
+      tdName.textContent = personName(pay.personId);
+      var tdAmount = document.createElement('td');
+      tdAmount.textContent = '¥' + pay.amount.toLocaleString();
+      var tdPurpose = document.createElement('td');
+      tdPurpose.textContent = pay.purpose || '-';
+      var tdBtn = document.createElement('td');
+      var btn = document.createElement('button');
+      btn.textContent = '削除';
+      btn.className = 'btn-danger btn-small';
+      btn.onclick = function () { removePayment(pay.id); };
+      tdBtn.appendChild(btn);
+      tr.appendChild(tdName);
+      tr.appendChild(tdAmount);
+      tr.appendChild(tdPurpose);
+      tr.appendChild(tdBtn);
+      tbody.appendChild(tr);
+    });
+  }
+
+  // 各参加者の「支払った額」と「負担すべき額（フェアシェア）」から差額(balance)を出し、
+  // 最小送金回数になるよう貪欲法（最大の債権者×最大の債務者を都度マッチング）で精算リストを作る
+  function computeSettlement() {
+    var total = payments.reduce(function (sum, p) { return sum + p.amount; }, 0);
+
+    if (people.length === 0 || total === 0) {
+      return { total: total, perPerson: 0, transfers: [] };
+    }
+
+    var paidMap = {};
+    people.forEach(function (p) { paidMap[p.id] = 0; });
+    payments.forEach(function (p) {
+      if (paidMap.hasOwnProperty(p.personId)) {
+        paidMap[p.personId] += p.amount;
+      }
+    });
+
+    var shareMap = {};
+    if (method === 'weight') {
+      var weightSum = people.reduce(function (sum, p) { return sum + (p.weight || 0); }, 0);
+      if (weightSum <= 0) {
+        // 重みが全員0の場合は均等扱いにフォールバック
+        people.forEach(function (p) { shareMap[p.id] = total / people.length; });
+      } else {
+        people.forEach(function (p) { shareMap[p.id] = total * (p.weight || 0) / weightSum; });
+      }
+    } else {
+      people.forEach(function (p) { shareMap[p.id] = total / people.length; });
+    }
+
+    // balance: プラス=もらう側（払いすぎ）、マイナス=払う側（不足）。四捨五入の誤差は最後に丸める
+    var balances = people.map(function (p) {
+      return { id: p.id, name: p.name, balance: Math.round((paidMap[p.id] - shareMap[p.id]) * 100) / 100 };
+    });
+
+    var creditors = balances.filter(function (b) { return b.balance > 0.5 }).map(function (b) { return { id: b.id, name: b.name, amount: b.balance }; });
+    var debtors = balances.filter(function (b) { return b.balance < -0.5 }).map(function (b) { return { id: b.id, name: b.name, amount: -b.balance }; });
+
+    creditors.sort(function (a, b) { return b.amount - a.amount; });
+    debtors.sort(function (a, b) { return b.amount - a.amount; });
+
+    var transfers = [];
+    var ci = 0, di = 0;
+    while (ci < creditors.length && di < debtors.length) {
+      var c = creditors[ci];
+      var d = debtors[di];
+      var amount = Math.min(c.amount, d.amount);
+      amount = Math.round(amount);
+      if (amount > 0) {
+        transfers.push({ from: d.name, to: c.name, amount: amount });
+      }
+      c.amount -= amount;
+      d.amount -= amount;
+      if (c.amount <= 0.5) ci++;
+      if (d.amount <= 0.5) di++;
+    }
+
+    var perPerson = Math.round(total / people.length);
+
+    return { total: total, perPerson: perPerson, transfers: transfers };
+  }
+
+  function renderResult() {
+    var result = computeSettlement();
+    document.getElementById('stat-total').textContent = '¥' + result.total.toLocaleString();
+    document.getElementById('stat-count').textContent = people.length + '人';
+    document.getElementById('stat-per-person').textContent = '¥' + (result.perPerson || 0).toLocaleString();
+
+    var listEl = document.getElementById('transfer-list');
+    var emptyEl = document.getElementById('transfer-empty');
+    listEl.innerHTML = '';
+
+    if (result.transfers.length === 0) {
+      emptyEl.style.display = 'block';
+      if (people.length > 0 && result.total > 0) {
+        emptyEl.textContent = '全員の負担がすでに釣り合っています（送金不要）';
+      } else {
+        emptyEl.textContent = '参加者と支払いを登録すると、精算方法が表示されます';
+      }
+      return;
+    }
+    emptyEl.style.display = 'none';
+
+    result.transfers.forEach(function (t) {
+      var div = document.createElement('div');
+      div.className = 'transfer-item';
+      div.innerHTML = '<span>' + escapeHtml(t.from) + '</span><span class="arrow">→</span><span>' + escapeHtml(t.to) + '</span><span style="margin-left:auto; font-weight:bold;">¥' + t.amount.toLocaleString() + '</span>';
+      listEl.appendChild(div);
+    });
+  }
+
+  function copyResult() {
+    var result = computeSettlement();
+    var lines = [];
+    lines.push('【わりかん精算結果】');
+    lines.push('支払い総額: ¥' + result.total.toLocaleString());
+    lines.push('参加人数: ' + people.length + '人');
+    if (result.transfers.length === 0) {
+      lines.push('送金の必要はありません（すでに釣り合っています）');
+    } else {
+      result.transfers.forEach(function (t) {
+        lines.push(t.from + ' → ' + t.to + ' : ¥' + t.amount.toLocaleString());
+      });
+    }
+    var text = lines.join('\n');
+
+    function showToast() {
+      var toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(function () { toast.classList.remove('show'); }, 1800);
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showToast, function () {
+        fallbackCopy(text, showToast);
+      });
+    } else {
+      fallbackCopy(text, showToast);
+    }
+  }
+
+  function fallbackCopy(text, cb) {
+    var textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    try {
+      document.execCommand('copy');
+      cb();
+    } catch (e) {
+      alert('コピーに失敗しました。手動で選択してコピーしてください。');
+    }
+    document.body.removeChild(textarea);
+  }
+
+  // 初期描画
+  renderPeople();
+  renderPaymentPersonSelect();
+  renderPayments();
+  renderWeightInputs();
+  renderResult();
+</script>
+
+</body>
+</html>
