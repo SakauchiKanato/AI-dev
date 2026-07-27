@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ゴミ出し忘れ防止プランナー</title>
+<style>
+  :root{
+    --bg:#1e1e2e;
+    --panel:#262638;
+    --panel2:#2d2d42;
+    --accent:#34c38f;
+    --accent-dim:#1f6b50;
+    --warn:#e0a63e;
+    --danger:#e05a5a;
+    --text:#e8e6f2;
+    --muted:#9a97b5;
+    --border:#3a3a52;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    padding:20px;
+  }
+  header{ margin-bottom:20px; }
+  header h1{ font-size:20px; margin:0 0 6px; }
+  header p{ font-size:13px; color:var(--muted); margin:0; }
+  .layout{
+    display:flex;
+    gap:20px;
+    flex-wrap:wrap;
+    margin-bottom:20px;
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px;
+    flex:1 1 320px;
+    min-width:280px;
+  }
+  .panel h2{ font-size:15px; margin:0 0 12px; }
+  .panel h3{ font-size:13px; margin:14px 0 8px; color:var(--muted); }
+
+  /* 今日/明日ダッシュボード */
+  .today-tomorrow{ display:flex; gap:14px; flex-wrap:wrap; }
+  .ttcard{
+    flex:1 1 160px;
+    background:var(--panel2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:12px;
+  }
+  .ttcard .label{ font-size:12px; color:var(--muted); margin-bottom:8px; }
+  .chip{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:5px 10px;
+    border-radius:14px;
+    font-size:12px;
+    margin:3px 4px 3px 0;
+    border:1px solid var(--border);
+  }
+  .chip .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .empty-note{ font-size:12px; color:var(--muted); }
+  .item-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    background:var(--panel2);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:8px 10px;
+    margin-bottom:6px;
+    font-size:13px;
+  }
+  .item-row .name{ display:flex; align-items:center; gap:8px; }
+  button{
+    font-family:inherit;
+    cursor:pointer;
+    border:1px solid var(--border);
+    background:var(--panel2);
+    color:var(--text);
+    border-radius:6px;
+    padding:6px 10px;
+    font-size:12px;
+  }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#0f2e22; border-color:var(--accent); font-weight:bold; }
+  button.primary:hover{ opacity:0.9; }
+  button.done{ background:var(--accent-dim); color:#c9f5e2; border-color:var(--accent); }
+  button.danger{ color:var(--danger); }
+  button.small{ padding:4px 8px; font-size:11px; }
+
+  .warning-banner{
+    background:#3a2a1a;
+    border:1px solid var(--warn);
+    color:#f0cf8f;
+    border-radius:8px;
+    padding:10px 12px;
+    font-size:13px;
+    margin-bottom:14px;
+  }
+
+  /* カレンダー */
+  .cal-grid{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .cal-day{
+    flex:1 1 120px;
+    min-width:110px;
+    background:var(--panel2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px;
+  }
+  .cal-day .date{ font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .cal-day.is-today{ border-color:var(--accent); }
+
+  /* フォーム */
+  form label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  input[type="text"], select{
+    width:100%;
+    background:var(--panel2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:6px;
+    padding:7px 8px;
+    font-size:13px;
+    font-family:inherit;
+  }
+  input[type="color"]{
+    width:50px; height:30px; padding:0; border:1px solid var(--border); border-radius:6px; background:var(--panel2);
+  }
+  .radio-row{ display:flex; gap:14px; align-items:center; font-size:13px; }
+  .checkbox-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+  .checkbox-row label{
+    display:flex; align-items:center; gap:4px;
+    background:var(--panel2); border:1px solid var(--border); border-radius:6px;
+    padding:5px 8px; font-size:12px; color:var(--text); margin:0;
+  }
+  .mode-block{ display:none; }
+  .mode-block.active{ display:block; }
+  .form-actions{ margin-top:14px; }
+  .form-msg{ font-size:12px; margin-top:8px; min-height:16px; }
+  .form-msg.error{ color:var(--danger); }
+  .form-msg.ok{ color:var(--accent); }
+
+  textarea{
+    width:100%;
+    min-height:120px;
+    background:var(--panel2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:6px;
+    padding:8px;
+    font-family:monospace;
+    font-size:12px;
+  }
+  .stat-row{ display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-bottom:1px dashed var(--border); }
+  .stat-row:last-child{ border-bottom:none; }
+
+  @media (max-width:480px){
+    .layout{ flex-direction:column; }
+    .panel{ min-width:0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🗑️ ゴミ出し忘れ防止プランナー</h1>
+  <p>ゴミの種類ごとの収集ルール（毎週・隔週）を登録して、今日・明日出せるゴミと出し忘れをチェックします。</p>
+</header>
+
+<div id="warningArea"></div>
+
+<div class="layout">
+  <section class="panel">
+    <h2>今日・明日出せるゴミ</h2>
+    <div class="today-tomorrow" id="todayTomorrow"></div>
+  </section>
+
+  <section class="panel">
+    <h2>週間カレンダー（今日から7日間）</h2>
+    <div class="cal-grid" id="calGrid"></div>
+  </section>
+</div>
+
+<div class="layout">
+  <section class="panel">
+    <h2>ゴミの種類を登録</h2>
+    <form id="itemForm">
+      <label for="itemName">種類名（例: 燃えるごみ、資源ごみ）</label>
+      <input type="text" id="itemName" placeholder="種類名を入力" maxlength="30">
+
+      <label for="itemColor">色</label>
+      <input type="color" id="itemColor" value="#34c38f">
+
+      <label>収集パターン</label>
+      <div class="radio-row">
+        <label><input type="radio" name="mode" value="weekly" checked> 毎週</label>
+        <label><input type="radio" name="mode" value="biweekly"> 隔週（第◯曜日）</label>
+      </div>
+
+      <div class="mode-block active" id="weeklyBlock">
+        <label>曜日（複数選択可）</label>
+        <div class="checkbox-row" id="weeklyWeekdays"></div>
+      </div>
+
+      <div class="mode-block" id="biweeklyBlock">
+        <label for="biweeklyWeekday">曜日</label>
+        <select id="biweeklyWeekday"></select>
+        <label>第何週（複数選択可）</label>
+        <div class="checkbox-row" id="biweeklyOccurrences"></div>
+      </div>
+
+      <label for="itemMemo">メモ（任意）</label>
+      <input type="text" id="itemMemo" placeholder="例: 粗大ごみは事前申込み必要" maxlength="60">
+
+      <div class="form-actions">
+        <button type="submit" class="primary">登録する</button>
+      </div>
+      <div class="form-msg" id="formMsg"></div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>登録済みの品目</h2>
+    <div id="itemList"></div>
+    <h3>遵守率（統計）</h3>
+    <div id="statList"></div>
+  </section>
+</div>
+
+<div class="layout">
+  <section class="panel">
+    <h2>設定のエクスポート／インポート</h2>
+    <p class="empty-note">このアプリはブラウザに保存しないため、次回も使う場合はここでテキストをコピーして保存し、次回開いたときに貼り付けて「読み込む」を押してください。</p>
+    <h3>エクスポート</h3>
+    <textarea id="exportArea" readonly></textarea>
+    <div class="form-actions">
+      <button type="button" id="exportBtn">最新の設定をここに出力</button>
+      <button type="button" id="copyBtn">コピー</button>
+    </div>
+    <h3>インポート</h3>
+    <textarea id="importArea" placeholder="以前エクスポートしたテキストをここに貼り付け"></textarea>
+    <div class="form-actions">
+      <button type="button" id="importBtn">読み込む</button>
+    </div>
+    <div class="form-msg" id="importMsg"></div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var WEEKDAYS = ['日','月','火','水','木','金','土'];
+  var items = [];
+  var idCounter = 1;
+
+  function esc(str){
+    return String(str).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function pad2(n){ return String(n).padStart(2,'0'); }
+
+  function toDateKey(date){
+    return date.getFullYear() + '-' + pad2(date.getMonth()+1) + '-' + pad2(date.getDate());
+  }
+
+  function addDays(date, n){
+    var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    d.setDate(d.getDate()+n);
+    return d;
+  }
+
+  function nthWeekdayOfMonth(date){
+    return Math.ceil(date.getDate()/7);
+  }
+
+  function isCollectionDay(item, date){
+    var dow = date.getDay();
+    if(item.mode === 'weekly'){
+      return item.weekdays.indexOf(dow) !== -1;
+    } else {
+      return dow === item.weekday && item.occurrences.indexOf(nthWeekdayOfMonth(date)) !== -1;
+    }
+  }
+
+  function todayStart(){
+    var n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  }
+
+  // ---- 初期化: 曜日チェックボックス/セレクトを生成 ----
+  function buildWeekdayCheckboxes(container, namePrefix){
+    var html = '';
+    for(var i=0;i<7;i++){
+      html += '<label><input type="checkbox" data-wd="'+i+'" name="'+namePrefix+'"> '+WEEKDAYS[i]+'</label>';
+    }
+    container.innerHTML = html;
+  }
+
+  function buildOccurrenceCheckboxes(container){
+    var html = '';
+    for(var i=1;i<=5;i++){
+      html += '<label><input type="checkbox" data-occ="'+i+'"> 第'+i+'</label>';
+    }
+    container.innerHTML = html;
+  }
+
+  function buildWeekdaySelect(select){
+    var html = '';
+    for(var i=0;i<7;i++){
+      html += '<option value="'+i+'">'+WEEKDAYS[i]+'曜日</option>';
+    }
+    select.innerHTML = html;
+  }
+
+  var weeklyWeekdaysEl = document.getElementById('weeklyWeekdays');
+  var biweeklyOccEl = document.getElementById('biweeklyOccurrences');
+  var biweeklyWeekdaySel = document.getElementById('biweeklyWeekday');
+  buildWeekdayCheckboxes(weeklyWeekdaysEl, 'weeklyWd');
+  buildOccurrenceCheckboxes(biweeklyOccEl);
+  buildWeekdaySelect(biweeklyWeekdaySel);
+
+  // モード切り替え
+  var modeRadios = document.querySelectorAll('input[name="mode"]');
+  var weeklyBlock = document.getElementById('weeklyBlock');
+  var biweeklyBlock = document.getElementById('biweeklyBlock');
+  modeRadios.forEach(function(r){
+    r.addEventListener('change', function(){
+      if(r.value === 'weekly' && r.checked){
+        weeklyBlock.classList.add('active');
+        biweeklyBlock.classList.remove('active');
+      } else if(r.value === 'biweekly' && r.checked){
+        biweeklyBlock.classList.add('active');
+        weeklyBlock.classList.remove('active');
+      }
+    });
+  });
+
+  // ---- 登録フォーム ----
+  var itemForm = document.getElementById('itemForm');
+  var formMsg = document.getElementById('formMsg');
+
+  itemForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    formMsg.textContent = '';
+    formMsg.className = 'form-msg';
+
+    var name = document.getElementById('itemName').value.trim();
+    var color = document.getElementById('itemColor').value || '#34c38f';
+    var memo = document.getElementById('itemMemo').value.trim();
+    var mode = document.querySelector('input[name="mode"]:checked').value;
+
+    if(!name){
+      formMsg.textContent = '種類名を入力してください。';
+      formMsg.className = 'form-msg error';
+      return;
+    }
+
+    var item = {
+      id: idCounter++,
+      name: name,
+      color: color,
+      mode: mode,
+      memo: memo,
+      markedDates: [],
+      createdAt: toDateKey(todayStart())
+    };
+
+    if(mode === 'weekly'){
+      var checked = Array.prototype.slice.call(weeklyWeekdaysEl.querySelectorAll('input[type=checkbox]:checked'));
+      if(checked.length === 0){
+        formMsg.textContent = '曜日を1つ以上選択してください。';
+        formMsg.className = 'form-msg error';
+        return;
+      }
+      item.weekdays = checked.map(function(c){ return Number(c.getAttribute('data-wd')); });
+      item.weekday = null;
+      item.occurrences = [];
+    } else {
+      var occChecked = Array.prototype.slice.call(biweeklyOccEl.querySelectorAll('input[type=checkbox]:checked'));
+      if(occChecked.length === 0){
+        formMsg.textContent = '第何週かを1つ以上選択してください。';
+        formMsg.className = 'form-msg error';
+        return;
+      }
+      item.weekday = Number(biweeklyWeekdaySel.value);
+      item.occurrences = occChecked.map(function(c){ return Number(c.getAttribute('data-occ')); });
+      item.weekdays = [];
+    }
+
+    items.push(item);
+
+    // フォームリセット
+    document.getElementById('itemName').value = '';
+    document.getElementById('itemMemo').value = '';
+    weeklyWeekdaysEl.querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked = false; });
+    biweeklyOccEl.querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked = false; });
+
+    formMsg.textContent = '「' + name + '」を登録しました。';
+    formMsg.className = 'form-msg ok';
+
+    renderAll();
+  });
+
+  // ---- 削除 ----
+  function deleteItem(id){
+    items = items.filter(function(it){ return it.id !== id; });
+    renderAll();
+  }
+
+  // ---- 「出した」トグル ----
+  function toggleDone(id, dateKey){
+    var item = items.find(function(it){ return it.id === id; });
+    if(!item) return;
+    var idx = item.markedDates.indexOf(dateKey);
+    if(idx === -1){
+      item.markedDates.push(dateKey);
+    } else {
+      item.markedDates.splice(idx,1);
+    }
+    renderAll();
+  }
+
+  // ---- 描画: 今日/明日ダッシュボード ----
+  function renderDashboard(){
+    var today = todayStart();
+    var tomorrow = addDays(today,1);
+    var todayKey = toDateKey(today);
+    var tomorrowKey = toDateKey(tomorrow);
+
+    var todayItems = items.filter(function(it){ return isCollectionDay(it, today); });
+    var tomorrowItems = items.filter(function(it){ return isCollectionDay(it, tomorrow); });
+
+    function cardHtml(list, dateKey, label, showButton){
+      if(list.length === 0){
+        return '<div class="ttcard"><div class="label">'+label+'</div><div class="empty-note">出せるゴミの登録はありません</div></div>';
+      }
+      var rows = list.map(function(it){
+        var done = it.markedDates.indexOf(dateKey) !== -1;
+        var btn = showButton
+          ? '<button class="small '+(done?'done':'')+'" onclick="__gomi.toggleDone('+it.id+',\''+dateKey+'\')">'+(done ? '出した ✓' : '出した にする') + '</button>'
+          : '';
+        return '<div class="item-row"><div class="name"><span class="dot" style="background:'+esc(it.color)+';display:inline-block;width:8px;height:8px;border-radius:50%;"></span>'+esc(it.name)+(it.memo?' <span class="empty-note">（'+esc(it.memo)+'）</span>':'')+'</div>'+btn+'</div>';
+      }).join('');
+      return '<div class="ttcard"><div class="label">'+label+'</div>'+rows+'</div>';
+    }
+
+    document.getElementById('todayTomorrow').innerHTML =
+      cardHtml(todayItems, todayKey, '今日 ('+WEEKDAYS[today.getDay()]+')', true) +
+      cardHtml(tomorrowItems, tomorrowKey, '明日 ('+WEEKDAYS[tomorrow.getDay()]+')', false);
+
+    // 出し忘れ警告
+    var warningArea = document.getElementById('warningArea');
+    var unmarked = todayItems.filter(function(it){ return it.markedDates.indexOf(todayKey) === -1; });
+    if(todayItems.length > 0 && unmarked.length > 0){
+      var names = unmarked.map(function(it){ return esc(it.name); }).join('、');
+      warningArea.innerHTML = '<div class="warning-banner">⚠️ 本日出せるのに「出した」が未記録の品目があります: ' + names + '</div>';
+    } else {
+      warningArea.innerHTML = '';
+    }
+  }
+
+  // ---- 描画: 週間カレンダー ----
+  function renderCalendar(){
+    var today = todayStart();
+    var html = '';
+    for(var i=0;i<7;i++){
+      var d = addDays(today, i);
+      var list = items.filter(function(it){ return isCollectionDay(it, d); });
+      var chips = list.length > 0
+        ? list.map(function(it){ return '<span class="chip"><span class="dot" style="background:'+esc(it.color)+'"></span>'+esc(it.name)+'</span>'; }).join('')
+        : '<span class="empty-note">なし</span>';
+      html += '<div class="cal-day'+(i===0?' is-today':'')+'"><div class="date">'+(d.getMonth()+1)+'/'+d.getDate()+' ('+WEEKDAYS[d.getDay()]+')'+(i===0?' 今日':'')+'</div>'+chips+'</div>';
+    }
+    document.getElementById('calGrid').innerHTML = html;
+  }
+
+  // ---- 描画: 登録済み一覧 ----
+  function renderList(){
+    var listEl = document.getElementById('itemList');
+    if(items.length === 0){
+      listEl.innerHTML = '<div class="empty-note">まだ何も登録されていません。左のフォームから登録してください。</div>';
+      return;
+    }
+    listEl.innerHTML = items.map(function(it){
+      var pattern = it.mode === 'weekly'
+        ? '毎週 ' + it.weekdays.slice().sort().map(function(w){ return WEEKDAYS[w]; }).join('・')
+        : '隔週 第' + it.occurrences.slice().sort().join('・') + WEEKDAYS[it.weekday] + '曜';
+      return '<div class="item-row"><div class="name"><span class="dot" style="background:'+esc(it.color)+';display:inline-block;width:8px;height:8px;border-radius:50%;"></span>'+esc(it.name)+' <span class="empty-note">（'+pattern+'）</span></div><button class="small danger" onclick="__gomi.deleteItem('+it.id+')">削除</button></div>';
+    }).join('');
+  }
+
+  // ---- 描画: 統計（遵守率） ----
+  function renderStats(){
+    var statEl = document.getElementById('statList');
+    if(items.length === 0){
+      statEl.innerHTML = '<div class="empty-note">登録がありません</div>';
+      return;
+    }
+    var today = todayStart();
+    statEl.innerHTML = items.map(function(it){
+      var created = new Date(it.createdAt + 'T00:00:00');
+      var scheduled = 0;
+      var cursor = created;
+      // 登録日から今日までの収集予定日数をカウント（最大370日で安全に打ち切り）
+      var guard = 0;
+      while(cursor.getTime() <= today.getTime() && guard < 370){
+        if(isCollectionDay(it, cursor)) scheduled++;
+        cursor = addDays(cursor, 1);
+        guard++;
+      }
+      var markedValid = it.markedDates.filter(function(dk){
+        var dt = new Date(dk + 'T00:00:00');
+        return isCollectionDay(it, dt);
+      }).length;
+      var rateText;
+      if(scheduled === 0){
+        rateText = 'まだ収集日がありません';
+      } else {
+        var rate = Math.round((markedValid / scheduled) * 100);
+        rateText = markedValid + '/' + scheduled + '回（' + rate + '%）';
+      }
+      return '<div class="stat-row"><span>'+esc(it.name)+'</span><span>'+rateText+'</span></div>';
+    }).join('');
+  }
+
+  function renderAll(){
+    renderDashboard();
+    renderCalendar();
+    renderList();
+    renderStats();
+  }
+
+  // ---- エクスポート/インポート ----
+  document.getElementById('exportBtn').addEventListener('click', function(){
+    document.getElementById('exportArea').value = JSON.stringify(items, null, 2);
+  });
+
+  document.getElementById('copyBtn').addEventListener('click', function(){
+    var text = document.getElementById('exportArea').value;
+    if(!text){
+      document.getElementById('exportArea').value = JSON.stringify(items, null, 2);
+      text = document.getElementById('exportArea').value;
+    }
+    var btn = document.getElementById('copyBtn');
+    var orig = btn.textContent;
+    function showDone(){ btn.textContent = 'コピーしました'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(showDone).catch(function(){ fallbackCopy(text, showDone); });
+    } else {
+      fallbackCopy(text, showDone);
+    }
+  });
+
+  function fallbackCopy(text, cb){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try{ document.execCommand('copy'); cb(); }catch(e){ /* コピー失敗時は何もしない */ }
+    document.body.removeChild(ta);
+  }
+
+  document.getElementById('importBtn').addEventListener('click', function(){
+    var msgEl = document.getElementById('importMsg');
+    var raw = document.getElementById('importArea').value.trim();
+    if(!raw){
+      msgEl.textContent = '貼り付けるテキストがありません。';
+      msgEl.className = 'form-msg error';
+      return;
+    }
+    try{
+      var parsed = JSON.parse(raw);
+      if(!Array.isArray(parsed)) throw new Error('形式が不正です');
+      // 最低限のバリデーション
+      var valid = parsed.every(function(it){
+        return it && typeof it.name === 'string' && (it.mode === 'weekly' || it.mode === 'biweekly');
+      });
+      if(!valid) throw new Error('形式が不正です');
+      items = parsed.map(function(it){
+        return {
+          id: idCounter++,
+          name: it.name,
+          color: it.color || '#34c38f',
+          mode: it.mode,
+          weekdays: Array.isArray(it.weekdays) ? it.weekdays : [],
+          weekday: (typeof it.weekday === 'number') ? it.weekday : null,
+          occurrences: Array.isArray(it.occurrences) ? it.occurrences : [],
+          memo: it.memo || '',
+          markedDates: Array.isArray(it.markedDates) ? it.markedDates : [],
+          createdAt: it.createdAt || toDateKey(todayStart())
+        };
+      });
+      msgEl.textContent = items.length + '件を読み込みました。';
+      msgEl.className = 'form-msg ok';
+      renderAll();
+    } catch(e){
+      msgEl.textContent = '読み込みに失敗しました。テキストの形式を確認してください。';
+      msgEl.className = 'form-msg error';
+    }
+  });
+
+  // グローバル公開（ボタンのonclickから呼ぶため）
+  window.__gomi = { deleteItem: deleteItem, toggleDone: toggleDone };
+
+  renderAll();
+})();
+</script>
+
+</body>
+</html>
