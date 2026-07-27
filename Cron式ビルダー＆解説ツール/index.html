@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cron式ビルダー＆解説ツール</title>
+<style>
+  :root {
+    --bg:#1e1e2e; --panel:#262638; --accent:#e0a030; --accent2:#4a9e6e;
+    --text:#e8e6f2; --muted:#9a97b5; --border:#3a3a52; --danger:#e0546a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:20px; background:var(--bg); color:var(--text);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  }
+  header { margin-bottom:20px; }
+  header h1 { font-size:20px; margin:0 0 4px; }
+  header p { font-size:13px; color:var(--muted); margin:0; }
+  .layout { display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+  .panel {
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:16px; flex:1 1 420px; min-width:280px;
+  }
+  .panel h2 { font-size:15px; margin:0 0 12px; color:var(--accent); }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .tab-btn {
+    background:transparent; border:1px solid var(--border); color:var(--muted);
+    padding:8px 14px; border-radius:8px; cursor:pointer; font-size:13px;
+  }
+  .tab-btn.active { background:var(--accent); color:#1e1e2e; border-color:var(--accent); font-weight:bold; }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+
+  .field-row {
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    padding:8px 0; border-bottom:1px solid var(--border);
+  }
+  .field-row:last-child { border-bottom:none; }
+  .field-label { width:56px; flex-shrink:0; font-size:13px; color:var(--muted); }
+  select, input[type="text"], input[type="number"], textarea {
+    background:#1a1a28; border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:6px 8px; font-size:13px;
+  }
+  select { min-width:100px; }
+  input[type="number"] { width:70px; }
+  input[type="text"] { flex:1; min-width:120px; }
+  .field-inputs { display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:1; }
+  .weekday-checks { display:flex; gap:6px; flex-wrap:wrap; }
+  .weekday-checks label {
+    display:flex; align-items:center; gap:3px; font-size:12px; color:var(--text);
+    background:#1a1a28; border:1px solid var(--border); border-radius:6px; padding:4px 8px; cursor:pointer;
+  }
+  .weekday-checks input { margin:0; }
+
+  textarea#direct-input {
+    width:100%; min-height:60px; resize:vertical; font-family:monospace; font-size:14px;
+  }
+
+  .result-box { margin-top:6px; }
+  .cron-display {
+    font-family:monospace; font-size:18px; background:#1a1a28; border:1px solid var(--border);
+    border-radius:8px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  .cron-str { letter-spacing:1px; }
+  .copy-btn {
+    background:var(--accent2); color:#0f1a14; border:none; border-radius:6px;
+    padding:7px 12px; font-size:12px; cursor:pointer; font-weight:bold; white-space:nowrap;
+  }
+  .copy-btn.copied { background:#6bc98a; }
+  .desc-text { margin-top:10px; font-size:14px; color:var(--text); }
+  .desc-text b { color:var(--accent); }
+  .error-text { margin-top:10px; font-size:13px; color:var(--danger); }
+
+  .runs-list { list-style:none; margin:8px 0 0; padding:0; font-size:13px; }
+  .runs-list li {
+    padding:6px 8px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between;
+  }
+  .runs-list li:last-child { border-bottom:none; }
+  .runs-list .rel { color:var(--muted); font-size:12px; }
+
+  .preset-grid { display:flex; flex-wrap:wrap; gap:8px; }
+  .preset-btn {
+    background:#1a1a28; border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:6px 10px; font-size:12px; cursor:pointer;
+  }
+  .preset-btn:hover { border-color:var(--accent); }
+  .preset-sub { color:var(--muted); font-size:11px; margin:10px 0 4px; }
+
+  .cheatsheet { font-size:12px; color:var(--muted); }
+  .cheatsheet table { width:100%; border-collapse:collapse; margin-top:6px; }
+  .cheatsheet td { padding:4px 6px; border-bottom:1px solid var(--border); }
+  .cheatsheet td:first-child { color:var(--accent); font-family:monospace; width:70px; }
+
+  @media (max-width:480px) {
+    body { padding:12px; }
+    .field-label { width:44px; }
+    .cron-display { font-size:15px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Cron式ビルダー＆解説ツール</h1>
+  <p>スケジュール式(cron)を組み立てる／読み解く。次回実行予定も自動計算します。</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel" style="flex:1 1 480px;">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="visual" onclick="switchTab('visual')">ビジュアルで作る</button>
+      <button class="tab-btn" data-tab="direct" onclick="switchTab('direct')">直接入力</button>
+    </div>
+
+    <div id="tab-visual" class="tab-content active">
+      <div id="field-minute" class="field-row" data-field="minute" data-min="0" data-max="59" data-unit="分"></div>
+      <div id="field-hour" class="field-row" data-field="hour" data-min="0" data-max="23" data-unit="時"></div>
+      <div id="field-dom" class="field-row" data-field="dom" data-min="1" data-max="31" data-unit="日"></div>
+      <div id="field-month" class="field-row" data-field="month" data-min="1" data-max="12" data-unit="月"></div>
+      <div id="field-dow" class="field-row" data-field="dow" data-min="0" data-max="6" data-unit="" data-weekday="1"></div>
+    </div>
+
+    <div id="tab-direct" class="tab-content">
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">「分 時 日 月 曜日」の順に半角スペース区切りで入力してください（例: 0 9 * * 1-5）</p>
+      <textarea id="direct-input" placeholder="0 9 * * *"></textarea>
+    </div>
+
+    <div class="result-box">
+      <div class="cron-display">
+        <span class="cron-str" id="cron-output">-</span>
+        <button class="copy-btn" id="copy-btn" onclick="copyCron()">コピー</button>
+      </div>
+      <div class="desc-text" id="desc-output"></div>
+      <div class="error-text" id="error-output"></div>
+      <ul class="runs-list" id="runs-output"></ul>
+    </div>
+  </div>
+
+  <div class="panel" style="flex:1 1 260px;">
+    <h2>プリセット</h2>
+    <div class="preset-sub">よく使うパターン</div>
+    <div class="preset-grid" id="preset-general"></div>
+    <div class="preset-sub">AIオフィス定例</div>
+    <div class="preset-grid" id="preset-office"></div>
+
+    <h2 style="margin-top:20px;">書き方チートシート</h2>
+    <div class="cheatsheet">
+      <p style="margin:0;">項目の順序: <b style="color:var(--accent)">分 時 日 月 曜日</b>（曜日は 0=日 〜 6=土）</p>
+      <table>
+        <tr><td>*</td><td>すべての値（毎分・毎時など）</td></tr>
+        <tr><td>,</td><td>複数指定（例: 0,15,30）</td></tr>
+        <tr><td>-</td><td>範囲指定（例: 1-5 は月〜金）</td></tr>
+        <tr><td>/</td><td>n刻み（例: */15 は15分おき）</td></tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var WEEKDAY_NAMES = ['日','月','火','水','木','金','土'];
+
+  var FIELD_DEFS = [
+    { key:'minute', label:'分', min:0, max:59, unit:'分', weekday:false },
+    { key:'hour',   label:'時', min:0, max:23, unit:'時', weekday:false },
+    { key:'dom',    label:'日', min:1, max:31, unit:'日', weekday:false },
+    { key:'month',  label:'月', min:1, max:12, unit:'月', weekday:false },
+    { key:'dow',    label:'曜日', min:0, max:6, unit:'', weekday:true }
+  ];
+
+  var PRESETS_GENERAL = [
+    { label:'毎日9時', cron:'0 9 * * *' },
+    { label:'平日9時', cron:'0 9 * * 1-5' },
+    { label:'15分おき', cron:'*/15 * * * *' },
+    { label:'1時間おき', cron:'0 * * * *' },
+    { label:'毎月1日0時', cron:'0 0 1 * *' },
+    { label:'毎週月曜0時', cron:'0 0 * * 1' }
+  ];
+
+  var PRESETS_OFFICE = [
+    { label:'朝会(毎日9時)', cron:'0 9 * * *' },
+    { label:'昼会(毎日13時)', cron:'0 13 * * *' },
+    { label:'夜会(毎日20時)', cron:'0 20 * * *' },
+    { label:'週報(日曜21時)', cron:'0 21 * * 0' }
+  ];
+
+  var state = { mode:'visual' };
+
+  // ---------- フィールドUI構築（ビジュアルタブ） ----------
+
+  function buildFieldRow(def){
+    var row = document.getElementById('field-' + def.key);
+    row.innerHTML = '';
+
+    var label = document.createElement('span');
+    label.className = 'field-label';
+    label.textContent = def.label;
+    row.appendChild(label);
+
+    var modeSelect = document.createElement('select');
+    modeSelect.className = 'mode-select';
+    modeSelect.dataset.field = def.key;
+    modeSelect.innerHTML =
+      '<option value="wild">毎</option>' +
+      '<option value="value">値を指定</option>' +
+      '<option value="range">範囲</option>' +
+      '<option value="step">n刻み</option>';
+    modeSelect.addEventListener('change', function(){
+      renderFieldInputs(def);
+      updateFromVisual();
+    });
+    row.appendChild(modeSelect);
+
+    var inputsWrap = document.createElement('span');
+    inputsWrap.className = 'field-inputs';
+    inputsWrap.id = 'inputs-' + def.key;
+    row.appendChild(inputsWrap);
+  }
+
+  function renderFieldInputs(def){
+    var mode = document.querySelector('.mode-select[data-field="' + def.key + '"]').value;
+    var wrap = document.getElementById('inputs-' + def.key);
+    wrap.innerHTML = '';
+
+    if (mode === 'wild') {
+      return;
+    }
+
+    if (mode === 'value') {
+      if (def.weekday) {
+        var box = document.createElement('span');
+        box.className = 'weekday-checks';
+        for (var i = 0; i <= 6; i++) {
+          var lab = document.createElement('label');
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = String(i);
+          cb.className = 'dow-check';
+          cb.addEventListener('change', updateFromVisual);
+          lab.appendChild(cb);
+          lab.appendChild(document.createTextNode(WEEKDAY_NAMES[i]));
+          box.appendChild(lab);
+        }
+        wrap.appendChild(box);
+      } else {
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = def.min + ',' + (def.min + 1) + '... のように';
+        input.className = 'value-input';
+        input.addEventListener('input', updateFromVisual);
+        wrap.appendChild(input);
+      }
+      return;
+    }
+
+    if (mode === 'range') {
+      var start = document.createElement('input');
+      start.type = 'number'; start.min = def.min; start.max = def.max; start.value = def.min;
+      start.className = 'range-start';
+      start.addEventListener('input', updateFromVisual);
+      var sep = document.createElement('span'); sep.textContent = '〜';
+      var end = document.createElement('input');
+      end.type = 'number'; end.min = def.min; end.max = def.max; end.value = def.max;
+      end.className = 'range-end';
+      end.addEventListener('input', updateFromVisual);
+      wrap.appendChild(start); wrap.appendChild(sep); wrap.appendChild(end);
+      return;
+    }
+
+    if (mode === 'step') {
+      var n = document.createElement('input');
+      n.type = 'number'; n.min = 1; n.max = def.max; n.value = 5;
+      n.className = 'step-n';
+      n.addEventListener('input', updateFromVisual);
+      var suffix = document.createElement('span'); suffix.textContent = def.unit + 'おき';
+      wrap.appendChild(n); wrap.appendChild(suffix);
+      return;
+    }
+  }
+
+  function fieldRawFromVisual(def){
+    var mode = document.querySelector('.mode-select[data-field="' + def.key + '"]').value;
+    if (mode === 'wild') return '*';
+    if (mode === 'value') {
+      if (def.weekday) {
+        var checked = Array.prototype.slice.call(document.querySelectorAll('#inputs-' + def.key + ' .dow-check:checked'))
+          .map(function(cb){ return cb.value; });
+        return checked.length ? checked.join(',') : '*';
+      } else {
+        var el = document.querySelector('#inputs-' + def.key + ' .value-input');
+        var v = el ? el.value.trim() : '';
+        return v || '*';
+      }
+    }
+    if (mode === 'range') {
+      var s = document.querySelector('#inputs-' + def.key + ' .range-start').value;
+      var e = document.querySelector('#inputs-' + def.key + ' .range-end').value;
+      return s + '-' + e;
+    }
+    if (mode === 'step') {
+      var n = document.querySelector('#inputs-' + def.key + ' .step-n').value;
+      return '*/' + (n || '1');
+    }
+    return '*';
+  }
+
+  function updateFromVisual(){
+    var raw = FIELD_DEFS.map(fieldRawFromVisual);
+    renderResult(raw);
+  }
+
+  function updateFromDirect(){
+    var val = document.getElementById('direct-input').value.trim();
+    if (!val) {
+      renderResult(null, '');
+      return;
+    }
+    var parts = val.split(/\s+/);
+    if (parts.length !== 5) {
+      renderResult(null, '5つのフィールド（分 時 日 月 曜日）をスペース区切りで入力してください（現在 ' + parts.length + ' 個）');
+      return;
+    }
+    renderResult(parts);
+  }
+
+  // ---------- cronパース ----------
+
+  function parseField(expr, min, max){
+    if (expr === '*') {
+      var set = new Set();
+      for (var i = min; i <= max; i++) set.add(i);
+      return { set: set, wild: true };
+    }
+    var result = new Set();
+    var parts = expr.split(',');
+    for (var p = 0; p < parts.length; p++) {
+      var part = parts[p].trim();
+      var m = part.match(/^(\*|\d+|\d+-\d+)(\/(\d+))?$/);
+      if (!m) throw new Error('不正な値です: "' + part + '"');
+      var base = m[1];
+      var step = m[3] ? parseInt(m[3], 10) : 1;
+      if (step <= 0) throw new Error('n刻みは1以上にしてください: "' + part + '"');
+      var range;
+      if (base === '*') {
+        range = [min, max];
+      } else if (base.indexOf('-') !== -1) {
+        var ab = base.split('-').map(Number);
+        if (ab[0] > ab[1]) throw new Error('範囲の順序が逆です: "' + part + '"');
+        range = ab;
+      } else {
+        var v = Number(base);
+        range = m[3] ? [v, max] : [v, v];
+      }
+      if (range[0] < min || range[1] > max) {
+        throw new Error('値が範囲(' + min + '〜' + max + ')を超えています: "' + part + '"');
+      }
+      for (var i2 = range[0]; i2 <= range[1]; i2 += step) result.add(i2);
+    }
+    if (result.size === 0) throw new Error('有効な値がありません: "' + expr + '"');
+    return { set: result, wild: false };
+  }
+
+  function parseCron(raw){
+    var defs = [
+      { key:'minute', min:0, max:59 },
+      { key:'hour', min:0, max:23 },
+      { key:'dom', min:1, max:31 },
+      { key:'month', min:1, max:12 },
+      { key:'dow', min:0, max:6 }
+    ];
+    var fields = {};
+    for (var i = 0; i < defs.length; i++) {
+      var d = defs[i];
+      try {
+        fields[d.key] = parseField(raw[i], d.min, d.max);
+      } catch (e) {
+        throw new Error('「' + ['分','時','日','月','曜日'][i] + '」欄: ' + e.message);
+      }
+    }
+    return fields;
+  }
+
+  function matchesDate(date, f){
+    if (!f.minute.set.has(date.getMinutes())) return false;
+    if (!f.hour.set.has(date.getHours())) return false;
+    if (!f.month.set.has(date.getMonth() + 1)) return false;
+    var domWild = f.dom.wild, dowWild = f.dow.wild;
+    var dom = date.getDate(), dow = date.getDay();
+    if (domWild && dowWild) return true;
+    if (!domWild && dowWild) return f.dom.set.has(dom);
+    if (domWild && !dowWild) return f.dow.set.has(dow);
+    return f.dom.set.has(dom) || f.dow.set.has(dow);
+  }
+
+  function nextRuns(fields, count, fromDate){
+    var d = new Date(fromDate.getTime());
+    d.setSeconds(0, 0);
+    d.setMinutes(d.getMinutes() + 1);
+    var results = [];
+    var maxIter = 60 * 24 * 366; // 約1年分の分
+    var iter = 0;
+    while (results.length < count && iter < maxIter) {
+      if (matchesDate(d, fields)) results.push(new Date(d.getTime()));
+      d.setMinutes(d.getMinutes() + 1);
+      iter++;
+    }
+    return results;
+  }
+
+  function describeField(raw, parsed, unit, weekdayMode){
+    if (raw === '*') return '毎' + (unit || '曜日');
+    if (/^\*\/\d+$/.test(raw)) {
+      var n = raw.split('/')[1];
+      return n + (unit || '曜日') + 'おき';
+    }
+    var vals = Array.from(parsed.set).sort(function(a,b){ return a-b; });
+    if (weekdayMode) {
+      return vals.map(function(v){ return WEEKDAY_NAMES[v]; }).join('・');
+    }
+    if (vals.length > 8) {
+      return vals.slice(0, 8).join('、') + ' 他' + (vals.length - 8) + '件';
+    }
+    return vals.map(function(v){ return v + unit; }).join('、');
+  }
+
+  function describeCron(raw, fields){
+    var minRaw = raw[0], hourRaw = raw[1], domRaw = raw[2], monthRaw = raw[3], dowRaw = raw[4];
+    var timeDesc;
+    var singleTime = minRaw !== '*' && hourRaw !== '*' &&
+      fields.minute.set.size === 1 && fields.hour.set.size === 1 &&
+      minRaw.indexOf('/') === -1 && hourRaw.indexOf('/') === -1;
+    if (singleTime) {
+      var h = Array.from(fields.hour.set)[0];
+      var mi = Array.from(fields.minute.set)[0];
+      timeDesc = h + '時' + (mi < 10 ? '0' + mi : mi) + '分';
+    } else {
+      timeDesc = describeField(hourRaw, fields.hour, '時') + ' ' + describeField(minRaw, fields.minute, '分');
+    }
+
+    var dayDesc;
+    if (domRaw === '*' && dowRaw === '*') {
+      dayDesc = '毎日';
+    } else {
+      var parts = [];
+      if (domRaw !== '*') parts.push(describeField(domRaw, fields.dom, '日'));
+      if (dowRaw !== '*') parts.push(describeField(dowRaw, fields.dow, '', true));
+      dayDesc = parts.join(' または ');
+    }
+
+    var monthDesc = monthRaw === '*' ? '' : describeField(monthRaw, fields.month, '月') + ' ';
+
+    return monthDesc + dayDesc + ' ' + timeDesc + ' に実行';
+  }
+
+  function formatDate(d){
+    var y = d.getFullYear(), mo = d.getMonth() + 1, da = d.getDate();
+    var h = d.getHours(), mi = d.getMinutes();
+    var pad = function(n){ return n < 10 ? '0' + n : '' + n; };
+    return y + '-' + pad(mo) + '-' + pad(da) + '(' + WEEKDAY_NAMES[d.getDay()] + ') ' + pad(h) + ':' + pad(mi);
+  }
+
+  function relativeLabel(d, now){
+    var diffMs = d.getTime() - now.getTime();
+    var diffMin = Math.round(diffMs / 60000);
+    if (diffMin < 60) return 'あと' + diffMin + '分';
+    var diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return 'あと' + diffH + '時間';
+    var diffD = Math.floor(diffH / 24);
+    return 'あと' + diffD + '日';
+  }
+
+  // ---------- 結果描画 ----------
+
+  var lastCronStr = '';
+
+  function renderResult(raw, forcedError){
+    var cronOut = document.getElementById('cron-output');
+    var descOut = document.getElementById('desc-output');
+    var errOut = document.getElementById('error-output');
+    var runsOut = document.getElementById('runs-output');
+
+    if (forcedError !== undefined) {
+      cronOut.textContent = '-';
+      descOut.textContent = '';
+      errOut.textContent = forcedError;
+      runsOut.innerHTML = '';
+      lastCronStr = '';
+      return;
+    }
+    if (!raw) {
+      cronOut.textContent = '-';
+      descOut.textContent = '';
+      errOut.textContent = '';
+      runsOut.innerHTML = '';
+      lastCronStr = '';
+      return;
+    }
+
+    var cronStr = raw.join(' ');
+    cronOut.textContent = cronStr;
+
+    try {
+      var fields = parseCron(raw);
+      errOut.textContent = '';
+      descOut.innerHTML = describeCron(raw, fields);
+      lastCronStr = cronStr;
+
+      var now = new Date();
+      var runs = nextRuns(fields, 5, now);
+      runsOut.innerHTML = '';
+      if (runs.length === 0) {
+        var li0 = document.createElement('li');
+        li0.textContent = '今後1年以内に実行予定が見つかりませんでした（条件を確認してください）';
+        runsOut.appendChild(li0);
+      } else {
+        runs.forEach(function(d){
+          var li = document.createElement('li');
+          var left = document.createElement('span');
+          left.textContent = formatDate(d);
+          var right = document.createElement('span');
+          right.className = 'rel';
+          right.textContent = relativeLabel(d, now);
+          li.appendChild(left);
+          li.appendChild(right);
+          runsOut.appendChild(li);
+        });
+      }
+    } catch (e) {
+      errOut.textContent = e.message;
+      descOut.textContent = '';
+      runsOut.innerHTML = '';
+      lastCronStr = '';
+    }
+  }
+
+  // ---------- タブ切り替え ----------
+
+  window.switchTab = function(tab){
+    state.mode = tab;
+    document.querySelectorAll('.tab-btn').forEach(function(b){
+      b.classList.toggle('active', b.dataset.tab === tab);
+    });
+    document.querySelectorAll('.tab-content').forEach(function(c){
+      c.classList.toggle('active', c.id === 'tab-' + tab);
+    });
+    if (tab === 'visual') updateFromVisual();
+    else updateFromDirect();
+  };
+
+  // ---------- コピー ----------
+
+  window.copyCron = function(){
+    if (!lastCronStr) return;
+    var btn = document.getElementById('copy-btn');
+    function done(){
+      btn.textContent = 'コピー完了';
+      btn.classList.add('copied');
+      setTimeout(function(){ btn.textContent = 'コピー'; btn.classList.remove('copied'); }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(lastCronStr).then(done).catch(function(){ fallbackCopy(lastCronStr, done); });
+    } else {
+      fallbackCopy(lastCronStr, done);
+    }
+  };
+
+  function fallbackCopy(text, cb){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); cb(); } catch (e) { /* コピー失敗時は無視 */ }
+    document.body.removeChild(ta);
+  }
+
+  // ---------- プリセット ----------
+
+  function applyPreset(cron){
+    document.getElementById('direct-input').value = cron;
+    switchTab('direct');
+  }
+
+  function buildPresets(containerId, list){
+    var wrap = document.getElementById(containerId);
+    list.forEach(function(p){
+      var btn = document.createElement('button');
+      btn.className = 'preset-btn';
+      btn.textContent = p.label;
+      btn.addEventListener('click', function(){ applyPreset(p.cron); });
+      wrap.appendChild(btn);
+    });
+  }
+
+  // ---------- 初期化 ----------
+
+  FIELD_DEFS.forEach(function(def){
+    buildFieldRow(def);
+    renderFieldInputs(def);
+  });
+  buildPresets('preset-general', PRESETS_GENERAL);
+  buildPresets('preset-office', PRESETS_OFFICE);
+
+  document.getElementById('direct-input').addEventListener('input', updateFromDirect);
+
+  applyPreset('0 9 * * *');
+
+})();
+</script>
+
+</body>
+</html>
