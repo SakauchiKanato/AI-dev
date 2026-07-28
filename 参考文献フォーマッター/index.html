@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>参考文献フォーマッター</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #7c5cff;
+    --accent-dim: #4a3aa0;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --warn: #e0a53a;
+    --danger: #e35d6a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 380px;
+    min-width: 300px;
+  }
+  .panel h2 { font-size: 16px; margin: 0 0 12px 0; }
+  .panel h3 { font-size: 14px; margin: 18px 0 8px 0; color: var(--muted); }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px 0; }
+  select, input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  select:focus, input:focus { outline: 1px solid var(--accent); }
+  .required-mark { color: var(--danger); margin-left: 3px; }
+  .btn {
+    margin-top: 14px;
+    padding: 9px 16px;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn:hover { background: var(--accent-dim); }
+  .btn.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .error-msg {
+    color: var(--danger);
+    font-size: 12px;
+    margin-top: 8px;
+    min-height: 16px;
+  }
+  .style-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .style-row label { margin: 0; white-space: nowrap; }
+  .style-row select { width: auto; flex: 1 1 200px; }
+  #countBadge { color: var(--muted); font-weight: normal; font-size: 13px; }
+  .ref-item {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .ref-item .ref-text { flex: 1; word-break: break-word; }
+  .ref-item .warn-badge {
+    color: var(--warn);
+    font-size: 11px;
+    display: block;
+    margin-top: 4px;
+  }
+  .ref-item .del-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 5px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .ref-item .del-btn:hover { color: var(--danger); border-color: var(--danger); }
+  .empty-msg { color: var(--muted); font-size: 13px; }
+  .toast {
+    display: inline-block;
+    margin-left: 10px;
+    font-size: 12px;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+  .short-cite-box {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  @media (max-width: 480px) {
+    body { padding: 12px; }
+    .panel { padding: 12px; min-width: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>参考文献フォーマッター</h1>
+  <p>文献情報を入力すると、APA・MLA・SIST02（日本語論文形式）の参考文献リストと本文中の短縮引用を自動生成します。</p>
+</header>
+
+<div class="layout">
+  <div class="panel">
+    <h2>文献を登録</h2>
+
+    <label>文献の種類</label>
+    <select id="typeSelect">
+      <option value="book">書籍</option>
+      <option value="journal">論文</option>
+      <option value="web">Webページ</option>
+      <option value="news">ニュース記事</option>
+    </select>
+
+    <div id="fieldsContainer"></div>
+
+    <div id="formError" class="error-msg"></div>
+    <button class="btn" id="addBtn">リストに追加</button>
+  </div>
+
+  <div class="panel">
+    <div class="style-row">
+      <label for="styleSelect">引用スタイル</label>
+      <select id="styleSelect">
+        <option value="apa">APA第7版</option>
+        <option value="mla">MLA第9版</option>
+        <option value="sist">SIST02（日本語論文形式）</option>
+      </select>
+    </div>
+
+    <h2>参考文献リスト <span id="countBadge"></span></h2>
+    <div id="refList"><div class="empty-msg">まだ文献が登録されていません。左のフォームから追加してください。</div></div>
+    <button class="btn secondary" id="copyAllBtn">リストをコピー</button><span class="toast" id="copyToast">コピーしました</span>
+
+    <h3>本文中の短縮引用</h3>
+    <div class="short-cite-box" id="shortCiteList"><span class="empty-msg">文献を登録すると表示されます</span></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- 文献種別ごとの入力項目定義 ----
+  var TYPE_FIELDS = {
+    book: [
+      { key: "author", label: "著者", required: true },
+      { key: "title", label: "タイトル", required: true },
+      { key: "year", label: "出版年", required: true },
+      { key: "publisher", label: "出版社", required: true }
+    ],
+    journal: [
+      { key: "author", label: "著者", required: true },
+      { key: "title", label: "タイトル", required: true },
+      { key: "year", label: "出版年", required: true },
+      { key: "journal", label: "掲載誌名", required: true },
+      { key: "volume", label: "巻", required: false },
+      { key: "issue", label: "号", required: false },
+      { key: "pages", label: "ページ", required: false }
+    ],
+    web: [
+      { key: "author", label: "著者（不明なら空欄可）", required: false },
+      { key: "title", label: "タイトル", required: true },
+      { key: "year", label: "公開年（不明なら空欄可）", required: false },
+      { key: "site", label: "サイト名", required: true },
+      { key: "url", label: "URL", required: true },
+      { key: "accessDate", label: "閲覧日（例: 2026-07-28）", required: true }
+    ],
+    news: [
+      { key: "author", label: "記者・新聞社（不明なら空欄可）", required: false },
+      { key: "title", label: "タイトル", required: true },
+      { key: "year", label: "出版年", required: true },
+      { key: "monthDay", label: "月日（例: 7月28日、任意）", required: false },
+      { key: "source", label: "掲載紙・掲載サイト名", required: true },
+      { key: "url", label: "URL（任意）", required: false },
+      { key: "accessDate", label: "閲覧日（任意）", required: false }
+    ]
+  };
+
+  var TYPE_LABEL = { book: "書籍", journal: "論文", web: "Webページ", news: "ニュース記事" };
+
+  var entries = [];
+  var nextId = 1;
+
+  var typeSelect = document.getElementById("typeSelect");
+  var styleSelect = document.getElementById("styleSelect");
+  var fieldsContainer = document.getElementById("fieldsContainer");
+  var formError = document.getElementById("formError");
+  var addBtn = document.getElementById("addBtn");
+  var refList = document.getElementById("refList");
+  var countBadge = document.getElementById("countBadge");
+  var copyAllBtn = document.getElementById("copyAllBtn");
+  var copyToast = document.getElementById("copyToast");
+  var shortCiteList = document.getElementById("shortCiteList");
+
+  function esc(str) {
+    var div = document.createElement("div");
+    div.textContent = str == null ? "" : String(str);
+    return div.innerHTML;
+  }
+
+  function renderFields() {
+    var type = typeSelect.value;
+    var defs = TYPE_FIELDS[type];
+    var html = "";
+    for (var i = 0; i < defs.length; i++) {
+      var d = defs[i];
+      html += '<label>' + esc(d.label) + (d.required ? '<span class="required-mark">必須</span>' : '') + '</label>';
+      html += '<input type="text" data-key="' + d.key + '" autocomplete="off">';
+    }
+    fieldsContainer.innerHTML = html;
+    formError.textContent = "";
+  }
+
+  function collectFieldValues() {
+    var inputs = fieldsContainer.querySelectorAll("input[data-key]");
+    var values = {};
+    for (var i = 0; i < inputs.length; i++) {
+      values[inputs[i].getAttribute("data-key")] = inputs[i].value.trim();
+    }
+    return values;
+  }
+
+  function validate(type, values) {
+    var defs = TYPE_FIELDS[type];
+    var missing = [];
+    for (var i = 0; i < defs.length; i++) {
+      if (defs[i].required && !values[defs[i].key]) {
+        missing.push(defs[i].label.replace(/（.*?）/, ""));
+      }
+    }
+    return missing;
+  }
+
+  function safe(v, fallback) {
+    return v && v.length ? v : (fallback || "");
+  }
+
+  // ---- スタイルごとの整形 ----
+  function formatAPA(e) {
+    var f = e.fields;
+    switch (e.type) {
+      case "book":
+        return safe(f.author, "[著者不明]") + ". (" + safe(f.year, "n.d.") + "). " + safe(f.title, "[タイトル不明]") + ". " + safe(f.publisher, "[出版社不明]") + ".";
+      case "journal":
+        var vi = f.volume ? f.volume + (f.issue ? "(" + f.issue + ")" : "") : "";
+        return safe(f.author, "[著者不明]") + ". (" + safe(f.year, "n.d.") + "). " + safe(f.title, "[タイトル不明]") + ". " + safe(f.journal, "[掲載誌不明]") + (vi ? ", " + vi : "") + (f.pages ? ", " + f.pages : "") + ".";
+      case "web":
+        return safe(f.author, safe(f.site, "[著者不明]")) + ". (" + safe(f.year, "n.d.") + "). " + safe(f.title, "[タイトル不明]") + ". " + safe(f.site, "[サイト名不明]") + ". " + safe(f.url, "[URL不明]");
+      case "news":
+        var date = f.year ? (f.year + (f.monthDay ? ", " + f.monthDay : "")) : "n.d.";
+        return safe(f.author, safe(f.source, "[著者不明]")) + ". (" + date + "). " + safe(f.title, "[タイトル不明]") + ". " + safe(f.source, "[掲載元不明]") + "." + (f.url ? " " + f.url : "");
+    }
+    return "";
+  }
+
+  function formatMLA(e) {
+    var f = e.fields;
+    switch (e.type) {
+      case "book":
+        return safe(f.author, "[著者不明]") + ". " + safe(f.title, "[タイトル不明]") + ". " + safe(f.publisher, "[出版社不明]") + ", " + safe(f.year, "n.d.") + ".";
+      case "journal":
+        return safe(f.author, "[著者不明]") + '. "' + safe(f.title, "[タイトル不明]") + '." ' + safe(f.journal, "[掲載誌不明]") + (f.volume ? ", vol. " + f.volume : "") + (f.issue ? ", no. " + f.issue : "") + ", " + safe(f.year, "n.d.") + (f.pages ? ", pp. " + f.pages : "") + ".";
+      case "web":
+        return safe(f.author, safe(f.site, "[著者不明]")) + '. "' + safe(f.title, "[タイトル不明]") + '." ' + safe(f.site, "[サイト名不明]") + ", " + safe(f.year, "n.d.") + ", " + safe(f.url, "[URL不明]") + ". Accessed " + safe(f.accessDate, "[閲覧日不明]") + ".";
+      case "news":
+        return safe(f.author, safe(f.source, "[著者不明]")) + '. "' + safe(f.title, "[タイトル不明]") + '." ' + safe(f.source, "[掲載元不明]") + ", " + safe(f.year, "n.d.") + (f.monthDay ? ", " + f.monthDay : "") + (f.url ? ", " + f.url : "") + ".";
+    }
+    return "";
+  }
+
+  function formatSIST(e) {
+    var f = e.fields;
+    switch (e.type) {
+      case "book":
+        return safe(f.author, "[著者不明]") + ". " + safe(f.title, "[タイトル不明]") + ". " + safe(f.publisher, "[出版社不明]") + ", " + safe(f.year, "[出版年不明]") + ".";
+      case "journal":
+        var vi = f.volume ? f.volume + (f.issue ? "(" + f.issue + ")" : "") : "";
+        return safe(f.author, "[著者不明]") + ". " + safe(f.title, "[タイトル不明]") + ". " + safe(f.journal, "[掲載誌不明]") + ". " + safe(f.year, "[出版年不明]") + (vi ? ", " + vi : "") + (f.pages ? ", p." + f.pages : "") + ".";
+      case "web":
+        return safe(f.author, safe(f.site, "[著者不明]")) + ". " + safe(f.title, "[タイトル不明]") + ". " + safe(f.site, "[サイト名不明]") + ". (オンライン), 入手先<" + safe(f.url, "[URL不明]") + ">, (参照 " + safe(f.accessDate, "[閲覧日不明]") + ").";
+      case "news":
+        return safe(f.author, safe(f.source, "[著者不明]")) + ". " + safe(f.title, "[タイトル不明]") + ". " + safe(f.source, "[掲載元不明]") + ". " + safe(f.year, "[出版年不明]") + (f.monthDay ? ", " + f.monthDay : "") + "." + (f.url ? " 入手先<" + f.url + ">" : "");
+    }
+    return "";
+  }
+
+  function formatEntry(e) {
+    var style = styleSelect.value;
+    if (style === "mla") return formatMLA(e);
+    if (style === "sist") return formatSIST(e);
+    return formatAPA(e);
+  }
+
+  function shortCite(e) {
+    var f = e.fields;
+    var authorRaw = f.author || f.site || f.source || "著者不明";
+    var authorShort = authorRaw.split(/[、,]/)[0].trim();
+    var year = f.year || "n.d.";
+    return "（" + authorShort + ", " + year + "）";
+  }
+
+  function sortKey(e) {
+    var f = e.fields;
+    return (f.author || f.site || f.source || f.title || "").trim();
+  }
+
+  function render() {
+    // 参考文献リスト
+    if (entries.length === 0) {
+      refList.innerHTML = '<div class="empty-msg">まだ文献が登録されていません。左のフォームから追加してください。</div>';
+      shortCiteList.innerHTML = '<span class="empty-msg">文献を登録すると表示されます</span>';
+      countBadge.textContent = "";
+      return;
+    }
+
+    var sorted = entries.slice().sort(function (a, b) {
+      return sortKey(a).localeCompare(sortKey(b), "ja");
+    });
+
+    var html = "";
+    for (var i = 0; i < sorted.length; i++) {
+      var e = sorted[i];
+      var missing = validate(e.type, e.fields);
+      html += '<div class="ref-item">';
+      html += '<div class="ref-text">' + esc(formatEntry(e));
+      if (missing.length > 0) {
+        html += '<span class="warn-badge">⚠ 未入力: ' + esc(missing.join("、")) + '（' + esc(TYPE_LABEL[e.type]) + '）</span>';
+      }
+      html += '</div>';
+      html += '<button class="del-btn" data-id="' + e.id + '">削除</button>';
+      html += '</div>';
+    }
+    refList.innerHTML = html;
+    countBadge.textContent = entries.length + "件";
+
+    var citeHtml = "";
+    for (var j = 0; j < sorted.length; j++) {
+      citeHtml += esc(shortCite(sorted[j])) + (j < sorted.length - 1 ? "　" : "");
+    }
+    shortCiteList.innerHTML = citeHtml;
+  }
+
+  function addEntry() {
+    var type = typeSelect.value;
+    var values = collectFieldValues();
+    var missing = validate(type, values);
+
+    // タイトルだけは実質必須（フォーマットの核）。全項目空なら何もしない
+    var hasAnyValue = Object.keys(values).some(function (k) { return values[k]; });
+    if (!hasAnyValue) {
+      formError.textContent = "少なくとも1項目は入力してください。";
+      return;
+    }
+
+    entries.push({ id: nextId++, type: type, fields: values });
+    formError.textContent = missing.length > 0 ? "追加しました（必須項目が未入力です: " + missing.join("、") + "）。リストに⚠表示されます。" : "";
+
+    // フォームをクリア
+    var inputs = fieldsContainer.querySelectorAll("input[data-key]");
+    for (var i = 0; i < inputs.length; i++) inputs[i].value = "";
+
+    render();
+  }
+
+  function deleteEntry(id) {
+    entries = entries.filter(function (e) { return e.id !== id; });
+    render();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showToast, function () { fallbackCopy(text); });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch (err) { /* noop */ }
+    document.body.removeChild(ta);
+    showToast();
+  }
+
+  function showToast() {
+    copyToast.classList.add("show");
+    setTimeout(function () { copyToast.classList.remove("show"); }, 1500);
+  }
+
+  function copyAll() {
+    if (entries.length === 0) return;
+    var sorted = entries.slice().sort(function (a, b) {
+      return sortKey(a).localeCompare(sortKey(b), "ja");
+    });
+    var lines = sorted.map(formatEntry);
+    copyText(lines.join("\n"));
+  }
+
+  typeSelect.addEventListener("change", renderFields);
+  styleSelect.addEventListener("change", render);
+  addBtn.addEventListener("click", addEntry);
+  copyAllBtn.addEventListener("click", copyAll);
+  refList.addEventListener("click", function (evt) {
+    var btn = evt.target.closest(".del-btn");
+    if (btn) deleteEntry(Number(btn.getAttribute("data-id")));
+  });
+
+  renderFields();
+  render();
+})();
+</script>
+
+</body>
+</html>
