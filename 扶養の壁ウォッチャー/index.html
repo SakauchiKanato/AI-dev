@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>扶養の壁ウォッチャー</title>
+<style>
+  :root {
+    --bg:#1e1e2e;
+    --panel:#262638;
+    --accent:#c9a53b;
+    --accent2:#e07a5f;
+    --text:#e8e6f2;
+    --muted:#9a97b5;
+    --border:#3a3a52;
+    --warn:#e07a5f;
+    --caution:#d9b84a;
+    --ok:#3ea6a0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px;
+    color: var(--text);
+  }
+  #settings-panel { flex: 1 1 300px; }
+  #months-panel { flex: 2 1 480px; }
+  #dashboard-panel { flex: 1 1 300px; }
+  #forecast-panel { flex: 1 1 300px; }
+  #chart-panel { flex: 2 1 480px; }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input, select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #1a1a28;
+    color: var(--text);
+    font-size: 14px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    background: var(--accent);
+    color: #241d08;
+    font-weight: bold;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .wall-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  .wall-check input[type="checkbox"] { width: auto; }
+  .wall-check label { margin: 0; color: var(--text); font-size: 13px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 4px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: normal; font-size: 11px; }
+  td input { padding: 5px; font-size: 13px; }
+  .salary-cell { text-align: right; font-weight: bold; white-space: nowrap; }
+
+  .stat-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-value { font-weight: bold; }
+
+  .wall-status {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .wall-status.caution { border-color: var(--caution); }
+  .wall-status.over { border-color: var(--warn); }
+  .wall-status .wall-name { font-weight: bold; }
+  .wall-status .wall-remain { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .wall-status.caution .wall-remain { color: var(--caution); }
+  .wall-status.over .wall-remain { color: var(--warn); }
+  .empty-msg { color: var(--muted); font-size: 13px; padding: 10px 0; }
+
+  .bar-row { margin-bottom: 8px; }
+  .bar-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; color: var(--muted); }
+  .bar-bg { background: #1a1a28; border-radius: 4px; overflow: hidden; height: 12px; border: 1px solid var(--border); }
+  .bar-fill { height: 100%; background: var(--accent); }
+
+  .forecast-item { font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .forecast-item:last-child { border-bottom: none; }
+  .forecast-item .f-wall { font-weight: bold; }
+  .forecast-item .f-detail { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: #241d08;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  @media (max-width: 600px) {
+    .layout { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>扶養の壁ウォッチャー</h1>
+  <p>時給×勤務時間から月ごとの給与を計算し、103万・106万・130万・150万など意識する「扶養の壁」までの残り額を可視化する</p>
+</header>
+
+<div class="layout">
+
+  <div id="settings-panel" class="panel">
+    <h2>設定</h2>
+    <label>意識する壁（複数選択可）</label>
+    <div id="wall-checks"></div>
+
+    <label for="current-month">現在の月（逆算計算に使用）</label>
+    <select id="current-month"></select>
+
+    <label for="global-wage">共通の時給（円）</label>
+    <input type="number" id="global-wage" placeholder="例: 1100" min="0">
+    <button id="apply-wage-btn" class="secondary" style="width:100%; margin-top:8px;">全月の時給に反映</button>
+  </div>
+
+  <div id="months-panel" class="panel">
+    <h2>月別の勤務時間・給与</h2>
+    <table>
+      <thead>
+        <tr><th>月</th><th>時給（円）</th><th>勤務時間（h）</th><th>月給（自動計算）</th></tr>
+      </thead>
+      <tbody id="months-tbody"></tbody>
+    </table>
+    <button id="copy-btn" class="secondary" style="margin-top:12px;">結果をコピー</button>
+  </div>
+
+  <div id="dashboard-panel" class="panel">
+    <h2>年間累計ダッシュボード</h2>
+    <div class="stat-row"><span>年間累計給与</span><span class="stat-value" id="total-salary">¥0</span></div>
+    <div class="stat-row"><span>入力済み月数</span><span class="stat-value" id="filled-months">0 / 12</span></div>
+    <h2 style="margin-top:16px;">壁までの残り</h2>
+    <div id="wall-status-list"></div>
+    <div id="wall-empty" class="empty-msg">壁を1つ以上選択してください。</div>
+  </div>
+
+  <div id="forecast-panel" class="panel">
+    <h2>今後の調整目安</h2>
+    <p style="font-size:12px; color:var(--muted); margin-top:0;">現在の月以降、壁を超えないために必要な平均月給の目安</p>
+    <div id="forecast-list"></div>
+    <div id="forecast-empty" class="empty-msg">壁を選択すると表示されます。</div>
+  </div>
+
+  <div id="chart-panel" class="panel">
+    <h2>月別給与の推移</h2>
+    <div id="month-bars"></div>
+    <div id="chart-empty" class="empty-msg">給与を入力するとグラフが表示されます。</div>
+  </div>
+
+</div>
+
+<div id="toast">コピーしました</div>
+
+<script>
+  const WALLS = [
+    { id: 103, label: "103万円の壁（所得税）", amount: 1030000 },
+    { id: 106, label: "106万円の壁（社会保険・大企業等）", amount: 1060000 },
+    { id: 130, label: "130万円の壁（社会保険・一般）", amount: 1300000 },
+    { id: 150, label: "150万円の壁（配偶者特別控除満額）", amount: 1500000 }
+  ];
+  const DEFAULT_SELECTED = [103, 130];
+  const MONTH_NAMES = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+
+  let months = MONTH_NAMES.map(() => ({ wage: null, hours: null }));
+  let selectedWalls = new Set(DEFAULT_SELECTED);
+  let currentMonthIdx = 6; // 7月をデフォルト（0始まり）
+
+  const el = (id) => document.getElementById(id);
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatYen(n) {
+    if (!isFinite(n)) return "¥0";
+    return "¥" + Math.round(n).toLocaleString('ja-JP');
+  }
+
+  function showToast(msg) {
+    const t = el('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1500);
+  }
+
+  function clampNonNegative(n) {
+    if (isNaN(n) || !isFinite(n)) return 0;
+    return Math.max(0, n);
+  }
+
+  function monthSalary(m) {
+    const wage = clampNonNegative(parseFloat(m.wage));
+    const hours = clampNonNegative(parseFloat(m.hours));
+    return wage * hours;
+  }
+
+  function buildWallChecks() {
+    const wrap = el('wall-checks');
+    wrap.innerHTML = '';
+    WALLS.forEach(w => {
+      const row = document.createElement('div');
+      row.className = 'wall-check';
+      const checked = selectedWalls.has(w.id) ? 'checked' : '';
+      row.innerHTML = `
+        <input type="checkbox" id="wall-${w.id}" data-id="${w.id}" ${checked}>
+        <label for="wall-${w.id}">${escapeHtml(w.label)}</label>
+      `;
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const id = parseInt(cb.dataset.id, 10);
+        if (cb.checked) selectedWalls.add(id);
+        else selectedWalls.delete(id);
+        render();
+      });
+    });
+  }
+
+  function buildMonthSelect() {
+    const sel = el('current-month');
+    sel.innerHTML = '';
+    MONTH_NAMES.forEach((name, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = name;
+      if (i === currentMonthIdx) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', () => {
+      currentMonthIdx = parseInt(sel.value, 10);
+      render();
+    });
+  }
+
+  function buildMonthRows() {
+    const tbody = el('months-tbody');
+    tbody.innerHTML = '';
+    months.forEach((m, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(MONTH_NAMES[i])}</td>
+        <td><input type="number" min="0" step="1" class="wage-input" data-idx="${i}" value="${m.wage === null ? '' : m.wage}" placeholder="例:1100"></td>
+        <td><input type="number" min="0" step="0.5" class="hours-input" data-idx="${i}" value="${m.hours === null ? '' : m.hours}" placeholder="例:40"></td>
+        <td class="salary-cell" id="salary-${i}">¥0</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll('.wage-input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const i = parseInt(inp.dataset.idx, 10);
+        months[i].wage = inp.value === '' ? null : parseFloat(inp.value);
+        render();
+      });
+    });
+    tbody.querySelectorAll('.hours-input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const i = parseInt(inp.dataset.idx, 10);
+        months[i].hours = inp.value === '' ? null : parseFloat(inp.value);
+        render();
+      });
+    });
+  }
+
+  function applyGlobalWage() {
+    const raw = el('global-wage').value;
+    const wage = parseFloat(raw);
+    if (raw === '' || isNaN(wage) || wage < 0) {
+      showToast('正しい時給を入力してください');
+      return;
+    }
+    months.forEach((m, i) => {
+      if (m.wage === null || m.wage === '') {
+        m.wage = wage;
+      }
+    });
+    buildMonthRows();
+    render();
+    showToast('未入力の月に時給を反映しました');
+  }
+
+  function render() {
+    renderSalaryCells();
+    renderDashboard();
+    renderForecast();
+    renderChart();
+  }
+
+  function renderSalaryCells() {
+    months.forEach((m, i) => {
+      const salary = monthSalary(m);
+      const cell = el('salary-' + i);
+      if (cell) cell.textContent = formatYen(salary);
+    });
+  }
+
+  function totalSalary() {
+    return months.reduce((sum, m) => sum + monthSalary(m), 0);
+  }
+
+  function filledMonthCount() {
+    return months.filter(m => (m.wage !== null && m.wage !== '') || (m.hours !== null && m.hours !== '')).length;
+  }
+
+  function renderDashboard() {
+    const total = totalSalary();
+    el('total-salary').textContent = formatYen(total);
+    el('filled-months').textContent = filledMonthCount() + ' / 12';
+
+    const listDiv = el('wall-status-list');
+    listDiv.innerHTML = '';
+    const walls = WALLS.filter(w => selectedWalls.has(w.id));
+
+    if (walls.length === 0) {
+      el('wall-empty').style.display = 'block';
+    } else {
+      el('wall-empty').style.display = 'none';
+      walls.forEach(w => {
+        const remain = w.amount - total;
+        const div = document.createElement('div');
+        let statusClass = '';
+        let remainText = '';
+        if (remain <= 0) {
+          statusClass = 'over';
+          remainText = `壁を ${formatYen(Math.abs(remain))} 超過しています`;
+        } else if (remain <= 100000) {
+          statusClass = 'caution';
+          remainText = `残り ${formatYen(remain)}（要注意）`;
+        } else {
+          remainText = `残り ${formatYen(remain)}`;
+        }
+        div.className = 'wall-status ' + statusClass;
+        div.innerHTML = `
+          <div class="wall-name">${escapeHtml(w.label)}</div>
+          <div class="wall-remain">${remainText}</div>
+        `;
+        listDiv.appendChild(div);
+      });
+    }
+  }
+
+  function renderForecast() {
+    const listDiv = el('forecast-list');
+    listDiv.innerHTML = '';
+    const walls = WALLS.filter(w => selectedWalls.has(w.id));
+    const total = totalSalary();
+    const remainingMonths = 12 - currentMonthIdx; // 現在月を含む残り月数
+
+    if (walls.length === 0) {
+      el('forecast-empty').style.display = 'block';
+      return;
+    }
+    el('forecast-empty').style.display = 'none';
+
+    walls.forEach(w => {
+      const remain = w.amount - total;
+      const div = document.createElement('div');
+      div.className = 'forecast-item';
+      let detail;
+      if (remain <= 0) {
+        detail = `すでに壁を超過しています（${formatYen(Math.abs(remain))}超過）`;
+      } else if (remainingMonths <= 0) {
+        detail = `今年の残り月数がありません`;
+      } else {
+        const perMonth = remain / remainingMonths;
+        detail = `残り${remainingMonths}か月で平均 ${formatYen(perMonth)}/月 以内に抑えると壁内に収まります`;
+      }
+      div.innerHTML = `
+        <div class="f-wall">${escapeHtml(w.label)}</div>
+        <div class="f-detail">${detail}</div>
+      `;
+      listDiv.appendChild(div);
+    });
+  }
+
+  function renderChart() {
+    const wrap = el('month-bars');
+    wrap.innerHTML = '';
+    const salaries = months.map(m => monthSalary(m));
+    const max = Math.max(...salaries, 1);
+    const hasData = salaries.some(s => s > 0);
+
+    if (!hasData) {
+      el('chart-empty').style.display = 'block';
+      return;
+    }
+    el('chart-empty').style.display = 'none';
+
+    salaries.forEach((s, i) => {
+      const pct = (s / max) * 100;
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      row.innerHTML = `
+        <div class="bar-label"><span>${escapeHtml(MONTH_NAMES[i])}</span><span>${formatYen(s)}</span></div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${pct.toFixed(1)}%;"></div></div>
+      `;
+      wrap.appendChild(row);
+    });
+  }
+
+  function copyResult() {
+    const total = totalSalary();
+    let text = '扶養の壁ウォッチャー 結果\n\n';
+    text += `年間累計給与: ${formatYen(total)}（入力済み ${filledMonthCount()}/12か月）\n\n`;
+    text += '[月別給与]\n';
+    months.forEach((m, i) => {
+      const s = monthSalary(m);
+      if (s > 0 || m.wage || m.hours) {
+        text += `- ${MONTH_NAMES[i]}: ${formatYen(s)}\n`;
+      }
+    });
+    text += '\n[壁までの残り]\n';
+    const walls = WALLS.filter(w => selectedWalls.has(w.id));
+    if (walls.length === 0) {
+      text += '（壁が選択されていません）\n';
+    } else {
+      walls.forEach(w => {
+        const remain = w.amount - total;
+        if (remain <= 0) {
+          text += `- ${w.label}: ${formatYen(Math.abs(remain))} 超過\n`;
+        } else {
+          text += `- ${w.label}: 残り ${formatYen(remain)}\n`;
+        }
+      });
+    }
+    copyToClipboard(text);
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('コピーしました');
+      }).catch(() => {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('コピーしました');
+    } catch (e) {
+      showToast('コピーに失敗しました');
+    }
+    document.body.removeChild(ta);
+  }
+
+  el('apply-wage-btn').addEventListener('click', applyGlobalWage);
+  el('copy-btn').addEventListener('click', copyResult);
+
+  buildWallChecks();
+  buildMonthSelect();
+  buildMonthRows();
+  render();
+</script>
+
+</body>
+</html>
