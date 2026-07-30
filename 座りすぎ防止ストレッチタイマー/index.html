@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>座りすぎ防止ストレッチタイマー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #f2a154;
+    --accent-soft: #3a2f28;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --danger: #e0607a;
+    --ok: #5fc9a8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 20px;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout { display: flex; flex-wrap: wrap; gap: 20px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 320px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px 0; color: var(--text); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
+  button {
+    background: var(--accent);
+    color: #1e1e2e;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-weight: normal;
+  }
+  button.ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-weight: normal;
+  }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  input[type=number] {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 8px;
+    width: 70px;
+    font-size: 13px;
+  }
+  textarea {
+    width: 100%;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 12px;
+    min-height: 70px;
+    resize: vertical;
+    font-family: monospace;
+  }
+  .timer-display {
+    font-size: 42px;
+    font-weight: bold;
+    text-align: center;
+    padding: 14px 0;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+  .preset-btns button { min-width: 60px; }
+  .preset-btns button.active { outline: 2px solid var(--text); }
+  .stretch-card {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px;
+    margin-top: 10px;
+  }
+  .stretch-card .part-tag {
+    display: inline-block;
+    background: var(--accent);
+    color: #1e1e2e;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .stretch-card h3 { margin: 0 0 6px 0; font-size: 16px; }
+  .stretch-card p { margin: 0 0 10px 0; font-size: 13px; color: var(--text); }
+  .stretch-countdown { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .empty-hint { color: var(--muted); font-size: 13px; }
+  .stat-row { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .stat-box {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    text-align: center;
+    flex: 1 1 100px;
+  }
+  .stat-box .num { font-size: 22px; font-weight: bold; color: var(--accent); }
+  .stat-box .label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .log-list { max-height: 160px; overflow-y: auto; font-size: 12px; }
+  .log-item {
+    display: flex; justify-content: space-between;
+    padding: 5px 0; border-bottom: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .log-item .ok { color: var(--ok); }
+  .log-item .skip { color: var(--danger); }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+  .bar-row .day-label { width: 32px; color: var(--muted); }
+  .bar-track { flex: 1; background: #1a1a28; border-radius: 4px; height: 14px; overflow: hidden; }
+  .bar-fill { background: var(--accent); height: 100%; border-radius: 4px; min-width: 2px; }
+  .bar-row .count { width: 20px; text-align: right; color: var(--muted); }
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--ok); color: #1e1e2e; padding: 10px 18px; border-radius: 6px;
+    font-size: 13px; font-weight: bold; opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .status-msg { font-size: 12px; margin-top: 6px; min-height: 16px; }
+  .status-msg.error { color: var(--danger); }
+  .status-msg.ok { color: var(--ok); }
+  @media (max-width: 600px) {
+    .layout { gap: 12px; }
+    .timer-display { font-size: 32px; }
+    .stat-row { gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>座りすぎ防止ストレッチタイマー</h1>
+  <p>開発の集中で休憩を忘れがちな人向け。時間になったらストレッチを1つ提案します。</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel" id="timerPanel">
+    <h2>タイマー</h2>
+    <div class="row preset-btns" id="presetBtns">
+      <button data-min="25" class="secondary">25分</button>
+      <button data-min="50" class="secondary">50分</button>
+      <button data-min="90" class="secondary">90分</button>
+      <input type="number" id="customMin" min="1" max="180" placeholder="分">
+      <button class="secondary" id="customStartBtn">開始</button>
+    </div>
+    <div class="timer-display" id="timerDisplay">--:--</div>
+    <div class="row" style="justify-content:center;">
+      <button id="pauseBtn" disabled>一時停止</button>
+      <button class="secondary" id="resetBtn" disabled>リセット</button>
+      <button class="ghost" id="quickStretchBtn">今すぐ1分ストレッチ</button>
+    </div>
+  </div>
+
+  <div class="panel" id="stretchPanel">
+    <h2>ストレッチ提案</h2>
+    <div id="stretchArea">
+      <p class="empty-hint">タイマーが終わるか「今すぐ1分ストレッチ」を押すとここに表示されます。</p>
+    </div>
+  </div>
+
+  <div class="panel" id="logPanel">
+    <h2>本日の記録</h2>
+    <div class="stat-row">
+      <div class="stat-box"><div class="num" id="todayCount">0</div><div class="label">本日の実施回数</div></div>
+      <div class="stat-box"><div class="num" id="streakCount">0</div><div class="label">連続実施日数</div></div>
+    </div>
+    <div class="log-list" id="logList">
+      <p class="empty-hint">まだ記録がありません。</p>
+    </div>
+  </div>
+
+  <div class="panel" id="weekPanel">
+    <h2>週間統計（直近7日・実施回数）</h2>
+    <div id="weekBars"></div>
+  </div>
+
+  <div class="panel" id="dataPanel">
+    <h2>記録の保存・読み込み</h2>
+    <p class="empty-hint">localStorageは使わないため、記録を次回に引き継ぎたい場合はここでテキストをコピーして保存し、次回貼り付けて読み込んでください。</p>
+    <textarea id="dataArea" placeholder="ここに記録データが表示されます／貼り付けて読み込めます"></textarea>
+    <div class="row" style="margin-top:8px;">
+      <button class="secondary" id="exportBtn">エクスポート（コピー）</button>
+      <button class="secondary" id="importBtn">貼り付けを読み込む</button>
+    </div>
+    <div class="status-msg" id="dataStatus"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STRETCHES = [
+    { part: "首", name: "首まわし", desc: "首をゆっくり右に3回、左に3回まわす。痛みを感じない範囲でゆっくりと。" },
+    { part: "首", name: "首の側屈", desc: "右手で頭を軽く右に倒して10秒キープ、反対側も同様に行う。" },
+    { part: "肩", name: "肩すくめ", desc: "両肩を耳に近づけるようにすくめて3秒キープし、ストンと脱力する。5回繰り返す。" },
+    { part: "肩", name: "肩甲骨寄せ", desc: "両肘を後ろに引き、肩甲骨を寄せるイメージで10秒キープを3回。" },
+    { part: "背中", name: "背伸びストレッチ", desc: "両手を組んで頭上に伸ばし、体を上に引き上げるように10秒キープ。" },
+    { part: "背中", name: "猫背伸ばし", desc: "座ったまま両手を前で組み、背中を丸めて肩甲骨を広げる姿勢を10秒キープ。" },
+    { part: "手首", name: "手首の回旋", desc: "両手首を組んでゆっくり右回りに5回、左回りに5回まわす。" },
+    { part: "手首", name: "手首の伸ばし", desc: "片手を前に伸ばし、もう片方の手で指先を軽く手前に反らして10秒キープ、反対側も行う。" },
+    { part: "目", name: "20-20-20ルール", desc: "20フィート（約6m）先を20秒間見つめて目の緊張をほぐす。" },
+    { part: "目", name: "目を閉じてリラックス", desc: "両手のひらを軽く目に当て、真っ暗な状態を15秒間キープして目を休める。" }
+  ];
+
+  var timerInterval = null;
+  var remainingSeconds = 0;
+  var isPaused = false;
+  var quickCountdownInterval = null;
+  var currentStretch = null;
+
+  // 記録: { date: "YYYY-MM-DD", time: "HH:MM", part, name, result: "実施"|"スキップ" }
+  var log = [];
+
+  var el = {
+    presetBtns: document.getElementById("presetBtns"),
+    customMin: document.getElementById("customMin"),
+    customStartBtn: document.getElementById("customStartBtn"),
+    timerDisplay: document.getElementById("timerDisplay"),
+    pauseBtn: document.getElementById("pauseBtn"),
+    resetBtn: document.getElementById("resetBtn"),
+    quickStretchBtn: document.getElementById("quickStretchBtn"),
+    stretchArea: document.getElementById("stretchArea"),
+    todayCount: document.getElementById("todayCount"),
+    streakCount: document.getElementById("streakCount"),
+    logList: document.getElementById("logList"),
+    weekBars: document.getElementById("weekBars"),
+    dataArea: document.getElementById("dataArea"),
+    exportBtn: document.getElementById("exportBtn"),
+    importBtn: document.getElementById("importBtn"),
+    dataStatus: document.getElementById("dataStatus"),
+    toast: document.getElementById("toast")
+  };
+
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+
+  function todayStr() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+
+  function nowTimeStr() {
+    var d = new Date();
+    return pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function showToast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.add("show");
+    setTimeout(function () { el.toast.classList.remove("show"); }, 1800);
+  }
+
+  function pickRandomStretch() {
+    return STRETCHES[Math.floor(Math.random() * STRETCHES.length)];
+  }
+
+  function beep() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      var ctx = new Ctx();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.value = 0.15;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      setTimeout(function () {
+        osc.stop();
+        ctx.close();
+      }, 350);
+    } catch (e) {
+      // 音が鳴らせない環境では無視する
+    }
+  }
+
+  // --- タイマー ---
+
+  function formatSeconds(sec) {
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return pad(m) + ":" + pad(s);
+  }
+
+  function startTimer(minutes) {
+    if (!minutes || minutes <= 0 || isNaN(minutes)) return;
+    stopTimerInterval();
+    remainingSeconds = Math.round(minutes * 60);
+    isPaused = false;
+    el.timerDisplay.textContent = formatSeconds(remainingSeconds);
+    el.pauseBtn.disabled = false;
+    el.pauseBtn.textContent = "一時停止";
+    el.resetBtn.disabled = false;
+    timerInterval = setInterval(tickTimer, 1000);
+  }
+
+  function tickTimer() {
+    if (isPaused) return;
+    remainingSeconds--;
+    if (remainingSeconds <= 0) {
+      stopTimerInterval();
+      el.timerDisplay.textContent = "00:00";
+      el.pauseBtn.disabled = true;
+      el.resetBtn.disabled = true;
+      beep();
+      showToast("休憩の時間です！ストレッチを1つどうぞ");
+      showStretchCard();
+      return;
+    }
+    el.timerDisplay.textContent = formatSeconds(remainingSeconds);
+  }
+
+  function stopTimerInterval() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function togglePause() {
+    if (!timerInterval && remainingSeconds <= 0) return;
+    isPaused = !isPaused;
+    el.pauseBtn.textContent = isPaused ? "再開" : "一時停止";
+  }
+
+  function resetTimer() {
+    stopTimerInterval();
+    remainingSeconds = 0;
+    isPaused = false;
+    el.timerDisplay.textContent = "--:--";
+    el.pauseBtn.disabled = true;
+    el.pauseBtn.textContent = "一時停止";
+    el.resetBtn.disabled = true;
+  }
+
+  // --- ストレッチ提案 ---
+
+  function showStretchCard() {
+    currentStretch = pickRandomStretch();
+    if (quickCountdownInterval) {
+      clearInterval(quickCountdownInterval);
+      quickCountdownInterval = null;
+    }
+    renderStretchCard();
+  }
+
+  function renderStretchCard(countdownText) {
+    if (!currentStretch) return;
+    var html = "";
+    html += '<div class="stretch-card">';
+    html += '<span class="part-tag">' + escapeHtml(currentStretch.part) + '</span>';
+    html += '<h3>' + escapeHtml(currentStretch.name) + '</h3>';
+    html += '<p>' + escapeHtml(currentStretch.desc) + '</p>';
+    if (countdownText) {
+      html += '<div class="stretch-countdown">目安時間: ' + escapeHtml(countdownText) + '</div>';
+    }
+    html += '<div class="row">';
+    html += '<button id="doneBtn">実施した</button>';
+    html += '<button class="secondary" id="skipBtn">スキップ</button>';
+    html += '</div>';
+    html += '</div>';
+    el.stretchArea.innerHTML = html;
+    document.getElementById("doneBtn").addEventListener("click", function () { recordResult("実施"); });
+    document.getElementById("skipBtn").addEventListener("click", function () { recordResult("スキップ"); });
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function startQuickStretch() {
+    showStretchCard();
+    var remain = 60;
+    renderStretchCard(formatSeconds(remain) + " 目安");
+    quickCountdownInterval = setInterval(function () {
+      remain--;
+      if (remain <= 0) {
+        clearInterval(quickCountdownInterval);
+        quickCountdownInterval = null;
+        if (currentStretch) renderStretchCard("目安時間終了");
+        return;
+      }
+      if (currentStretch) renderStretchCard(formatSeconds(remain) + " 目安");
+    }, 1000);
+  }
+
+  function recordResult(result) {
+    if (!currentStretch) return;
+    log.push({
+      date: todayStr(),
+      time: nowTimeStr(),
+      part: currentStretch.part,
+      name: currentStretch.name,
+      result: result
+    });
+    currentStretch = null;
+    if (quickCountdownInterval) {
+      clearInterval(quickCountdownInterval);
+      quickCountdownInterval = null;
+    }
+    el.stretchArea.innerHTML = '<p class="empty-hint">記録しました。お疲れさまです。</p>';
+    showToast(result === "実施" ? "記録しました！お疲れさまです" : "記録しました（スキップ）");
+    renderStats();
+  }
+
+  // --- 統計 ---
+
+  function renderStats() {
+    var today = todayStr();
+    var todayLogs = log.filter(function (item) { return item.date === today && item.result === "実施"; });
+    el.todayCount.textContent = todayLogs.length;
+    el.streakCount.textContent = computeStreak();
+    renderLogList();
+    renderWeekBars();
+  }
+
+  function computeStreak() {
+    var doneDates = {};
+    log.forEach(function (item) {
+      if (item.result === "実施") doneDates[item.date] = true;
+    });
+    var streak = 0;
+    var cursor = new Date();
+    // 今日に実施記録がなければ、今日をカウントせず昨日から遡る
+    if (!doneDates[todayStr()]) {
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    while (true) {
+      var y = cursor.getFullYear(), m = cursor.getMonth() + 1, d = cursor.getDate();
+      var key = y + "-" + pad(m) + "-" + pad(d);
+      if (doneDates[key]) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  function renderLogList() {
+    if (log.length === 0) {
+      el.logList.innerHTML = '<p class="empty-hint">まだ記録がありません。</p>';
+      return;
+    }
+    var items = log.slice().reverse().slice(0, 30);
+    var html = "";
+    items.forEach(function (item) {
+      var cls = item.result === "実施" ? "ok" : "skip";
+      html += '<div class="log-item"><span>' + escapeHtml(item.date) + " " + escapeHtml(item.time) + " " + escapeHtml(item.part) + "・" + escapeHtml(item.name) + '</span><span class="' + cls + '">' + escapeHtml(item.result) + "</span></div>";
+    });
+    el.logList.innerHTML = html;
+  }
+
+  function renderWeekBars() {
+    var days = [];
+    var cursor = new Date();
+    for (var i = 6; i >= 0; i--) {
+      var d = new Date();
+      d.setDate(cursor.getDate() - i);
+      var key = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+      var labels = ["日", "月", "火", "水", "木", "金", "土"];
+      days.push({ key: key, label: labels[d.getDay()] });
+    }
+    var counts = days.map(function (day) {
+      return log.filter(function (item) { return item.date === day.key && item.result === "実施"; }).length;
+    });
+    var max = Math.max.apply(null, counts.concat([1]));
+    var html = "";
+    days.forEach(function (day, idx) {
+      var pct = Math.round((counts[idx] / max) * 100);
+      html += '<div class="bar-row">';
+      html += '<span class="day-label">' + escapeHtml(day.label) + '</span>';
+      html += '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;"></div></div>';
+      html += '<span class="count">' + counts[idx] + '</span>';
+      html += '</div>';
+    });
+    el.weekBars.innerHTML = html;
+  }
+
+  // --- エクスポート／インポート ---
+
+  function copyText(str) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(str).then(function () {
+        showToast("コピーしました");
+      }).catch(function () {
+        fallbackCopy(str);
+      });
+    } else {
+      fallbackCopy(str);
+    }
+  }
+
+  function fallbackCopy(str) {
+    var ta = document.createElement("textarea");
+    ta.value = str;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showToast("コピーしました");
+    } catch (e) {
+      showToast("コピーに失敗しました。手動で選択してください");
+    }
+    document.body.removeChild(ta);
+  }
+
+  function exportData() {
+    var json = JSON.stringify(log);
+    el.dataArea.value = json;
+    copyText(json);
+  }
+
+  function importData() {
+    var text = el.dataArea.value.trim();
+    el.dataStatus.textContent = "";
+    el.dataStatus.className = "status-msg";
+    if (!text) {
+      el.dataStatus.textContent = "テキストが空です。";
+      el.dataStatus.className = "status-msg error";
+      return;
+    }
+    try {
+      var parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) throw new Error("配列ではありません");
+      var valid = parsed.every(function (item) {
+        return item && typeof item.date === "string" && typeof item.result === "string";
+      });
+      if (!valid) throw new Error("形式が不正です");
+      log = parsed;
+      renderStats();
+      el.dataStatus.textContent = "読み込みました（" + log.length + "件）";
+      el.dataStatus.className = "status-msg ok";
+    } catch (e) {
+      el.dataStatus.textContent = "読み込みに失敗しました。貼り付けたテキストを確認してください。";
+      el.dataStatus.className = "status-msg error";
+    }
+  }
+
+  // --- イベント登録 ---
+
+  el.presetBtns.querySelectorAll("button[data-min]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var min = parseFloat(btn.getAttribute("data-min"));
+      startTimer(min);
+    });
+  });
+
+  el.customStartBtn.addEventListener("click", function () {
+    var v = parseFloat(el.customMin.value);
+    if (!v || v <= 0) {
+      showToast("正しい分数を入力してください");
+      return;
+    }
+    startTimer(v);
+  });
+
+  el.pauseBtn.addEventListener("click", togglePause);
+  el.resetBtn.addEventListener("click", resetTimer);
+  el.quickStretchBtn.addEventListener("click", startQuickStretch);
+  el.exportBtn.addEventListener("click", exportData);
+  el.importBtn.addEventListener("click", importData);
+
+  // 初期表示
+  renderStats();
+})();
+</script>
+
+</body>
+</html>
