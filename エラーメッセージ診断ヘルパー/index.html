@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>エラーメッセージ診断ヘルパー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --panel2: #2c2c42;
+    --accent: #e5595e;
+    --accent2: #f0a24a;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --ok: #4a9e6e;
+    --warn: #d4a13d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .col-input { flex: 1 1 340px; min-width: 300px; }
+  .col-result { flex: 1.4 1 420px; min-width: 300px; }
+  .col-cheat { flex: 1 1 100%; }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+  textarea {
+    width: 100%;
+    min-height: 240px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+    font-size: 13px;
+    resize: vertical;
+  }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  button.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-weight: normal;
+  }
+  button:hover { opacity: 0.88; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .toast {
+    display: inline-block;
+    font-size: 12px;
+    color: var(--ok);
+    margin-left: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+  .result-empty { color: var(--muted); font-size: 13px; }
+  .card {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .card.unknown { border-left-color: var(--warn); }
+  .card h3 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .badge {
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1px 8px;
+  }
+  .card .count { font-size: 11px; color: var(--accent2); font-weight: normal; }
+  .card p { font-size: 13px; margin: 6px 0; line-height: 1.5; }
+  .card p.cause b, .card p.hint b { color: var(--muted); font-weight: normal; }
+  .group-title {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 14px 0 8px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .group-title:first-child { margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { color: var(--muted); font-weight: normal; }
+  .cheat-cols { display: flex; gap: 24px; flex-wrap: wrap; }
+  .cheat-cols > div { flex: 1 1 320px; min-width: 260px; }
+  @media (max-width: 480px) {
+    body { padding: 12px; }
+    .panel { padding: 12px; }
+    textarea { min-height: 180px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>エラーメッセージ診断ヘルパー</h1>
+  <p>コンソール・ターミナルに出たエラーメッセージやスタックトレースを貼り付けると、よくある原因と確認ポイントを診断します（ヒューリスティック判定、あくまで参考です）</p>
+</header>
+
+<div class="layout">
+  <div class="panel col-input">
+    <label for="input">エラーメッセージ / スタックトレースを貼り付け</label>
+    <textarea id="input" placeholder="例:&#10;Uncaught TypeError: Cannot read properties of undefined (reading 'name')&#10;    at app.js:42&#10;&#10;または&#10;&#10;Traceback (most recent call last):&#10;  File &quot;main.py&quot;, line 10, in &lt;module&gt;&#10;    print(data['key'])&#10;KeyError: 'key'"></textarea>
+    <div class="btn-row">
+      <button id="diagnoseBtn" onclick="diagnose()">診断する</button>
+      <button class="secondary" onclick="clearAll()">クリア</button>
+    </div>
+  </div>
+
+  <div class="panel col-result">
+    <label>診断結果 <span id="copyToast" class="toast">コピーしました</span></label>
+    <div id="result">
+      <p class="result-empty">左にエラーメッセージを貼り付けて「診断する」を押してください。</p>
+    </div>
+    <div class="btn-row" id="copyRow" style="display:none;">
+      <button class="secondary" onclick="copyResult()">結果をコピー</button>
+    </div>
+  </div>
+
+  <div class="panel col-cheat">
+    <label>よくあるエラー早見表（チートシート）</label>
+    <div class="cheat-cols">
+      <div>
+        <div class="group-title">JavaScript</div>
+        <table>
+          <tr><th>エラー</th><th>意味</th></tr>
+          <tr><td>TypeError</td><td>値の型が想定と違う操作（undefinedのプロパティ参照など）</td></tr>
+          <tr><td>ReferenceError</td><td>未定義の変数・関数を参照した</td></tr>
+          <tr><td>SyntaxError</td><td>文法エラー（括弧・カンマ不一致など）</td></tr>
+          <tr><td>RangeError</td><td>値が許容範囲外（再帰の無限ループ等）</td></tr>
+        </table>
+      </div>
+      <div>
+        <div class="group-title">Python</div>
+        <table>
+          <tr><th>エラー</th><th>意味</th></tr>
+          <tr><td>KeyError</td><td>辞書に存在しないキーへのアクセス</td></tr>
+          <tr><td>IndexError</td><td>リストの範囲外インデックスへのアクセス</td></tr>
+          <tr><td>AttributeError</td><td>存在しない属性・メソッドの呼び出し</td></tr>
+          <tr><td>ModuleNotFoundError</td><td>importしたモジュールが見つからない</td></tr>
+          <tr><td>IndentationError</td><td>インデント（字下げ）の不整合</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var JS_PATTERNS = [
+    {
+      id: 'js-cannot-read',
+      label: "TypeError: Cannot read properties of undefined/null",
+      regex: /Cannot read propert(?:y|ies) of (?:undefined|null)/gi,
+      cause: "存在しないオブジェクト（undefined/null）のプロパティやメソッドにアクセスしようとしています。非同期処理が終わる前に参照した、変数の初期化忘れ、配列の範囲外アクセスなどが典型的な原因です。",
+      hint: "エラーメッセージに出ているプロパティ名で該当行を特定し、その手前でconsole.logして値を確認してください。オプショナルチェイニング（?.）や初期値の設定も有効です。"
+    },
+    {
+      id: 'js-not-a-function',
+      label: "TypeError: X is not a function",
+      regex: /is not a function/gi,
+      cause: "関数として呼び出そうとした値が実際には関数ではありません（undefined・オブジェクト・文字列など）。タイポ、importミス、メソッド名の綴り間違いが典型的です。",
+      hint: "呼び出している変数名・メソッド名のスペルを確認し、importや定義箇所、ライブラリのバージョンをチェックしてください。"
+    },
+    {
+      id: 'js-not-defined',
+      label: "ReferenceError: X is not defined",
+      regex: /\b\w+ is not defined\b/gi,
+      cause: "変数・関数が宣言される前に使われている、スコープ外から参照している、またはスペルミスです。",
+      hint: "変数の宣言箇所とスコープを確認し、scriptタグやimportの読み込み順序をチェックしてください。"
+    },
+    {
+      id: 'js-unexpected-token',
+      label: "SyntaxError: Unexpected token",
+      regex: /Unexpected token/gi,
+      cause: "文法エラーです。括弧やカンマの過不足、JSONの記法ミス、テンプレートリテラルの閉じ忘れなどが典型的です。",
+      hint: "エラー位置周辺の括弧・カンマの対応を確認してください。JSON.parseで起きている場合は、パースしようとしている文字列の中身も確認してください。"
+    },
+    {
+      id: 'js-stack-size',
+      label: "RangeError: Maximum call stack size exceeded",
+      regex: /Maximum call stack size exceeded/gi,
+      cause: "再帰呼び出しが終了条件に達せず、無限に近い回数呼び出されています。",
+      hint: "再帰関数の終了条件（ベースケース）が正しく機能しているか確認してください。"
+    },
+    {
+      id: 'js-not-iterable',
+      label: "TypeError: X is not iterable",
+      regex: /is not iterable/gi,
+      cause: "for...ofやスプレッド構文（...）を、配列やイテラブルでない値に対して使っています。",
+      hint: "対象の値が配列・Map・Setなどのイテラブルかどうかをconsole.logやtypeofで確認してください。"
+    },
+    {
+      id: 'js-const-assign',
+      label: "TypeError: Assignment to constant variable",
+      regex: /Assignment to constant variable/gi,
+      cause: "constで宣言した変数に再代入しようとしています。",
+      hint: "再代入が必要な変数はletで宣言し直してください。"
+    }
+  ];
+
+  var PY_PATTERNS = [
+    {
+      id: 'py-traceback',
+      label: "Traceback（Pythonの例外発生）",
+      regex: /Traceback \(most recent call last\)/g,
+      cause: "Pythonの例外が発生した際の呼び出し履歴です。実際のエラー種別とメッセージは一番下の行に表示されます。",
+      hint: "Tracebackの最終行（エラー種別: メッセージ）と、対応するファイル名・行番号をまず確認してください。"
+    },
+    {
+      id: 'py-indentation',
+      label: "IndentationError",
+      regex: /IndentationError/g,
+      cause: "インデント（字下げ）の不整合です。タブとスペースの混在、if/for/def直後のインデント忘れが典型的です。",
+      hint: "該当行とその前後のインデント幅を統一してください（エディタの「空白を表示」機能が便利です）。"
+    },
+    {
+      id: 'py-module-not-found',
+      label: "ModuleNotFoundError: No module named 'X'",
+      regex: /ModuleNotFoundError|No module named/g,
+      cause: "importしようとしたモジュールがインストールされていない、または名前が間違っています。",
+      hint: "`pip install X` でインストール済みか確認し、モジュール名のスペルもチェックしてください。仮想環境を使っている場合はアクティベート忘れも疑ってください。"
+    },
+    {
+      id: 'py-key-error',
+      label: "KeyError",
+      regex: /KeyError/g,
+      cause: "辞書（dict）に存在しないキーでアクセスしています。",
+      hint: "`.get(key, デフォルト値)` を使うか、事前に `if key in dict:` で存在確認してください。"
+    },
+    {
+      id: 'py-index-error',
+      label: "IndexError",
+      regex: /IndexError/g,
+      cause: "リストやタプルの範囲外のインデックスにアクセスしています。",
+      hint: "対象のリストの長さ（len()）と、アクセスしているインデックスを確認してください。"
+    },
+    {
+      id: 'py-type-error',
+      label: "TypeError",
+      regex: /TypeError/g,
+      cause: "型が合わない操作（文字列と数値の演算、Noneに対するメソッド呼び出しなど）をしています。",
+      hint: "エラーメッセージ内の変数・値の型をtype()で確認してください。"
+    },
+    {
+      id: 'py-value-error',
+      label: "ValueError",
+      regex: /ValueError/g,
+      cause: "型は正しいものの値が不正です（int('abc')のような変換失敗など）。",
+      hint: "変換・処理しようとしている値の中身を確認してください。"
+    },
+    {
+      id: 'py-attribute-error',
+      label: "AttributeError",
+      regex: /AttributeError/g,
+      cause: "オブジェクトに存在しない属性・メソッドを呼び出しています。Noneに対する呼び出しも典型例です。",
+      hint: "対象オブジェクトの型と、実際に呼び出せる属性・メソッドをdir()やドキュメントで確認してください。"
+    },
+    {
+      id: 'py-name-error',
+      label: "NameError",
+      regex: /NameError/g,
+      cause: "定義されていない変数・関数名を参照しています。スペルミスや定義前の使用が典型的です。",
+      hint: "変数名のスペルと、定義箇所・実行順序を確認してください。"
+    },
+    {
+      id: 'py-zero-division',
+      label: "ZeroDivisionError",
+      regex: /ZeroDivisionError/g,
+      cause: "0での除算をしています。",
+      hint: "除数が0になりうるケースを洗い出し、事前にif文で分岐してください。"
+    },
+    {
+      id: 'py-file-not-found',
+      label: "FileNotFoundError",
+      regex: /FileNotFoundError/g,
+      cause: "指定したパスのファイルが見つかりません。相対パスの起点（カレントディレクトリ）のズレが典型的な原因です。",
+      hint: "ファイルパスと実行時のカレントディレクトリ（os.getcwd()）を確認してください。"
+    },
+    {
+      id: 'py-syntax-error',
+      label: "SyntaxError",
+      regex: /SyntaxError/g,
+      cause: "Pythonの文法エラーです。コロンや括弧の付け忘れ、インデントミスなどが典型的です。",
+      hint: "エラー位置（^マーカー）の周辺で、コロン・括弧の対応を確認してください。"
+    }
+  ];
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function countMatches(text, regex) {
+    var re = new RegExp(regex.source, regex.flags.indexOf('g') === -1 ? regex.flags + 'g' : regex.flags);
+    var m = text.match(re);
+    return m ? m.length : 0;
+  }
+
+  var AMBIGUOUS_PY_IDS = ['py-type-error', 'py-syntax-error'];
+
+  function hasPythonContext(text) {
+    return /Traceback \(most recent call last\)/.test(text) ||
+      /File "[^\n]*\.py"/.test(text) ||
+      /,\s*line\s+\d+,\s*in\s/.test(text);
+  }
+
+  function scan(text, patterns) {
+    var hits = [];
+    for (var i = 0; i < patterns.length; i++) {
+      var p = patterns[i];
+      var n = countMatches(text, p.regex);
+      if (n > 0) {
+        hits.push({ id: p.id, label: p.label, cause: p.cause, hint: p.hint, count: n });
+      }
+    }
+    return hits;
+  }
+
+  function renderCard(hit, isUnknown) {
+    var countBadge = hit.count > 1 ? '<span class="count">×' + hit.count + '</span>' : '';
+    return '' +
+      '<div class="card' + (isUnknown ? ' unknown' : '') + '">' +
+        '<h3><span>' + escapeHtml(hit.label) + '</span>' + countBadge + '</h3>' +
+        '<p class="cause"><b>原因: </b>' + escapeHtml(hit.cause) + '</p>' +
+        '<p class="hint"><b>確認/対処: </b>' + escapeHtml(hit.hint) + '</p>' +
+      '</div>';
+  }
+
+  function diagnose() {
+    var text = document.getElementById('input').value;
+    var resultEl = document.getElementById('result');
+    var copyRow = document.getElementById('copyRow');
+
+    if (!text || !text.trim()) {
+      resultEl.innerHTML = '<p class="result-empty">エラーメッセージを入力してください。</p>';
+      copyRow.style.display = 'none';
+      return;
+    }
+
+    var jsHits = scan(text, JS_PATTERNS);
+    var pyHits = scan(text, PY_PATTERNS);
+
+    if (!hasPythonContext(text)) {
+      pyHits = pyHits.filter(function (h) { return AMBIGUOUS_PY_IDS.indexOf(h.id) === -1; });
+    }
+
+    var html = '';
+    if (jsHits.length > 0) {
+      html += '<div class="group-title">JavaScript系</div>';
+      for (var i = 0; i < jsHits.length; i++) html += renderCard(jsHits[i], false);
+    }
+    if (pyHits.length > 0) {
+      html += '<div class="group-title">Python系</div>';
+      for (var j = 0; j < pyHits.length; j++) html += renderCard(pyHits[j], false);
+    }
+
+    if (jsHits.length === 0 && pyHits.length === 0) {
+      html += renderCard({
+        label: "未知のパターン（自動診断できませんでした）",
+        cause: "登録済みの代表的なエラーパターンには一致しませんでした。独自例外・ライブラリ固有のエラー・日本語化されたエラーメッセージなどの可能性があります。",
+        hint: "まずは①エラーメッセージ内のファイル名・行番号を特定する、②直前に変更したコードを確認する、③エラーメッセージをそのままコピーしてMDN/公式ドキュメントで検索する、の3点を試してください。"
+      }, true);
+    }
+
+    resultEl.innerHTML = html;
+    copyRow.style.display = 'flex';
+    window.__lastResultText = buildResultText(jsHits, pyHits);
+  }
+
+  function buildResultText(jsHits, pyHits) {
+    var lines = ["【エラーメッセージ診断結果】"];
+    var all = jsHits.concat(pyHits);
+    if (all.length === 0) {
+      lines.push("未知のパターン（自動診断できませんでした）");
+      lines.push("原因: 登録済みの代表的なエラーパターンには一致しませんでした。");
+      lines.push("対処: ファイル名・行番号の特定、直前の変更点の確認、エラーメッセージでの検索を試してください。");
+    } else {
+      for (var i = 0; i < all.length; i++) {
+        var h = all[i];
+        lines.push("");
+        lines.push("■ " + h.label + (h.count > 1 ? "（×" + h.count + "）" : ""));
+        lines.push("原因: " + h.cause);
+        lines.push("対処: " + h.hint);
+      }
+    }
+    return lines.join("\n");
+  }
+
+  function clearAll() {
+    document.getElementById('input').value = '';
+    document.getElementById('result').innerHTML = '<p class="result-empty">左にエラーメッセージを貼り付けて「診断する」を押してください。</p>';
+    document.getElementById('copyRow').style.display = 'none';
+    window.__lastResultText = '';
+  }
+
+  function copyResult() {
+    var text = window.__lastResultText || '';
+    if (!text) return;
+
+    function showToast() {
+      var toast = document.getElementById('copyToast');
+      toast.classList.add('show');
+      setTimeout(function () { toast.classList.remove('show'); }, 1500);
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showToast).catch(function () {
+        fallbackCopy(text, showToast);
+      });
+    } else {
+      fallbackCopy(text, showToast);
+    }
+  }
+
+  function fallbackCopy(text, cb) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      cb();
+    } catch (e) {
+      // コピー失敗時は無視（ユーザーに手動選択を促す）
+    }
+    document.body.removeChild(ta);
+  }
+</script>
+
+</body>
+</html>
