@@ -325,6 +325,8 @@
     }
     if (rh < 0) rh = 0;
     if (rh > 100) rh = 100;
+    if (t < -50) t = -50;
+    if (t > 60) t = 60;
 
     var wbgt = calcWBGT(t, rh);
     currentLevel = classify(wbgt);
