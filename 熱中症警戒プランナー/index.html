@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>熱中症警戒プランナー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #e8703a;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --safe: #4a90d9;
+    --caution: #6cbf5f;
+    --warning: #d9c04a;
+    --severe: #d98a3a;
+    --danger: #d9503a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 320px;
+    min-width: 280px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  label { font-size: 13px; color: var(--muted); display: block; margin-top: 10px; }
+  input[type="number"], select {
+    width: 100%;
+    padding: 8px;
+    margin-top: 4px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 13px;
+    background: var(--accent);
+    color: #fff;
+    margin-top: 10px;
+    margin-right: 6px;
+  }
+  button.secondary {
+    background: #3a3a52;
+    color: var(--text);
+  }
+  button:active { opacity: 0.8; }
+  .level-box {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 8px;
+    text-align: center;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+  }
+  .level-box .label {
+    font-size: 18px;
+    font-weight: bold;
+  }
+  .level-box .wbgt {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .progress-outer {
+    margin-top: 10px;
+    height: 16px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .progress-inner {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-top: 8px;
+    color: var(--muted);
+  }
+  .stat-row span.value { color: var(--text); font-weight: bold; }
+  .timer-display {
+    font-size: 32px;
+    text-align: center;
+    margin: 10px 0;
+    font-weight: bold;
+  }
+  .checklist label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+    font-size: 13px;
+    margin-top: 8px;
+  }
+  .checklist input { width: auto; margin: 0; }
+  .alert-box {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    display: none;
+  }
+  .alert-box.show { display: block; }
+  .alert-box.warn { background: rgba(217,192,74,0.15); border: 1px solid var(--warning); color: var(--warning); }
+  .alert-box.danger { background: rgba(217,80,58,0.15); border: 1px solid var(--danger); color: var(--danger); }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 10;
+  }
+  .toast.show { opacity: 1; }
+  .dashboard-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .dashboard-item {
+    flex: 1 1 120px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+  }
+  .dashboard-item .num { font-size: 22px; font-weight: bold; color: var(--accent); }
+  .dashboard-item .cap { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  @media (max-width: 480px) {
+    body { padding: 12px; }
+    .panel { min-width: 100%; }
+    .timer-display { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌡️ 熱中症警戒プランナー</h1>
+  <p>気温・湿度から警戒レベルを判定し、水分補給と休憩を忘れないようにサポートします。</p>
+</header>
+
+<div class="layout">
+
+  <!-- Panel A: 警戒レベル判定 -->
+  <div class="panel">
+    <h2>① 警戒レベル判定</h2>
+    <label for="temp">気温（℃）</label>
+    <input type="number" id="temp" value="33" step="0.1">
+    <label for="humidity">湿度（%）</label>
+    <input type="number" id="humidity" value="65" step="1" min="0" max="100">
+    <button onclick="calcLevel()">判定する</button>
+    <div class="level-box" id="levelBox">
+      <div class="label" id="levelLabel">気温・湿度を入力してください</div>
+      <div class="wbgt" id="levelWbgt"></div>
+    </div>
+  </div>
+
+  <!-- Panel B: 水分補給リマインダー -->
+  <div class="panel">
+    <h2>② 水分補給リマインダー</h2>
+    <label for="activityScene">シーン</label>
+    <select id="activityScene" onchange="onSceneChange()">
+      <option value="outing">外出</option>
+      <option value="exercise">運動</option>
+      <option value="parttime">屋外バイト</option>
+    </select>
+    <button onclick="startActivity()">活動開始</button>
+    <button class="secondary" onclick="resetActivity()">リセット</button>
+    <div class="stat-row"><span>経過時間</span><span class="value" id="elapsedTime">0分</span></div>
+    <div class="stat-row"><span>目安摂取量</span><span class="value" id="targetWater">0ml</span></div>
+    <div class="progress-outer"><div class="progress-inner" id="waterBar"></div></div>
+    <div class="stat-row"><span>飲んだ量</span><span class="value" id="loggedWaterText">0ml</span></div>
+    <button onclick="addWater(150)">💧 飲んだ（150ml）</button>
+    <button onclick="addWater(300)">💧 飲んだ（300ml）</button>
+  </div>
+
+  <!-- Panel C: 休憩タイマー -->
+  <div class="panel">
+    <h2>③ 休憩タイマー</h2>
+    <label for="breakPreset">間隔プリセット</label>
+    <select id="breakPreset" onchange="onBreakPresetChange()">
+      <option value="60">外出（60分ごと）</option>
+      <option value="30">運動（30分ごと）</option>
+      <option value="45">屋外バイト（45分ごと）</option>
+      <option value="custom">カスタム</option>
+    </select>
+    <input type="number" id="customMinutes" value="30" min="1" style="display:none; margin-top:8px;">
+    <div class="timer-display" id="breakTimerDisplay">30:00</div>
+    <button onclick="startBreakTimer()">開始</button>
+    <button class="secondary" onclick="pauseBreakTimer()">一時停止</button>
+    <button class="secondary" onclick="resetBreakTimer()">リセット</button>
+    <div class="alert-box warn" id="breakAlert">
+      ⏰ 休憩の時間です。日陰や涼しい場所で休みましょう。
+      <br><button onclick="logBreak()">休憩した（タイマー再開）</button>
+    </div>
+  </div>
+
+  <!-- Panel D: 本日のログ -->
+  <div class="panel">
+    <h2>④ 本日のログ</h2>
+    <div class="dashboard-grid">
+      <div class="dashboard-item">
+        <div class="num" id="dashWater">0ml</div>
+        <div class="cap">水分摂取合計</div>
+      </div>
+      <div class="dashboard-item">
+        <div class="num" id="dashBreaks">0回</div>
+        <div class="cap">休憩回数</div>
+      </div>
+      <div class="dashboard-item">
+        <div class="num" id="dashRate">-</div>
+        <div class="cap">水分達成率</div>
+      </div>
+    </div>
+    <button onclick="copySummary()">📋 結果をコピー</button>
+  </div>
+
+  <!-- Panel E: 症状チェックリスト -->
+  <div class="panel">
+    <h2>⑤ 体調チェックリスト</h2>
+    <div class="checklist">
+      <label><input type="checkbox" class="symptom" data-severe="0"> めまい・立ちくらみがある</label>
+      <label><input type="checkbox" class="symptom" data-severe="0"> 大量の汗をかいている</label>
+      <label><input type="checkbox" class="symptom" data-severe="0"> 頭痛がする</label>
+      <label><input type="checkbox" class="symptom" data-severe="0"> 吐き気・気分の悪さがある</label>
+      <label><input type="checkbox" class="symptom" data-severe="1"> 筋肉のけいれんがある</label>
+      <label><input type="checkbox" class="symptom" data-severe="1"> 意識がぼんやりする・様子がおかしい</label>
+    </div>
+    <div class="alert-box warn" id="symptomWarn">
+      ⚠️ 熱中症の可能性があります。涼しい場所に移動し、水分・塩分を補給して安静にしてください。
+    </div>
+    <div class="alert-box danger" id="symptomDanger">
+      🚨 重い症状の可能性があります。ためらわず周囲に助けを求め、必要に応じて救急要請（119番）してください。
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<textarea id="clipboardFallback" style="position:absolute; left:-9999px;"></textarea>
+
+<script>
+  // ---------- 状態（JS変数のみ、localStorage不使用） ----------
+  var currentLevel = { key: "caution", label: "注意", color: "var(--caution)", waterPerHour: 200 };
+  var activityStartTime = null;
+  var activityTimerHandle = null;
+  var loggedWater = 0;
+
+  var breakSeconds = 30 * 60;
+  var breakRemaining = breakSeconds;
+  var breakTimerHandle = null;
+  var breakRunning = false;
+  var breakCount = 0;
+
+  // ---------- ① 警戒レベル判定 ----------
+  function calcWBGT(t, rh) {
+    var pa = (rh / 100) * 6.105 * Math.exp((17.27 * t) / (237.7 + t));
+    return 0.567 * t + 0.393 * pa + 3.94;
+  }
+
+  function classify(wbgt) {
+    if (wbgt < 21) return { key: "safe", label: "ほぼ安全", color: "var(--safe)", waterPerHour: 150 };
+    if (wbgt < 25) return { key: "caution", label: "注意", color: "var(--caution)", waterPerHour: 200 };
+    if (wbgt < 28) return { key: "warning", label: "警戒", color: "var(--warning)", waterPerHour: 300 };
+    if (wbgt < 31) return { key: "severe", label: "厳重警戒", color: "var(--severe)", waterPerHour: 400 };
+    return { key: "danger", label: "危険", color: "var(--danger)", waterPerHour: 500 };
+  }
+
+  function calcLevel() {
+    var tEl = document.getElementById("temp");
+    var hEl = document.getElementById("humidity");
+    var t = parseFloat(tEl.value);
+    var rh = parseFloat(hEl.value);
+
+    if (isNaN(t) || isNaN(rh)) {
+      document.getElementById("levelLabel").textContent = "気温・湿度を正しく入力してください";
+      document.getElementById("levelWbgt").textContent = "";
+      return;
+    }
+    if (rh < 0) rh = 0;
+    if (rh > 100) rh = 100;
+    if (t < -50) t = -50;
+    if (t > 60) t = 60;
+
+    var wbgt = calcWBGT(t, rh);
+    currentLevel = classify(wbgt);
+
+    var labelEl = document.getElementById("levelLabel");
+    labelEl.textContent = currentLevel.label + "（暑さ指数 目安 " + wbgt.toFixed(1) + "）";
+    labelEl.style.color = currentLevel.color;
+    document.getElementById("levelWbgt").textContent =
+      "1時間あたりの目安飲水量: 約" + currentLevel.waterPerHour + "ml";
+
+    updateWaterTarget();
+    updateDashboard();
+  }
+
+  // ---------- ② 水分補給リマインダー ----------
+  function onSceneChange() {
+    // シーンは休憩プリセットと連動させず独立管理（表示のみ）
+  }
+
+  function startActivity() {
+    if (activityStartTime !== null) return;
+    activityStartTime = Date.now();
+    activityTimerHandle = setInterval(updateWaterTarget, 1000);
+    showToast("活動を開始しました");
+  }
+
+  function resetActivity() {
+    activityStartTime = null;
+    loggedWater = 0;
+    if (activityTimerHandle) clearInterval(activityTimerHandle);
+    activityTimerHandle = null;
+    document.getElementById("elapsedTime").textContent = "0分";
+    document.getElementById("targetWater").textContent = "0ml";
+    document.getElementById("loggedWaterText").textContent = "0ml";
+    document.getElementById("waterBar").style.width = "0%";
+    updateDashboard();
+    showToast("リセットしました");
+  }
+
+  function updateWaterTarget() {
+    var elapsedMin = 0;
+    if (activityStartTime !== null) {
+      elapsedMin = (Date.now() - activityStartTime) / 60000;
+    }
+    var target = Math.round((elapsedMin / 60) * currentLevel.waterPerHour);
+    document.getElementById("elapsedTime").textContent = Math.floor(elapsedMin) + "分";
+    document.getElementById("targetWater").textContent = target + "ml";
+
+    var pct = target > 0 ? Math.min(100, Math.round((loggedWater / target) * 100)) : 0;
+    document.getElementById("waterBar").style.width = pct + "%";
+    updateDashboard();
+  }
+
+  function addWater(amount) {
+    loggedWater += amount;
+    document.getElementById("loggedWaterText").textContent = loggedWater + "ml";
+    updateWaterTarget();
+    showToast(amount + "ml 記録しました");
+  }
+
+  // ---------- ③ 休憩タイマー ----------
+  function onBreakPresetChange() {
+    var preset = document.getElementById("breakPreset").value;
+    var customInput = document.getElementById("customMinutes");
+    if (preset === "custom") {
+      customInput.style.display = "block";
+      breakSeconds = (parseInt(customInput.value, 10) || 30) * 60;
+    } else {
+      customInput.style.display = "none";
+      breakSeconds = parseInt(preset, 10) * 60;
+    }
+    breakRemaining = breakSeconds;
+    renderBreakTimer();
+  }
+
+  function renderBreakTimer() {
+    var m = Math.floor(breakRemaining / 60);
+    var s = breakRemaining % 60;
+    if (m < 0) m = 0;
+    if (s < 0) s = 0;
+    document.getElementById("breakTimerDisplay").textContent =
+      String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+
+  function startBreakTimer() {
+    if (breakRunning) return;
+    if (document.getElementById("breakPreset").value === "custom") {
+      var customInput = document.getElementById("customMinutes");
+      var mins = parseInt(customInput.value, 10);
+      if (isNaN(mins) || mins <= 0) mins = 30;
+      breakSeconds = mins * 60;
+      if (breakRemaining <= 0 || breakRemaining > breakSeconds) breakRemaining = breakSeconds;
+    }
+    breakRunning = true;
+    breakTimerHandle = setInterval(function () {
+      breakRemaining--;
+      if (breakRemaining <= 0) {
+        breakRemaining = 0;
+        renderBreakTimer();
+        clearInterval(breakTimerHandle);
+        breakRunning = false;
+        document.getElementById("breakAlert").classList.add("show");
+      } else {
+        renderBreakTimer();
+      }
+    }, 1000);
+  }
+
+  function pauseBreakTimer() {
+    breakRunning = false;
+    if (breakTimerHandle) clearInterval(breakTimerHandle);
+  }
+
+  function resetBreakTimer() {
+    pauseBreakTimer();
+    breakRemaining = breakSeconds;
+    renderBreakTimer();
+    document.getElementById("breakAlert").classList.remove("show");
+  }
+
+  function logBreak() {
+    breakCount++;
+    document.getElementById("breakAlert").classList.remove("show");
+    breakRemaining = breakSeconds;
+    renderBreakTimer();
+    startBreakTimer();
+    updateDashboard();
+    showToast("休憩を記録しました（" + breakCount + "回目）");
+  }
+
+  // ---------- ④ ダッシュボード ----------
+  function updateDashboard() {
+    document.getElementById("dashWater").textContent = loggedWater + "ml";
+    document.getElementById("dashBreaks").textContent = breakCount + "回";
+
+    var elapsedMin = activityStartTime !== null ? (Date.now() - activityStartTime) / 60000 : 0;
+    var target = Math.round((elapsedMin / 60) * currentLevel.waterPerHour);
+    var rateText = "-";
+    if (target > 0) {
+      rateText = Math.min(999, Math.round((loggedWater / target) * 100)) + "%";
+    }
+    document.getElementById("dashRate").textContent = rateText;
+  }
+
+  // ---------- ⑤ 症状チェック ----------
+  document.addEventListener("DOMContentLoaded", function () {
+    var checks = document.querySelectorAll(".symptom");
+    for (var i = 0; i < checks.length; i++) {
+      checks[i].addEventListener("change", updateSymptomAlert);
+    }
+    onBreakPresetChange();
+    updateDashboard();
+  });
+
+  function updateSymptomAlert() {
+    var checks = document.querySelectorAll(".symptom");
+    var checkedCount = 0;
+    var severeChecked = false;
+    for (var i = 0; i < checks.length; i++) {
+      if (checks[i].checked) {
+        checkedCount++;
+        if (checks[i].getAttribute("data-severe") === "1") severeChecked = true;
+      }
+    }
+    var warnBox = document.getElementById("symptomWarn");
+    var dangerBox = document.getElementById("symptomDanger");
+
+    dangerBox.classList.toggle("show", severeChecked);
+    warnBox.classList.toggle("show", checkedCount > 0 && !severeChecked);
+  }
+
+  // ---------- コピー機能（clipboard API失敗時フォールバック） ----------
+  function copySummary() {
+    var elapsedMin = activityStartTime !== null ? Math.floor((Date.now() - activityStartTime) / 60000) : 0;
+    var target = Math.round((elapsedMin / 60) * currentLevel.waterPerHour);
+    var text =
+      "【熱中症警戒プランナー】\n" +
+      "警戒レベル: " + currentLevel.label + "\n" +
+      "経過時間: " + elapsedMin + "分\n" +
+      "目安摂取量: " + target + "ml / 実際の摂取量: " + loggedWater + "ml\n" +
+      "休憩回数: " + breakCount + "回";
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast("結果をコピーしました");
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.getElementById("clipboardFallback");
+    ta.value = text;
+    ta.style.left = "0px";
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showToast("結果をコピーしました");
+    } catch (e) {
+      showToast("コピーに失敗しました");
+    }
+    ta.style.left = "-9999px";
+  }
+
+  function showToast(msg) {
+    var toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(function () {
+      toast.classList.remove("show");
+    }, 1800);
+  }
+
+  // 初回レベル判定
+  calcLevel();
+</script>
+
+</body>
+</html>
