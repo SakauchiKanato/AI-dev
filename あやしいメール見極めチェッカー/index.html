@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>あやしいメール見極めチェッカー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #c94f4f;
+    --accent2: #4fae5c;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .col-input { flex: 1 1 340px; min-width: 300px; }
+  .col-result { flex: 1 1 380px; min-width: 300px; }
+  .col-sheet { flex: 1 1 100%; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  label:first-child { margin-top: 0; }
+  input[type=text], textarea {
+    width: 100%;
+    background: #1a1a28;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+  }
+  textarea { min-height: 160px; }
+  button {
+    margin-top: 14px;
+    background: #3c78d8;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    margin-bottom: 14px;
+  }
+  .badge.low { background: #1e3a2a; color: #6fd88a; }
+  .badge.mid { background: #3a3a1e; color: #e0c95a; }
+  .badge.high { background: #3a2a1e; color: #e0925a; }
+  .badge.critical { background: #3a1e1e; color: #f07070; }
+  .signal-card {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+  .signal-card .title { font-weight: bold; margin-bottom: 4px; }
+  .signal-card .reason { color: var(--muted); }
+  .empty-msg { color: var(--muted); font-size: 13px; }
+  .cheat-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .cheat-item {
+    flex: 1 1 220px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+  }
+  .cheat-item .name { color: #a479e2; font-weight: bold; margin-bottom: 4px; }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2f7dc4;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .note { font-size: 11.5px; color: var(--muted); margin-top: 16px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🕵️ あやしいメール見極めチェッカー</h1>
+  <p>受け取ったメール・SMSの本文と差出人アドレスを貼り付けると、フィッシング・詐欺の兆候をチェックします</p>
+</header>
+
+<div class="layout">
+  <div class="panel col-input">
+    <label for="sender">差出人メールアドレス（わかれば）</label>
+    <input type="text" id="sender" placeholder="例: info@example.co.jp">
+
+    <label for="body">本文（URLも含めてそのまま貼り付け）</label>
+    <textarea id="body" placeholder="メール本文をここに貼り付けてください"></textarea>
+
+    <button onclick="analyze()">判定する</button>
+    <button class="secondary" onclick="clearAll()">クリア</button>
+  </div>
+
+  <div class="panel col-result">
+    <div id="badgeArea"></div>
+    <div id="signalList"><p class="empty-msg">まだ判定していません。左側に本文を貼り付けて「判定する」を押してください。</p></div>
+    <button class="secondary" id="copyBtn" onclick="copyResult()" style="display:none;">結果をコピー</button>
+  </div>
+
+  <div class="panel col-sheet">
+    <label style="margin:0 0 8px;">よくある詐欺の手口早見表</label>
+    <div class="cheat-grid">
+      <div class="cheat-item"><div class="name">フィッシング詐欺</div>実在する企業（宅配便・銀行・通販サイト等）を装い、偽サイトに誘導してID・パスワードやカード情報を入力させる。</div>
+      <div class="cheat-item"><div class="name">架空請求</div>身に覚えのない料金の未払いを通知し、「至急連絡・支払い」を迫って金銭をだまし取る。</div>
+      <div class="cheat-item"><div class="name">当選・還付金詐欺</div>「当選しました」「税金の還付があります」等と誘い、手数料や個人情報・口座情報を入力させる。</div>
+      <div class="cheat-item"><div class="name">サポート詐欺</div>「ウイルスを検出しました」等の偽警告でサポート窓口に誘導し、遠隔操作や金銭を要求する。</div>
+      <div class="cheat-item"><div class="name">なりすまし公式アカウント</div>公式ロゴやドメインに似せたアドレスから、本物のお知らせを装ってリンクを踏ませる。</div>
+    </div>
+    <p class="note">※ このツールはヒューリスティック（よくある特徴の検出）による簡易チェックであり、100%の判定を保証するものではありません。少しでも不安な場合は、メール内のリンクや電話番号を使わず、公式サイト・公式アプリから直接確認してください。</p>
+  </div>
+</div>
+
+<div class="toast" id="toast">コピーしました</div>
+
+<script>
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+const RULES = [
+  {
+    id: 'urgency',
+    label: '緊急性を煽る文言',
+    weight: 2,
+    test: t => /(今すぐ|24時間以内|至急|緊急|本日中|口座凍結|利用制限|停止されます|期限切れ|即時|24時間以内に|本日限り)/.test(t),
+    reason: '「今すぐ」「口座凍結」等、冷静な判断をさせないための緊急性を煽る表現が含まれています。'
+  },
+  {
+    id: 'money_info',
+    label: '金銭・個人情報の要求',
+    weight: 3,
+    test: t => /(パスワード|暗証番号|クレジットカード|口座番号|ワンタイムパスワード|送金|振込|マイナンバー|認証コード|セキュリティコード)/.test(t),
+    reason: 'パスワードや口座番号、認証コードなど、正規サービスがメールで聞くことのない情報を要求しています。'
+  },
+  {
+    id: 'short_url',
+    label: '短縮URLの使用',
+    weight: 3,
+    test: t => /(bit\.ly|tinyurl|t\.co|goo\.gl|is\.gd|ow\.ly|lnkd\.in)/i.test(t),
+    reason: '短縮URLはリンク先が分かりにくく、フィッシングサイトへの誘導によく使われます。'
+  },
+  {
+    id: 'link_cta',
+    label: 'クリックを促すリンク誘導',
+    weight: 2,
+    test: t => /(こちら|今すぐ確認|ログイン|認証|更新手続き|アカウント確認)[^\n]{0,15}(https?:\/\/)/.test(t) || /(https?:\/\/)[^\n]{0,15}(こちら|クリック)/.test(t),
+    reason: '「こちらから確認」等の文言のすぐ近くにリンクがあり、深く考えずクリックさせようとする典型的な誘導パターンです。'
+  },
+  {
+    id: 'ip_url',
+    label: 'IPアドレス形式のURL',
+    weight: 3,
+    test: t => /https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(t),
+    reason: '正規の企業サイトは通常ドメイン名を使います。IPアドレス直書きのリンクは強く警戒すべきです。'
+  },
+  {
+    id: 'attachment',
+    label: '実行形式ファイルへの言及',
+    weight: 2,
+    test: t => /\.(exe|scr|jar|bat|vbs|zip)\b/i.test(t),
+    reason: '.exe/.zip等の添付ファイルはウイルス・マルウェアの配布によく使われます。心当たりのない添付は開かないでください。'
+  },
+  {
+    id: 'generic_greeting',
+    label: '個人名の入らない一律の宛名',
+    weight: 1,
+    test: t => /(お客様各位|会員様各位|ご利用のお客様へ|大切なお客様へ)/.test(t),
+    reason: '本人の名前を使わず一律の宛名にしている場合、大量送信されている詐欺メールの可能性があります。'
+  },
+  {
+    id: 'brand_mismatch',
+    label: '名乗る企業名と差出人アドレスの不一致',
+    weight: 3,
+    test: (t, sender) => {
+      const brands = {
+        'amazon': 'amazon', '楽天': 'rakuten', 'ヤマト運輸': 'kuronekoyamato', '佐川急便': 'sagawa-exp',
+        '三井住友': 'smbc', 'ゆうちょ': 'jp-bank', 'apple': 'apple', 'line': 'line.me', 'paypay': 'paypay',
+        '東京電力': 'tepco', 'ドコモ': 'docomo', 'au': 'kddi', 'ソフトバンク': 'softbank'
+      };
+      if (!sender) return false;
+      const s = sender.toLowerCase();
+      for (const b in brands) {
+        if (t.toLowerCase().includes(b) && !s.includes(brands[b])) return true;
+      }
+      return false;
+    },
+    reason: '本文で名乗っている企業名と、差出人メールアドレスのドメインが一致していません。なりすましの可能性があります。'
+  },
+  {
+    id: 'unnatural_jp',
+    label: '不自然な日本語表現の兆候',
+    weight: 2,
+    test: t => /(您|帐号|帐户|银行|密码|验证码|亲爱的|贵宾)/.test(t) || /[!！]{3,}|[?？]{3,}/.test(t) || /(尊敬なる|親愛なる|大切なユーザー様)/.test(t),
+    reason: '簡体字中国語の文字（您・帐号等）や、感嘆符・疑問符の連続、機械翻訳特有の硬い言い回しが含まれています。海外の詐欺グループによる自動翻訳文の可能性があります。'
+  }
+];
+
+function analyze() {
+  const sender = document.getElementById('sender').value.trim();
+  const body = document.getElementById('body').value.trim();
+  const listEl = document.getElementById('signalList');
+  const badgeEl = document.getElementById('badgeArea');
+  const copyBtn = document.getElementById('copyBtn');
+
+  if (!body) {
+    listEl.innerHTML = '<p class="empty-msg">本文が入力されていません。メール本文を貼り付けてください。</p>';
+    badgeEl.innerHTML = '';
+    copyBtn.style.display = 'none';
+    return;
+  }
+
+  const hits = [];
+  let score = 0;
+  RULES.forEach(rule => {
+    let matched = false;
+    try {
+      matched = rule.test(body, sender);
+    } catch (e) {
+      matched = false;
+    }
+    if (matched) {
+      hits.push(rule);
+      score += rule.weight;
+    }
+  });
+
+  let level, levelClass;
+  if (score === 0) { level = '低（目立った危険信号なし）'; levelClass = 'low'; }
+  else if (score <= 3) { level = '中（一部注意が必要）'; levelClass = 'mid'; }
+  else if (score <= 6) { level = '高（詐欺の可能性が高い）'; levelClass = 'high'; }
+  else { level = '非常に高い（強く警戒してください）'; levelClass = 'critical'; }
+
+  badgeEl.innerHTML = '<div class="badge ' + levelClass + '">総合危険度: ' + level + '　(スコア ' + score + ')</div>';
+
+  if (hits.length === 0) {
+    listEl.innerHTML = '<p class="empty-msg">目立った危険信号は検出されませんでした。ただし本ツールは万能ではないため、少しでも違和感があれば公式窓口で確認してください。</p>';
+  } else {
+    listEl.innerHTML = hits.map(h =>
+      '<div class="signal-card"><div class="title">⚠ ' + esc(h.label) + '</div><div class="reason">' + esc(h.reason) + '</div></div>'
+    ).join('');
+  }
+
+  copyBtn.style.display = 'inline-block';
+  window.__lastResult = '【あやしいメール見極めチェッカー 判定結果】\n総合危険度: ' + level + '（スコア ' + score + '）\n' +
+    (hits.length ? hits.map(h => '・' + h.label + '：' + h.reason).join('\n') : '目立った危険信号なし');
+}
+
+function clearAll() {
+  document.getElementById('sender').value = '';
+  document.getElementById('body').value = '';
+  document.getElementById('signalList').innerHTML = '<p class="empty-msg">まだ判定していません。左側に本文を貼り付けて「判定する」を押してください。</p>';
+  document.getElementById('badgeArea').innerHTML = '';
+  document.getElementById('copyBtn').style.display = 'none';
+  window.__lastResult = '';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function copyResult() {
+  const text = window.__lastResult || '';
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => showToast('コピーしました')).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('コピーしました');
+  } catch (e) {
+    showToast('コピーに失敗しました');
+  }
+  document.body.removeChild(ta);
+}
+</script>
+
+</body>
+</html>
