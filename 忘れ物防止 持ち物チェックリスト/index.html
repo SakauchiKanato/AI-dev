@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>忘れ物防止 持ち物チェックリスト</title>
+<style>
+  :root {
+    --bg:#1e1e2e;
+    --panel:#262638;
+    --accent:#f2a53c;
+    --accent2:#4fb3a9;
+    --text:#e8e6f2;
+    --muted:#9a97b5;
+    --border:#3a3a52;
+    --danger:#e0607a;
+    --ok:#5bc98a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding:20px;
+  }
+  header { margin-bottom:20px; }
+  header h1 { font-size:20px; margin:0 0 6px; }
+  header p { font-size:13px; color:var(--muted); margin:0; }
+
+  .layout { display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+
+  .panel {
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px;
+  }
+
+  .scene-panel { flex:1 1 220px; min-width:220px; }
+  .main-panel { flex:2 1 360px; min-width:280px; }
+  .side-panel { flex:1 1 260px; min-width:240px; }
+
+  h2 { font-size:15px; margin:0 0 12px; color:var(--text); }
+  h3 { font-size:13px; margin:16px 0 8px; color:var(--muted); }
+
+  .scene-list { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+  .scene-btn {
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:8px 10px;
+    border-radius:8px;
+    text-align:left;
+    cursor:pointer;
+    font-size:13px;
+  }
+  .scene-btn.active { border-color:var(--accent); background:rgba(242,165,60,0.12); color:var(--accent); }
+  .scene-btn:hover { border-color:var(--accent); }
+
+  .btn {
+    background:var(--accent);
+    color:#1e1e2e;
+    border:none;
+    padding:8px 14px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:13px;
+    font-weight:bold;
+  }
+  .btn:hover { opacity:0.9; }
+  .btn.secondary {
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text);
+    font-weight:normal;
+  }
+  .btn.secondary:hover { border-color:var(--accent); }
+  .btn.small { padding:5px 10px; font-size:12px; }
+  .btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+  input[type=text], textarea {
+    width:100%;
+    background:#1a1a28;
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:6px;
+    padding:8px;
+    font-size:13px;
+    font-family:inherit;
+  }
+  textarea { resize:vertical; min-height:70px; }
+
+  .new-scene-form { display:flex; gap:6px; margin-top:4px; }
+  .new-scene-form input { flex:1; }
+
+  .checklist { display:flex; flex-direction:column; gap:8px; margin:14px 0; }
+  .check-item {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:#1a1a28;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px 10px;
+  }
+  .check-item.checked { border-color:var(--ok); }
+  .check-item label { flex:1; font-size:14px; cursor:pointer; }
+  .check-item.checked label { color:var(--muted); text-decoration:line-through; }
+  .check-item input[type=checkbox] { width:18px; height:18px; accent-color:var(--ok); cursor:pointer; }
+  .forget-btn { font-size:11px; padding:4px 8px; }
+  .del-btn { font-size:11px; padding:4px 8px; color:var(--danger); border-color:var(--danger); }
+
+  .add-item-row { display:flex; gap:6px; margin-top:6px; }
+  .add-item-row input { flex:1; }
+
+  .status-banner {
+    padding:12px;
+    border-radius:8px;
+    font-size:14px;
+    font-weight:bold;
+    text-align:center;
+    margin-bottom:10px;
+  }
+  .status-banner.ready { background:rgba(91,201,138,0.15); color:var(--ok); border:1px solid var(--ok); }
+  .status-banner.notready { background:rgba(154,151,181,0.1); color:var(--muted); border:1px solid var(--border); }
+
+  .empty-note { color:var(--muted); font-size:13px; padding:10px 0; }
+
+  .ranking-item, .streak-line {
+    display:flex; justify-content:space-between; font-size:13px;
+    padding:6px 0; border-bottom:1px solid var(--border);
+  }
+  .ranking-item:last-child, .streak-line:last-child { border-bottom:none; }
+  .ranking-num { color:var(--muted); margin-right:6px; }
+
+  .toast {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--accent2); color:#1e1e2e; padding:10px 18px;
+    border-radius:8px; font-size:13px; font-weight:bold;
+    opacity:0; pointer-events:none; transition:opacity 0.25s;
+  }
+  .toast.show { opacity:1; }
+
+  .stat-box { text-align:center; padding:10px 0; }
+  .stat-box .num { font-size:28px; font-weight:bold; color:var(--accent); }
+  .stat-box .label { font-size:12px; color:var(--muted); }
+
+  @media (max-width:480px) {
+    .layout { flex-direction:column; }
+    header h1 { font-size:18px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎒 忘れ物防止 持ち物チェックリスト</h1>
+  <p>出かける前にサッと確認。シーンごとの持ち物リストと、忘れやすいものの記録。</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel scene-panel">
+    <h2>シーン</h2>
+    <div class="scene-list" id="sceneList"></div>
+    <div class="new-scene-form">
+      <input type="text" id="newSceneName" placeholder="新しいシーン名（例: 旅行）">
+      <button class="btn small" onclick="addScene()">追加</button>
+    </div>
+
+    <h3>データの保存・復元</h3>
+    <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">このアプリは保存機能を持たないため、テキストで書き出し／貼り付けして次回に引き継げます。</p>
+    <button class="btn secondary small" onclick="exportData()">エクスポート（コピー）</button>
+    <div style="margin-top:6px;">
+      <textarea id="importArea" placeholder="ここに貼り付けてインポート"></textarea>
+      <button class="btn secondary small" style="margin-top:6px;" onclick="importData()">インポート</button>
+    </div>
+  </div>
+
+  <div class="panel main-panel">
+    <h2 id="currentSceneTitle">チェックリスト</h2>
+    <div id="statusBanner" class="status-banner notready">準備中...</div>
+
+    <div class="checklist" id="checklist"></div>
+    <div class="empty-note" id="emptyNote" style="display:none;">まだ持ち物が登録されていません。下から追加してください。</div>
+
+    <div class="add-item-row">
+      <input type="text" id="newItemName" placeholder="持ち物を追加（例: 学生証）">
+      <button class="btn small" onclick="addItem()">追加</button>
+    </div>
+    <div style="margin-top:10px;">
+      <button class="btn secondary small" onclick="resetChecks()">今日のチェックをリセット</button>
+    </div>
+  </div>
+
+  <div class="panel side-panel">
+    <h3 style="margin-top:0;">準備完了ストリーク</h3>
+    <div class="stat-box">
+      <div class="num" id="streakNum">0</div>
+      <div class="label">日連続で全チェック達成</div>
+    </div>
+
+    <h3>忘れやすいものランキング</h3>
+    <div id="forgetRanking"><div class="empty-note">まだ記録がありません</div></div>
+
+    <h3>季節品目メモ</h3>
+    <p style="font-size:12px; color:var(--muted); margin:0 0 6px;">傘・日焼け止めなど、その日だけ気をつけたいものを自由にメモできます（保存はされません）。</p>
+    <textarea id="seasonNote" placeholder="例: 今日は雨予報、折りたたみ傘を忘れずに"></textarea>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- 状態（JS変数、localStorage不使用） ----
+let scenes = [
+  { name: "通学", items: [
+    { name: "学生証", checked:false },
+    { name: "財布", checked:false },
+    { name: "スマホ", checked:false },
+    { name: "充電器", checked:false },
+    { name: "教科書・ノート", checked:false }
+  ]},
+  { name: "バイト", items: [
+    { name: "エプロン", checked:false },
+    { name: "名札", checked:false },
+    { name: "財布", checked:false },
+    { name: "スマホ", checked:false }
+  ]},
+  { name: "旅行", items: [
+    { name: "財布", checked:false },
+    { name: "スマホ・充電器", checked:false },
+    { name: "着替え", checked:false },
+    { name: "常備薬", checked:false },
+    { name: "モバイルバッテリー", checked:false }
+  ]},
+  { name: "実家帰省", items: [
+    { name: "財布", checked:false },
+    { name: "スマホ・充電器", checked:false },
+    { name: "手土産", checked:false },
+    { name: "着替え", checked:false }
+  ]}
+];
+
+let forgetCounts = {}; // { "アイテム名": 回数 }
+let streak = 0;
+let currentSceneIndex = 0;
+
+// ---- ユーティリティ ----
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => showToast('コピーしました')).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('コピーしました');
+  } catch (e) {
+    showToast('コピーに失敗しました');
+  }
+  document.body.removeChild(ta);
+}
+
+// ---- シーン管理 ----
+function addScene() {
+  const input = document.getElementById('newSceneName');
+  const name = input.value.trim();
+  if (!name) { showToast('シーン名を入力してください'); return; }
+  scenes.push({ name: name, items: [] });
+  input.value = '';
+  currentSceneIndex = scenes.length - 1;
+  renderAll();
+}
+
+function selectScene(idx) {
+  currentSceneIndex = idx;
+  renderAll();
+}
+
+// ---- 持ち物管理 ----
+function addItem() {
+  if (scenes.length === 0) { showToast('先にシーンを追加してください'); return; }
+  const input = document.getElementById('newItemName');
+  const name = input.value.trim();
+  if (!name) { showToast('持ち物名を入力してください'); return; }
+  scenes[currentSceneIndex].items.push({ name: name, checked:false });
+  input.value = '';
+  renderAll();
+}
+
+function toggleItem(idx) {
+  const scene = scenes[currentSceneIndex];
+  if (!scene || !scene.items[idx]) return;
+  scene.items[idx].checked = !scene.items[idx].checked;
+  checkAllDoneAndUpdateStreak();
+  renderAll();
+}
+
+function deleteItem(idx) {
+  const scene = scenes[currentSceneIndex];
+  if (!scene) return;
+  scene.items.splice(idx, 1);
+  renderAll();
+}
+
+function markForgot(idx) {
+  const scene = scenes[currentSceneIndex];
+  if (!scene || !scene.items[idx]) return;
+  const name = scene.items[idx].name;
+  forgetCounts[name] = (forgetCounts[name] || 0) + 1;
+  showToast(`「${name}」を忘れた回数に記録しました`);
+  renderRanking();
+}
+
+function resetChecks() {
+  const scene = scenes[currentSceneIndex];
+  if (!scene) return;
+  scene.items.forEach(it => it.checked = false);
+  renderAll();
+}
+
+// ---- ストリーク判定 ----
+let streakCountedForCurrentReady = false;
+
+function checkAllDoneAndUpdateStreak() {
+  const scene = scenes[currentSceneIndex];
+  if (!scene || scene.items.length === 0) return;
+  const allChecked = scene.items.every(it => it.checked);
+  if (allChecked && !streakCountedForCurrentReady) {
+    streak += 1;
+    streakCountedForCurrentReady = true;
+  } else if (!allChecked) {
+    streakCountedForCurrentReady = false;
+  }
+}
+
+// ---- 描画 ----
+function renderAll() {
+  renderSceneList();
+  renderChecklist();
+  renderRanking();
+  renderStreak();
+}
+
+function renderSceneList() {
+  const list = document.getElementById('sceneList');
+  if (scenes.length === 0) {
+    list.innerHTML = '<div class="empty-note">シーンがありません</div>';
+    return;
+  }
+  if (currentSceneIndex >= scenes.length) currentSceneIndex = 0;
+  list.innerHTML = scenes.map((s, i) => `
+    <button class="scene-btn ${i === currentSceneIndex ? 'active' : ''}" onclick="selectScene(${i})">${escapeHtml(s.name)}</button>
+  `).join('');
+}
+
+function renderChecklist() {
+  const titleEl = document.getElementById('currentSceneTitle');
+  const listEl = document.getElementById('checklist');
+  const emptyNote = document.getElementById('emptyNote');
+  const banner = document.getElementById('statusBanner');
+
+  if (scenes.length === 0) {
+    titleEl.textContent = 'チェックリスト';
+    listEl.innerHTML = '';
+    emptyNote.style.display = 'block';
+    banner.textContent = 'シーンを追加してください';
+    banner.className = 'status-banner notready';
+    return;
+  }
+
+  const scene = scenes[currentSceneIndex];
+  titleEl.textContent = `${scene.name} のチェックリスト`;
+
+  if (scene.items.length === 0) {
+    listEl.innerHTML = '';
+    emptyNote.style.display = 'block';
+    banner.textContent = '持ち物が登録されていません';
+    banner.className = 'status-banner notready';
+    return;
+  }
+  emptyNote.style.display = 'none';
+
+  listEl.innerHTML = scene.items.map((it, i) => `
+    <div class="check-item ${it.checked ? 'checked' : ''}">
+      <input type="checkbox" id="item-${i}" ${it.checked ? 'checked' : ''} onchange="toggleItem(${i})">
+      <label for="item-${i}">${escapeHtml(it.name)}</label>
+      <button class="btn secondary forget-btn" onclick="markForgot(${i})">忘れた</button>
+      <button class="btn secondary del-btn" onclick="deleteItem(${i})">削除</button>
+    </div>
+  `).join('');
+
+  const allChecked = scene.items.every(it => it.checked);
+  if (allChecked) {
+    banner.textContent = '✅ 準備完了！';
+    banner.className = 'status-banner ready';
+  } else {
+    const remain = scene.items.filter(it => !it.checked).length;
+    banner.textContent = `未チェック ${remain} 件`;
+    banner.className = 'status-banner notready';
+  }
+}
+
+function renderRanking() {
+  const el = document.getElementById('forgetRanking');
+  const entries = Object.entries(forgetCounts).filter(([,c]) => c > 0).sort((a,b) => b[1]-a[1]).slice(0,5);
+  if (entries.length === 0) {
+    el.innerHTML = '<div class="empty-note">まだ記録がありません</div>';
+    return;
+  }
+  el.innerHTML = entries.map(([name, count], i) => `
+    <div class="ranking-item"><span><span class="ranking-num">${i+1}.</span>${escapeHtml(name)}</span><span>${count}回</span></div>
+  `).join('');
+}
+
+function renderStreak() {
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ---- エクスポート/インポート ----
+function exportData() {
+  const data = {
+    scenes: scenes,
+    forgetCounts: forgetCounts,
+    streak: streak
+  };
+  copyToClipboard(JSON.stringify(data));
+}
+
+function importData() {
+  const raw = document.getElementById('importArea').value.trim();
+  if (!raw) { showToast('貼り付け欄が空です'); return; }
+  try {
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.scenes)) throw new Error('invalid');
+    scenes = data.scenes.map(s => ({
+      name: String(s.name || '無題'),
+      items: Array.isArray(s.items) ? s.items.map(it => ({ name: String(it.name || ''), checked: !!it.checked })) : []
+    }));
+    forgetCounts = (data.forgetCounts && typeof data.forgetCounts === 'object') ? data.forgetCounts : {};
+    streak = Number.isFinite(data.streak) ? data.streak : 0;
+    currentSceneIndex = 0;
+    renderAll();
+    showToast('インポートしました');
+  } catch (e) {
+    showToast('データの形式が正しくありません');
+  }
+}
+
+// ---- 初期描画 ----
+renderAll();
+</script>
+
+</body>
+</html>
