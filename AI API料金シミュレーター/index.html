@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI API料金シミュレーター</title>
+<style>
+  :root {
+    --bg:#1e1e2e; --panel:#262638; --accent:#4a9e6e; --accent2:#2f7dc4;
+    --text:#e8e6f2; --muted:#9a97b5; --border:#3a3a52; --danger:#d85a30;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:20px; background:var(--bg); color:var(--text);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  }
+  header { margin-bottom:20px; }
+  header h1 { font-size:20px; margin:0 0 6px; }
+  header p { font-size:13px; color:var(--muted); margin:0; }
+  .layout { display:flex; gap:20px; flex-wrap:wrap; }
+  .panel {
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:16px; flex:1 1 420px; min-width:300px;
+  }
+  .panel h2 { font-size:15px; margin:0 0 12px; }
+  .note { font-size:12px; color:var(--muted); margin:0 0 12px; line-height:1.6; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:6px 4px; text-align:left; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); font-weight:normal; font-size:12px; }
+  input[type=text], input[type=number] {
+    width:100%; background:#1a1a28; border:1px solid var(--border); border-radius:5px;
+    color:var(--text); padding:6px 8px; font-size:13px;
+  }
+  input[type=number] { width:90px; }
+  .row-actions button, .add-row button {
+    background:transparent; border:1px solid var(--border); color:var(--muted);
+    border-radius:5px; padding:4px 8px; cursor:pointer; font-size:12px;
+  }
+  .row-actions button:hover, .add-row button:hover { color:var(--danger); border-color:var(--danger); }
+  .add-row { margin-top:10px; }
+  .add-row button { color:var(--accent); border-color:var(--accent); }
+  .task-grid { display:flex; gap:12px; flex-wrap:wrap; }
+  .field { flex:1 1 140px; }
+  .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .result-row {
+    display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border);
+  }
+  .result-row:last-child { border-bottom:none; }
+  .result-name { flex:1 1 140px; font-size:13px; }
+  .result-cost { width:130px; text-align:right; font-size:13px; font-variant-numeric:tabular-nums; }
+  .result-diff { width:110px; text-align:right; font-size:12px; color:var(--muted); }
+  .bar-wrap { flex:2 1 160px; background:#1a1a28; border-radius:4px; overflow:hidden; height:14px; }
+  .bar { height:100%; background:var(--accent2); }
+  .cheapest .bar { background:var(--accent); }
+  .cheapest .result-name { color:var(--accent); font-weight:bold; }
+  .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .copy-btn {
+    background:var(--accent2); border:none; color:#fff; padding:8px 14px; border-radius:6px;
+    cursor:pointer; font-size:13px;
+  }
+  .copy-btn.copied { background:var(--accent); }
+  .toast { font-size:12px; color:var(--accent); margin-left:8px; opacity:0; transition:opacity .3s; }
+  .toast.show { opacity:1; }
+  .empty { color:var(--muted); font-size:13px; padding:12px 0; }
+  @media (max-width:480px) {
+    .result-cost, .result-diff { width:auto; }
+    .bar-wrap { display:none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧮 AI API料金シミュレーター</h1>
+  <p>タスクの想定トークン数・呼び出し回数を入力すると、モデルごとの概算コストを比較できます。単価はすべて編集・追加可能な目安値です。</p>
+</header>
+
+<div class="layout">
+  <div class="panel" style="flex-basis:100%;">
+    <div class="toolbar">
+      <h2 style="margin:0;">モデル単価（100万トークンあたり）</h2>
+    </div>
+    <p class="note">初期値は2026年8月時点の概算・参考値です。実際の料金はモデル提供元の最新情報で必ず確認し、必要に応じて上書きしてください。</p>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr><th>モデル名</th><th>入力単価($/1M)</th><th>出力単価($/1M)</th><th></th></tr>
+      </thead>
+      <tbody id="modelTableBody"></tbody>
+    </table>
+    </div>
+    <div class="add-row"><button id="addModelBtn" type="button">＋ モデルを追加</button></div>
+  </div>
+
+  <div class="panel">
+    <h2>タスク条件</h2>
+    <div class="task-grid">
+      <div class="field">
+        <label for="inputTokens">1回あたり入力トークン数</label>
+        <input type="number" id="inputTokens" value="3000" min="0">
+      </div>
+      <div class="field">
+        <label for="outputTokens">1回あたり出力トークン数</label>
+        <input type="number" id="outputTokens" value="1000" min="0">
+      </div>
+      <div class="field">
+        <label for="callsPerMonth">月間呼び出し回数</label>
+        <input type="number" id="callsPerMonth" value="500" min="0">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0;">コスト比較（安い順）</h2>
+      <div>
+        <button class="copy-btn" id="copyBtn" type="button">結果をコピー</button>
+        <span class="toast" id="toast">コピーしました</span>
+      </div>
+    </div>
+    <div id="resultList"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var defaultModels = [
+    { name: "Claude Opus 4.8", input: 15, output: 75 },
+    { name: "Claude Sonnet 5（導入価格・8/31まで）", input: 2, output: 10 },
+    { name: "Claude Haiku 4.5", input: 0.8, output: 4 },
+    { name: "GPT-5系（目安）", input: 3, output: 12 },
+    { name: "Gemini系（目安）", input: 1.25, output: 5 },
+    { name: "DeepSeek V4-Flash（目安・入出力同額）", input: 0.14, output: 0.14 },
+    { name: "Sakana Namazu（料金要確認）", input: 0, output: 0 }
+  ];
+
+  var models = defaultModels.map(function (m, i) {
+    return { id: "m" + i + "_" + Date.now(), name: m.name, input: m.input, output: m.output };
+  });
+  var nextId = 0;
+
+  var tbody = document.getElementById("modelTableBody");
+  var resultList = document.getElementById("resultList");
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str == null ? "" : String(str);
+    return div.innerHTML;
+  }
+
+  function toNum(v) {
+    var n = parseFloat(v);
+    if (isNaN(n) || !isFinite(n) || n < 0) return 0;
+    return n;
+  }
+
+  function fmtMoney(n) {
+    if (!isFinite(n)) return "―";
+    return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function renderModelTable() {
+    tbody.innerHTML = "";
+    models.forEach(function (m) {
+      var tr = document.createElement("tr");
+      tr.dataset.id = m.id;
+
+      var tdName = document.createElement("td");
+      var nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.value = m.name;
+      nameInput.addEventListener("input", function () {
+        m.name = nameInput.value;
+        renderResults();
+      });
+      tdName.appendChild(nameInput);
+
+      var tdIn = document.createElement("td");
+      var inInput = document.createElement("input");
+      inInput.type = "number";
+      inInput.min = "0";
+      inInput.step = "0.01";
+      inInput.value = m.input;
+      inInput.addEventListener("input", function () {
+        m.input = toNum(inInput.value);
+        renderResults();
+      });
+      tdIn.appendChild(inInput);
+
+      var tdOut = document.createElement("td");
+      var outInput = document.createElement("input");
+      outInput.type = "number";
+      outInput.min = "0";
+      outInput.step = "0.01";
+      outInput.value = m.output;
+      outInput.addEventListener("input", function () {
+        m.output = toNum(outInput.value);
+        renderResults();
+      });
+      tdOut.appendChild(outInput);
+
+      var tdDel = document.createElement("td");
+      tdDel.className = "row-actions";
+      var delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.textContent = "削除";
+      delBtn.addEventListener("click", function () {
+        models = models.filter(function (x) { return x.id !== m.id; });
+        renderModelTable();
+        renderResults();
+      });
+      tdDel.appendChild(delBtn);
+
+      tr.appendChild(tdName);
+      tr.appendChild(tdIn);
+      tr.appendChild(tdOut);
+      tr.appendChild(tdDel);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function computeResults() {
+    var inputTokens = toNum(document.getElementById("inputTokens").value);
+    var outputTokens = toNum(document.getElementById("outputTokens").value);
+    var calls = toNum(document.getElementById("callsPerMonth").value);
+
+    return models.map(function (m) {
+      var perCall = (inputTokens / 1000000 * m.input) + (outputTokens / 1000000 * m.output);
+      var monthly = perCall * calls;
+      return { name: m.name || "（名称未設定）", perCall: perCall, monthly: monthly };
+    }).sort(function (a, b) { return a.monthly - b.monthly; });
+  }
+
+  function renderResults() {
+    var results = computeResults();
+    resultList.innerHTML = "";
+
+    if (results.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "モデルが登録されていません。上の表からモデルを追加してください。";
+      resultList.appendChild(empty);
+      return;
+    }
+
+    var maxMonthly = Math.max.apply(null, results.map(function (r) { return r.monthly; }));
+    var cheapest = results[0].monthly;
+
+    results.forEach(function (r, idx) {
+      var row = document.createElement("div");
+      row.className = "result-row" + (idx === 0 ? " cheapest" : "");
+
+      var nameDiv = document.createElement("div");
+      nameDiv.className = "result-name";
+      nameDiv.textContent = (idx === 0 ? "★ " : "") + r.name;
+
+      var barWrap = document.createElement("div");
+      barWrap.className = "bar-wrap";
+      var bar = document.createElement("div");
+      bar.className = "bar";
+      var pct = maxMonthly > 0 ? (r.monthly / maxMonthly * 100) : 0;
+      bar.style.width = pct + "%";
+      barWrap.appendChild(bar);
+
+      var costDiv = document.createElement("div");
+      costDiv.className = "result-cost";
+      costDiv.textContent = fmtMoney(r.monthly) + "/月";
+
+      var diffDiv = document.createElement("div");
+      diffDiv.className = "result-diff";
+      diffDiv.textContent = idx === 0 ? "最安" : ("+" + fmtMoney(r.monthly - cheapest));
+
+      row.appendChild(nameDiv);
+      row.appendChild(barWrap);
+      row.appendChild(costDiv);
+      row.appendChild(diffDiv);
+      resultList.appendChild(row);
+    });
+  }
+
+  document.getElementById("addModelBtn").addEventListener("click", function () {
+    nextId++;
+    models.push({ id: "new" + nextId + "_" + Date.now(), name: "新しいモデル", input: 0, output: 0 });
+    renderModelTable();
+    renderResults();
+  });
+
+  ["inputTokens", "outputTokens", "callsPerMonth"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", renderResults);
+  });
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showCopied, function () { fallbackCopy(text); });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    showCopied();
+  }
+
+  function showCopied() {
+    var btn = document.getElementById("copyBtn");
+    var toast = document.getElementById("toast");
+    btn.classList.add("copied");
+    toast.classList.add("show");
+    setTimeout(function () {
+      btn.classList.remove("copied");
+      toast.classList.remove("show");
+    }, 1500);
+  }
+
+  document.getElementById("copyBtn").addEventListener("click", function () {
+    var inputTokens = document.getElementById("inputTokens").value;
+    var outputTokens = document.getElementById("outputTokens").value;
+    var calls = document.getElementById("callsPerMonth").value;
+    var results = computeResults();
+    var lines = [];
+    lines.push("AI API料金シミュレーター結果");
+    lines.push("入力トークン:" + inputTokens + " / 出力トークン:" + outputTokens + " / 月間呼び出し:" + calls + "回");
+    results.forEach(function (r, idx) {
+      lines.push((idx + 1) + ". " + r.name + " ： " + fmtMoney(r.monthly) + "/月（1回あたり " + fmtMoney(r.perCall) + "）");
+    });
+    copyToClipboard(lines.join("\n"));
+  });
+
+  renderModelTable();
+  renderResults();
+})();
+</script>
+</body>
+</html>
