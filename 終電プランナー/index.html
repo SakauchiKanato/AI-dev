@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>終電プランナー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #e0a030;
+    --accent-dim: #a67b25;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --green: #4caf7d;
+    --yellow: #d8b74a;
+    --orange: #e0863a;
+    --red: #e0553a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 320px;
+    min-width: 280px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px 0;
+    color: var(--accent);
+  }
+  .panel h3 {
+    font-size: 13px;
+    margin: 16px 0 8px 0;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  input[type="text"], input[type="time"], input[type="number"], select {
+    width: 100%;
+    padding: 8px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  .row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .row > * { flex: 1 1 100px; }
+  button {
+    background: var(--accent);
+    color: #1a1a1a;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  button:hover { background: var(--accent-dim); }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-weight: normal;
+  }
+  button.danger {
+    background: transparent;
+    border: 1px solid var(--red);
+    color: var(--red);
+    font-weight: normal;
+    padding: 4px 8px;
+    margin-top: 0;
+    font-size: 12px;
+  }
+  ul.list {
+    list-style: none;
+    margin: 8px 0 0 0;
+    padding: 0;
+  }
+  ul.list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+  ul.list li.selected {
+    border-color: var(--accent);
+  }
+  ul.list li .info { cursor: pointer; flex: 1; }
+  ul.list li .muted-small { color: var(--muted); font-size: 11px; }
+
+  .countdown-box {
+    text-align: center;
+    padding: 20px 10px;
+    border-radius: 10px;
+    background: #1a1a28;
+    border: 2px solid var(--border);
+    margin-top: 10px;
+  }
+  .countdown-box .label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .countdown-box .time {
+    font-size: 34px;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+  .countdown-box .sub {
+    font-size: 12px;
+    margin-top: 8px;
+    color: var(--muted);
+  }
+  .status-normal { color: var(--green); border-color: var(--green) !important; }
+  .status-yellow { color: var(--yellow); border-color: var(--yellow) !important; }
+  .status-orange { color: var(--orange); border-color: var(--orange) !important; }
+  .status-red { color: var(--red); border-color: var(--red) !important; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  table th, table td {
+    text-align: left;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  table th { color: var(--muted); font-weight: normal; font-size: 12px; }
+
+  textarea {
+    width: 100%;
+    min-height: 70px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 8px;
+    font-family: monospace;
+  }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: #1a1a1a;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .empty-note {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 8px 0;
+  }
+  @media (max-width: 480px) {
+    .countdown-box .time { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🚃 終電プランナー</h1>
+  <p>路線と終電時刻、駅までの移動時間を登録すると、「そろそろ出るべき時刻」を逆算してカウントダウン表示します。</p>
+</header>
+
+<div class="layout">
+
+  <!-- 路線・終電設定 -->
+  <div class="panel" id="panel-routes">
+    <h2>① 路線・終電の設定</h2>
+    <label for="route-name">路線名</label>
+    <input type="text" id="route-name" placeholder="例: 南武線（川崎方面）">
+    <label for="route-final-time">終電時刻</label>
+    <input type="time" id="route-final-time">
+    <label for="route-interval">列車の間隔（分・1本前/2本前の目安）</label>
+    <input type="number" id="route-interval" value="10" min="1" max="60">
+    <button id="btn-add-route">路線を追加</button>
+
+    <h3>登録済みの路線（クリックで選択）</h3>
+    <ul class="list" id="route-list"></ul>
+    <p class="empty-note" id="route-empty-note">まだ路線が登録されていません。</p>
+  </div>
+
+  <!-- 出発逆算・カウントダウン -->
+  <div class="panel" id="panel-countdown">
+    <h2>② 出発逆算タイマー</h2>
+    <label for="preset-select">よく使う行き先（プリセット）</label>
+    <select id="preset-select">
+      <option value="">-- プリセットを選ぶ --</option>
+    </select>
+    <label for="move-minutes">今いる場所から駅までの移動時間（分）</label>
+    <input type="number" id="move-minutes" value="10" min="0" max="180">
+    <label for="buffer-minutes">余裕（バッファ）時間（分）</label>
+    <input type="number" id="buffer-minutes" value="5" min="0" max="60">
+
+    <div class="countdown-box" id="countdown-box">
+      <div class="label">出発すべき時刻</div>
+      <div class="time" id="departure-time">--:--</div>
+      <div class="time" id="countdown-time" style="font-size:22px; margin-top:6px;">路線を選択してください</div>
+      <div class="sub" id="countdown-sub"></div>
+    </div>
+
+    <h3>行き先プリセットの登録</h3>
+    <div class="row">
+      <input type="text" id="preset-label" placeholder="行き先名（例: 友人宅）">
+      <input type="number" id="preset-minutes" placeholder="移動時間(分)" min="0" max="180">
+    </div>
+    <button id="btn-add-preset" class="secondary">プリセットを追加</button>
+    <ul class="list" id="preset-list" style="margin-top:10px;"></ul>
+  </div>
+
+  <!-- 候補列車一覧 -->
+  <div class="panel" id="panel-candidates" style="flex-basis: 100%;">
+    <h2>③ 候補列車一覧（終電・1本前・2本前）</h2>
+    <p class="empty-note" id="candidates-empty-note">路線を選択すると候補列車が表示されます。</p>
+    <table id="candidates-table" style="display:none;">
+      <thead>
+        <tr><th>列車</th><th>列車の時刻</th><th>出発すべき時刻</th><th>残り時間</th></tr>
+      </thead>
+      <tbody id="candidates-body"></tbody>
+    </table>
+
+    <h3>結果のコピー</h3>
+    <button id="btn-copy" class="secondary">結果をクリップボードにコピー</button>
+    <textarea id="copy-preview" readonly style="margin-top:10px;"></textarea>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">コピーしました</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- 状態（localStorage不使用。JS変数のみ） ----
+  var routes = []; // {name, finalTime: "HH:MM", interval: number}
+  var presets = []; // {label, minutes}
+  var selectedRouteIndex = -1;
+  var timerHandle = null;
+
+  // ---- ユーティリティ ----
+  function escapeHTML(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function pad2(n) { return String(n).padStart(2, "0"); }
+
+  // "HH:MM" 文字列から、直近の未来（今より後）の Date オブジェクトを作る
+  function nextOccurrence(hhmm, baseDate) {
+    if (!hhmm || hhmm.indexOf(":") === -1) return null;
+    var parts = hhmm.split(":");
+    var h = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return null;
+    var base = baseDate || new Date();
+    var d = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0, 0);
+    if (d.getTime() <= base.getTime()) {
+      d.setDate(d.getDate() + 1);
+    }
+    return d;
+  }
+
+  function addMinutes(date, minutes) {
+    return new Date(date.getTime() + minutes * 60000);
+  }
+
+  function formatTime(date) {
+    if (!date) return "--:--";
+    return pad2(date.getHours()) + ":" + pad2(date.getMinutes());
+  }
+
+  function formatCountdown(ms) {
+    if (ms <= 0) return "出発時刻を過ぎています";
+    var totalSec = Math.floor(ms / 1000);
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+    if (h > 0) {
+      return h + "時間" + pad2(m) + "分" + pad2(s) + "秒";
+    }
+    return pad2(m) + "分" + pad2(s) + "秒";
+  }
+
+  function statusClassForRemaining(ms) {
+    if (ms <= 0) return "status-red";
+    var min = ms / 60000;
+    if (min <= 5) return "status-red";
+    if (min <= 15) return "status-orange";
+    if (min <= 30) return "status-yellow";
+    return "status-normal";
+  }
+
+  function showToast(msg) {
+    var toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(function () { toast.classList.remove("show"); }, 1800);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast("コピーしました");
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showToast("コピーしました");
+    } catch (e) {
+      showToast("コピーに失敗しました");
+    }
+    document.body.removeChild(ta);
+  }
+
+  // ---- 路線の登録 ----
+  function renderRoutes() {
+    var listEl = document.getElementById("route-list");
+    var emptyNote = document.getElementById("route-empty-note");
+    listEl.innerHTML = "";
+    if (routes.length === 0) {
+      emptyNote.style.display = "block";
+      return;
+    }
+    emptyNote.style.display = "none";
+    routes.forEach(function (r, idx) {
+      var li = document.createElement("li");
+      if (idx === selectedRouteIndex) li.classList.add("selected");
+
+      var info = document.createElement("div");
+      info.className = "info";
+      var nameSpan = document.createElement("div");
+      nameSpan.textContent = r.name;
+      var subSpan = document.createElement("div");
+      subSpan.className = "muted-small";
+      subSpan.textContent = "終電 " + r.finalTime + " / 間隔目安 " + r.interval + "分";
+      info.appendChild(nameSpan);
+      info.appendChild(subSpan);
+      info.addEventListener("click", function () {
+        selectedRouteIndex = idx;
+        renderRoutes();
+        updateAll();
+      });
+
+      var delBtn = document.createElement("button");
+      delBtn.className = "danger";
+      delBtn.textContent = "削除";
+      delBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        routes.splice(idx, 1);
+        if (selectedRouteIndex === idx) selectedRouteIndex = -1;
+        else if (selectedRouteIndex > idx) selectedRouteIndex--;
+        renderRoutes();
+        updateAll();
+      });
+
+      li.appendChild(info);
+      li.appendChild(delBtn);
+      listEl.appendChild(li);
+    });
+  }
+
+  document.getElementById("btn-add-route").addEventListener("click", function () {
+    var name = document.getElementById("route-name").value.trim();
+    var finalTime = document.getElementById("route-final-time").value;
+    var interval = parseInt(document.getElementById("route-interval").value, 10);
+    if (!name) {
+      showToast("路線名を入力してください");
+      return;
+    }
+    if (!finalTime) {
+      showToast("終電時刻を入力してください");
+      return;
+    }
+    if (isNaN(interval) || interval <= 0) interval = 10;
+    routes.push({ name: name, finalTime: finalTime, interval: interval });
+    selectedRouteIndex = routes.length - 1;
+    document.getElementById("route-name").value = "";
+    document.getElementById("route-final-time").value = "";
+    renderRoutes();
+    updateAll();
+  });
+
+  // ---- プリセット（行き先→移動時間） ----
+  function renderPresets() {
+    var listEl = document.getElementById("preset-list");
+    var selectEl = document.getElementById("preset-select");
+    listEl.innerHTML = "";
+    var currentSelectValue = selectEl.value;
+    selectEl.innerHTML = '<option value="">-- プリセットを選ぶ --</option>';
+
+    presets.forEach(function (p, idx) {
+      var li = document.createElement("li");
+      var info = document.createElement("div");
+      info.className = "info";
+      info.textContent = p.label + "（" + p.minutes + "分）";
+      info.addEventListener("click", function () {
+        document.getElementById("move-minutes").value = p.minutes;
+        selectEl.value = String(idx);
+        updateAll();
+      });
+      var delBtn = document.createElement("button");
+      delBtn.className = "danger";
+      delBtn.textContent = "削除";
+      delBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        presets.splice(idx, 1);
+        renderPresets();
+      });
+      li.appendChild(info);
+      li.appendChild(delBtn);
+      listEl.appendChild(li);
+
+      var opt = document.createElement("option");
+      opt.value = String(idx);
+      opt.textContent = p.label + "（" + p.minutes + "分）";
+      selectEl.appendChild(opt);
+    });
+
+    if (Array.from(selectEl.options).some(function (o) { return o.value === currentSelectValue; })) {
+      selectEl.value = currentSelectValue;
+    }
+  }
+
+  document.getElementById("btn-add-preset").addEventListener("click", function () {
+    var label = document.getElementById("preset-label").value.trim();
+    var minutes = parseInt(document.getElementById("preset-minutes").value, 10);
+    if (!label) {
+      showToast("行き先名を入力してください");
+      return;
+    }
+    if (isNaN(minutes) || minutes < 0) {
+      showToast("移動時間を正しく入力してください");
+      return;
+    }
+    presets.push({ label: label, minutes: minutes });
+    document.getElementById("preset-label").value = "";
+    document.getElementById("preset-minutes").value = "";
+    renderPresets();
+  });
+
+  document.getElementById("preset-select").addEventListener("change", function (e) {
+    var idx = parseInt(e.target.value, 10);
+    if (!isNaN(idx) && presets[idx]) {
+      document.getElementById("move-minutes").value = presets[idx].minutes;
+      updateAll();
+    }
+  });
+
+  document.getElementById("move-minutes").addEventListener("input", updateAll);
+  document.getElementById("buffer-minutes").addEventListener("input", updateAll);
+
+  // ---- カウントダウン・候補列車の計算 ----
+  function getMoveMinutes() {
+    var v = parseInt(document.getElementById("move-minutes").value, 10);
+    return isNaN(v) || v < 0 ? 0 : v;
+  }
+  function getBufferMinutes() {
+    var v = parseInt(document.getElementById("buffer-minutes").value, 10);
+    return isNaN(v) || v < 0 ? 0 : v;
+  }
+
+  function updateAll() {
+    updateCountdown();
+    updateCandidates();
+  }
+
+  function updateCountdown() {
+    var box = document.getElementById("countdown-box");
+    var depEl = document.getElementById("departure-time");
+    var cdEl = document.getElementById("countdown-time");
+    var subEl = document.getElementById("countdown-sub");
+
+    box.classList.remove("status-normal", "status-yellow", "status-orange", "status-red");
+
+    if (selectedRouteIndex < 0 || !routes[selectedRouteIndex]) {
+      depEl.textContent = "--:--";
+      cdEl.textContent = "路線を選択してください";
+      cdEl.style.fontSize = "18px";
+      subEl.textContent = "";
+      return;
+    }
+    var route = routes[selectedRouteIndex];
+    var now = new Date();
+    var finalTrainTime = nextOccurrence(route.finalTime, now);
+    var moveMin = getMoveMinutes();
+    var bufferMin = getBufferMinutes();
+    var departureTime = addMinutes(finalTrainTime, -(moveMin + bufferMin));
+
+    depEl.textContent = formatTime(departureTime);
+    cdEl.style.fontSize = "";
+    var remainMs = departureTime.getTime() - now.getTime();
+    cdEl.textContent = "残り " + formatCountdown(remainMs);
+    subEl.textContent = route.name + " の終電 " + route.finalTime + " に、移動" + moveMin + "分＋余裕" + bufferMin + "分で間に合う出発時刻です";
+
+    var cls = statusClassForRemaining(remainMs);
+    box.classList.add(cls);
+  }
+
+  function updateCandidates() {
+    var emptyNote = document.getElementById("candidates-empty-note");
+    var table = document.getElementById("candidates-table");
+    var body = document.getElementById("candidates-body");
+    body.innerHTML = "";
+
+    if (selectedRouteIndex < 0 || !routes[selectedRouteIndex]) {
+      emptyNote.style.display = "block";
+      table.style.display = "none";
+      document.getElementById("copy-preview").value = "";
+      return;
+    }
+    emptyNote.style.display = "none";
+    table.style.display = "table";
+
+    var route = routes[selectedRouteIndex];
+    var now = new Date();
+    var finalTrainTime = nextOccurrence(route.finalTime, now);
+    var moveMin = getMoveMinutes();
+    var bufferMin = getBufferMinutes();
+
+    var candidates = [
+      { label: "終電", trainTime: finalTrainTime },
+      { label: "1本前", trainTime: addMinutes(finalTrainTime, -route.interval) },
+      { label: "2本前", trainTime: addMinutes(finalTrainTime, -route.interval * 2) }
+    ];
+
+    var lines = [];
+    lines.push(route.name + "（終電 " + route.finalTime + " / 移動" + moveMin + "分＋余裕" + bufferMin + "分）");
+
+    candidates.forEach(function (c) {
+      var depTime = addMinutes(c.trainTime, -(moveMin + bufferMin));
+      var remainMs = depTime.getTime() - now.getTime();
+      var tr = document.createElement("tr");
+
+      var tdLabel = document.createElement("td");
+      tdLabel.textContent = c.label;
+      var tdTrain = document.createElement("td");
+      tdTrain.textContent = formatTime(c.trainTime);
+      var tdDep = document.createElement("td");
+      tdDep.textContent = formatTime(depTime);
+      var tdRemain = document.createElement("td");
+      tdRemain.textContent = remainMs <= 0 ? "終了" : formatCountdown(remainMs);
+      tdRemain.className = statusClassForRemaining(remainMs);
+
+      tr.appendChild(tdLabel);
+      tr.appendChild(tdTrain);
+      tr.appendChild(tdDep);
+      tr.appendChild(tdRemain);
+      body.appendChild(tr);
+
+      lines.push(c.label + ": 列車 " + formatTime(c.trainTime) + " / 出発すべき時刻 " + formatTime(depTime) + " / 残り " + (remainMs <= 0 ? "終了" : formatCountdown(remainMs)));
+    });
+
+    document.getElementById("copy-preview").value = lines.join("\n");
+  }
+
+  document.getElementById("btn-copy").addEventListener("click", function () {
+    var text = document.getElementById("copy-preview").value;
+    if (!text) {
+      showToast("コピーする内容がありません");
+      return;
+    }
+    copyText(text);
+  });
+
+  // ---- 定期更新 ----
+  function tick() {
+    updateAll();
+  }
+  timerHandle = setInterval(tick, 1000);
+
+  // ---- 初期描画 ----
+  renderRoutes();
+  renderPresets();
+  updateAll();
+})();
+</script>
+
+</body>
+</html>
