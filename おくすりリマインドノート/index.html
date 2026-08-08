@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>おくすりリマインドノート</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #3ea67a;
+    --accent2: #e0955f;
+    --danger: #e0665f;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 20px;
+    line-height: 1.5;
+  }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .col-main { flex: 2 1 480px; display: flex; flex-direction: column; gap: 20px; }
+  .col-side { flex: 1 1 340px; display: flex; flex-direction: column; gap: 20px; }
+
+  /* 今日のチェックリスト */
+  .timing-group { margin-bottom: 14px; }
+  .timing-title { font-size: 13px; color: var(--accent2); font-weight: bold; margin-bottom: 6px; }
+  .med-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #2f2f45;
+    margin-bottom: 6px;
+    border: 1px solid var(--border);
+  }
+  .med-item.done { opacity: 0.55; }
+  .med-item.warn { border-color: var(--danger); background: #3a2530; }
+  .med-name { font-size: 14px; }
+  .med-memo { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .warn-badge {
+    font-size: 11px;
+    color: var(--danger);
+    font-weight: bold;
+    margin-left: 8px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    background: var(--accent);
+    color: #10261c;
+    font-weight: bold;
+  }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  button.done-btn { background: var(--muted); color: #1e1e2e; }
+  .empty-msg { color: var(--muted); font-size: 13px; }
+
+  /* ヒートマップ */
+  .heatmap { display: flex; gap: 6px; flex-wrap: wrap; }
+  .heat-day { text-align: center; font-size: 11px; color: var(--muted); }
+  .heat-cell {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    margin: 4px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    border: 1px solid var(--border);
+  }
+
+  /* フォーム */
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  input[type=text], input[type=time], select, textarea {
+    width: 100%;
+    padding: 7px 8px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+  }
+  .timing-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .timing-checks label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #1a1a28;
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin: 0;
+    color: var(--text);
+  }
+  .custom-time-row { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+  .med-list-item {
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .rank-item { font-size: 12px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border); }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-count { color: var(--danger); font-weight: bold; }
+  .hint { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  textarea { min-height: 90px; font-family: monospace; font-size: 11px; }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--accent);
+    color: #10261c;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.25s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .row-gap { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  @media (max-width: 480px) {
+    .layout { gap: 14px; }
+    .heat-cell { width: 32px; height: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>💊 おくすりリマインドノート</h1>
+  <p>毎日の服用タイミングを登録して、飲み忘れをその場で防ぐノート。データはこの画面を開いている間だけ保持されます（ページを閉じる前にエクスポートしてください）。</p>
+</header>
+
+<div class="layout">
+  <div class="col-main">
+    <div class="panel">
+      <h2>📋 今日の服用チェックリスト <span id="todayDate" style="color:var(--muted);font-weight:normal;font-size:12px;"></span></h2>
+      <div id="checklistArea"></div>
+    </div>
+
+    <div class="panel">
+      <h2>📊 直近7日間の達成率ヒートマップ</h2>
+      <div id="heatmapArea" class="heatmap"></div>
+      <p class="hint">緑が濃いほど達成率が高い日です。今日は記録が増えるほど色が濃くなります。</p>
+    </div>
+
+    <div class="panel">
+      <h2>⚠️ 飲み忘れランキング</h2>
+      <div id="rankArea"><p class="empty-msg">まだ記録がありません</p></div>
+    </div>
+  </div>
+
+  <div class="col-side">
+    <div class="panel">
+      <h2>➕ 薬・サプリを登録</h2>
+      <label>名前</label>
+      <input type="text" id="medNameInput" placeholder="例: アレルギー薬">
+      <label>服用タイミング（複数選択可）</label>
+      <div class="timing-checks">
+        <label><input type="checkbox" value="朝食後" class="timingCheck"> 朝食後</label>
+        <label><input type="checkbox" value="昼食後" class="timingCheck"> 昼食後</label>
+        <label><input type="checkbox" value="夕食後" class="timingCheck"> 夕食後</label>
+        <label><input type="checkbox" value="就寝前" class="timingCheck"> 就寝前</label>
+      </div>
+      <label>カスタム時間を追加（任意）</label>
+      <div class="custom-time-row">
+        <input type="time" id="customTimeInput">
+        <button type="button" class="secondary" onclick="addCustomTime()">追加</button>
+      </div>
+      <div id="customTimeList" class="hint"></div>
+      <label>メモ（任意）</label>
+      <input type="text" id="medMemoInput" placeholder="例: 水と一緒に、空腹時NG">
+      <div class="row-gap">
+        <button type="button" onclick="registerMed()">登録する</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>📑 登録済みの薬一覧</h2>
+      <div id="medListArea"><p class="empty-msg">まだ登録がありません</p></div>
+    </div>
+
+    <div class="panel">
+      <h2>💾 エクスポート / インポート</h2>
+      <p class="hint">localStorageは使わないため、次回開く時はここに貼り付けて復元してください。</p>
+      <textarea id="exportBox" readonly></textarea>
+      <div class="row-gap">
+        <button type="button" class="secondary" onclick="doExport()">現在の状態をここに出力</button>
+        <button type="button" class="secondary" onclick="copyExport()">コピー</button>
+      </div>
+      <label>復元用に貼り付け</label>
+      <textarea id="importBox" placeholder="ここにエクスポートしたJSONを貼り付け"></textarea>
+      <div class="row-gap">
+        <button type="button" class="secondary" onclick="doImport()">この内容で復元する</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast">保存しました</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- 状態 ----
+  // meds: [{id, name, timings: ["朝食後", "08:30", ...], memo}]
+  // logs: { "YYYY-MM-DD": { "medId__timing": true } }
+  var state = {
+    meds: [],
+    logs: {},
+    pendingCustomTimes: []
+  };
+
+  var FIXED_TIMINGS = ["朝食後", "昼食後", "夕食後", "就寝前"];
+  var TIMING_APPROX_HOUR = {
+    "朝食後": 8,
+    "昼食後": 13,
+    "夕食後": 19,
+    "就寝前": 23
+  };
+
+  function todayKey() {
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
+  function dateKeyOffset(offsetDays) {
+    var d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(function () { t.classList.remove("show"); }, 1600);
+  }
+
+  function genId() {
+    return "m" + Date.now() + Math.floor(Math.random() * 1000);
+  }
+
+  function timingLabel(t) {
+    if (FIXED_TIMINGS.indexOf(t) !== -1) return t;
+    return t + "（指定時刻）";
+  }
+
+  function timingPastNow(t) {
+    var now = new Date();
+    var nowH = now.getHours();
+    var nowM = now.getMinutes();
+    var hh, mm;
+    if (FIXED_TIMINGS.indexOf(t) !== -1) {
+      hh = TIMING_APPROX_HOUR[t];
+      mm = 0;
+    } else if (/^\d{2}:\d{2}$/.test(t)) {
+      var parts = t.split(":");
+      hh = parseInt(parts[0], 10);
+      mm = parseInt(parts[1], 10);
+    } else {
+      return false;
+    }
+    return (nowH > hh) || (nowH === hh && nowM >= mm);
+  }
+
+  // ---- 登録フォーム ----
+  window.addCustomTime = function () {
+    var input = document.getElementById("customTimeInput");
+    var val = input.value;
+    if (!val) { showToast("時刻を選んでください"); return; }
+    if (state.pendingCustomTimes.indexOf(val) === -1) {
+      state.pendingCustomTimes.push(val);
+    }
+    input.value = "";
+    renderPendingCustomTimes();
+  };
+
+  function renderPendingCustomTimes() {
+    var el = document.getElementById("customTimeList");
+    if (state.pendingCustomTimes.length === 0) {
+      el.textContent = "";
+      return;
+    }
+    el.innerHTML = "追加予定: " + state.pendingCustomTimes.map(escapeHtml).join(", ");
+  }
+
+  window.registerMed = function () {
+    var nameInput = document.getElementById("medNameInput");
+    var name = nameInput.value.trim();
+    if (!name) { showToast("薬の名前を入力してください"); return; }
+
+    var checks = document.querySelectorAll(".timingCheck:checked");
+    var timings = [];
+    checks.forEach(function (c) { timings.push(c.value); });
+    state.pendingCustomTimes.forEach(function (t) { timings.push(t); });
+
+    if (timings.length === 0) {
+      showToast("服用タイミングを1つ以上選んでください");
+      return;
+    }
+
+    var memo = document.getElementById("medMemoInput").value.trim();
+
+    state.meds.push({ id: genId(), name: name, timings: timings, memo: memo });
+
+    nameInput.value = "";
+    document.getElementById("medMemoInput").value = "";
+    document.querySelectorAll(".timingCheck").forEach(function (c) { c.checked = false; });
+    state.pendingCustomTimes = [];
+    renderPendingCustomTimes();
+
+    renderAll();
+    showToast(name + " を登録しました");
+  };
+
+  window.deleteMed = function (id) {
+    state.meds = state.meds.filter(function (m) { return m.id !== id; });
+    renderAll();
+    showToast("削除しました");
+  };
+
+  // ---- 今日のチェックリスト ----
+  function toggleCheck(medId, timing) {
+    var key = todayKey();
+    if (!state.logs[key]) state.logs[key] = {};
+    var itemKey = medId + "__" + timing;
+    state.logs[key][itemKey] = !state.logs[key][itemKey];
+    renderAll();
+  }
+  window.toggleCheck = toggleCheck;
+
+  function renderChecklist() {
+    var area = document.getElementById("checklistArea");
+    document.getElementById("todayDate").textContent = "（" + todayKey() + "）";
+
+    if (state.meds.length === 0) {
+      area.innerHTML = '<p class="empty-msg">右側のフォームからまず薬・サプリを登録してください</p>';
+      return;
+    }
+
+    var key = todayKey();
+    var todayLog = state.logs[key] || {};
+
+    // タイミングごとにグループ化
+    var groups = {};
+    var order = [];
+    state.meds.forEach(function (med) {
+      med.timings.forEach(function (t) {
+        if (!groups[t]) { groups[t] = []; order.push(t); }
+        groups[t].push(med);
+      });
+    });
+
+    order.sort(function (a, b) {
+      var ha = FIXED_TIMINGS.indexOf(a) !== -1 ? TIMING_APPROX_HOUR[a] : (parseInt((a.split(":")[0] || "0"), 10));
+      var hb = FIXED_TIMINGS.indexOf(b) !== -1 ? TIMING_APPROX_HOUR[b] : (parseInt((b.split(":")[0] || "0"), 10));
+      return ha - hb;
+    });
+
+    var html = "";
+    order.forEach(function (t) {
+      html += '<div class="timing-group"><div class="timing-title">' + escapeHtml(timingLabel(t)) + "</div>";
+      groups[t].forEach(function (med) {
+        var itemKey = med.id + "__" + t;
+        var isDone = !!todayLog[itemKey];
+        var isWarn = !isDone && timingPastNow(t);
+        html += '<div class="med-item ' + (isDone ? "done" : "") + (isWarn ? " warn" : "") + '">';
+        html += '<div><div class="med-name">' + escapeHtml(med.name) + (isWarn ? '<span class="warn-badge">⚠ 飲み忘れ？</span>' : "") + "</div>";
+        if (med.memo) html += '<div class="med-memo">' + escapeHtml(med.memo) + "</div>";
+        html += "</div>";
+        html += '<button type="button" class="' + (isDone ? "done-btn" : "") + '" onclick="toggleCheck(\'' + med.id + "', '" + t.replace(/'/g, "\\'") + '\')">' + (isDone ? "済 ✓" : "飲んだ") + "</button>";
+        html += "</div>";
+      });
+      html += "</div>";
+    });
+
+    area.innerHTML = html;
+  }
+
+  // ---- ヒートマップ ----
+  function renderHeatmap() {
+    var area = document.getElementById("heatmapArea");
+    var html = "";
+    var weekdayNames = ["日", "月", "火", "水", "木", "金", "土"];
+
+    for (var i = -6; i <= 0; i++) {
+      var key = dateKeyOffset(i);
+      var d = new Date();
+      d.setDate(d.getDate() + i);
+      var wd = weekdayNames[d.getDay()];
+
+      // その日の予定総数（現時点の登録薬ベースで概算）
+      var totalPlanned = 0;
+      state.meds.forEach(function (med) { totalPlanned += med.timings.length; });
+
+      var doneCount = 0;
+      var log = state.logs[key] || {};
+      Object.keys(log).forEach(function (k) { if (log[k]) doneCount++; });
+
+      var rate = totalPlanned > 0 ? (doneCount / totalPlanned) : 0;
+      var bg = "#2a2a3d";
+      if (totalPlanned > 0) {
+        if (rate >= 0.99) bg = "#2f8f5f";
+        else if (rate >= 0.6) bg = "#3ea67a55";
+        else if (rate > 0) bg = "#8a6b30";
+        else bg = "#4a2c30";
+      }
+
+      html += '<div class="heat-day">' + wd + "<br>" + key.slice(5) +
+        '<div class="heat-cell" style="background:' + bg + '">' +
+        (totalPlanned > 0 ? (doneCount + "/" + totalPlanned) : "-") +
+        "</div></div>";
+    }
+    area.innerHTML = html;
+  }
+
+  // ---- 飲み忘れランキング ----
+  function renderRanking() {
+    var area = document.getElementById("rankArea");
+    var missCount = {}; // medId -> count
+
+    Object.keys(state.logs).forEach(function (dateKey) {
+      var log = state.logs[dateKey];
+      state.meds.forEach(function (med) {
+        med.timings.forEach(function (t) {
+          var itemKey = med.id + "__" + t;
+          // その日にログ自体が存在し、明示的にfalseでない場合は「未記録=忘れた可能性」とみなさない。
+          // 記録上、checkがtrueでない かつ その日付が今日より前の場合のみ「忘れた」とカウント
+          if (dateKey < todayKey() && !log[itemKey]) {
+            missCount[med.id] = (missCount[med.id] || 0) + 1;
+          }
+        });
+      });
+    });
+
+    var ranked = Object.keys(missCount).map(function (id) {
+      var med = state.meds.find(function (m) { return m.id === id; });
+      return { name: med ? med.name : "(削除済み)", count: missCount[id] };
+    }).sort(function (a, b) { return b.count - a.count; }).slice(0, 5);
+
+    if (ranked.length === 0) {
+      area.innerHTML = '<p class="empty-msg">まだ十分な記録がありません（記録が数日たまると表示されます）</p>';
+      return;
+    }
+
+    var html = "";
+    ranked.forEach(function (r, i) {
+      html += '<div class="rank-item">' + (i + 1) + "位　" + escapeHtml(r.name) +
+        '　<span class="rank-count">' + r.count + "回 未チェック</span>" +
+        '<div class="hint">対策のヒント: 服用タイミングを見直す／薬を目につく場所に置く／スマホのアラームと併用する</div></div>';
+    });
+    area.innerHTML = html;
+  }
+
+  // ---- 登録済み一覧 ----
+  function renderMedList() {
+    var area = document.getElementById("medListArea");
+    if (state.meds.length === 0) {
+      area.innerHTML = '<p class="empty-msg">まだ登録がありません</p>';
+      return;
+    }
+    var html = "";
+    state.meds.forEach(function (med) {
+      html += '<div class="med-list-item"><div><strong>' + escapeHtml(med.name) + "</strong><br>" +
+        '<span class="hint">' + med.timings.map(timingLabel).map(escapeHtml).join("・") + "</span>" +
+        (med.memo ? '<br><span class="hint">' + escapeHtml(med.memo) + "</span>" : "") +
+        "</div>" +
+        '<button type="button" class="secondary" onclick="deleteMed(\'' + med.id + '\')">削除</button></div>';
+    });
+    area.innerHTML = html;
+  }
+
+  // ---- エクスポート / インポート ----
+  window.doExport = function () {
+    var data = { meds: state.meds, logs: state.logs };
+    document.getElementById("exportBox").value = JSON.stringify(data);
+    showToast("出力しました");
+  };
+
+  window.copyExport = function () {
+    var box = document.getElementById("exportBox");
+    if (!box.value) { doExport(); }
+    box.select();
+    var copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(box.value);
+        copied = true;
+      }
+    } catch (e) { copied = false; }
+    if (!copied) {
+      try {
+        document.execCommand("copy");
+        copied = true;
+      } catch (e) { copied = false; }
+    }
+    showToast(copied ? "コピーしました" : "コピーに失敗しました。手動で選択してください");
+  };
+
+  window.doImport = function () {
+    var raw = document.getElementById("importBox").value.trim();
+    if (!raw) { showToast("貼り付け欄が空です"); return; }
+    var data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      showToast("読み込みに失敗しました（JSON形式を確認してください）");
+      return;
+    }
+    if (!data || typeof data !== "object") {
+      showToast("データ形式が不正です");
+      return;
+    }
+    state.meds = Array.isArray(data.meds) ? data.meds : [];
+    state.logs = (data.logs && typeof data.logs === "object") ? data.logs : {};
+    renderAll();
+    showToast("復元しました");
+  };
+
+  function renderAll() {
+    renderChecklist();
+    renderHeatmap();
+    renderRanking();
+    renderMedList();
+  }
+
+  renderAll();
+})();
+</script>
+
+</body>
+</html>
