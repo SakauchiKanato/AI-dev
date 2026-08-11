@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>再配達防止プランナー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #3aa6a0;
+    --accent-dim: #2b7d78;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --danger: #e0556b;
+    --warn: #d9a441;
+    --ok: #4caf7d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 20px;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px;
+    color: var(--text);
+  }
+
+  #dashboard-panel { flex: 1 1 100%; }
+  #list-panel { flex: 1 1 460px; }
+  #form-panel { flex: 1 1 340px; }
+
+  .dash-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .dash-card {
+    flex: 1 1 260px;
+    background: #1c1c2c;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .dash-card h3 {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+  .dash-empty { font-size: 13px; color: var(--muted); }
+  .dash-item {
+    font-size: 13px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .dash-item:last-child { border-bottom: none; }
+  .stat-number {
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--accent);
+  }
+  .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td {
+    text-align: left;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--muted); font-weight: normal; font-size: 12px; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+  }
+  .badge-danger { background: var(--danger); color: #fff; }
+  .badge-warn { background: var(--warn); color: #1e1e2e; }
+  .badge-ok { background: #33334a; color: var(--muted); }
+
+  input, select {
+    width: 100%;
+    background: #1c1c2c;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 7px 8px;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .btn-primary { background: var(--accent); color: #10201f; font-weight: bold; }
+  .btn-primary:hover { background: var(--accent-dim); }
+  .btn-secondary { background: #33334a; color: var(--text); }
+  .btn-secondary:hover { background: #40405a; }
+  .btn-small { padding: 4px 10px; font-size: 12px; }
+  .btn-danger-outline { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .preset-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .preset-chip {
+    font-size: 12px;
+    background: #1c1c2c;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .preset-chip button { background: none; color: var(--muted); padding: 0 2px; font-size: 12px; }
+
+  textarea {
+    width: 100%;
+    background: #1c1c2c;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 12px;
+    font-family: monospace;
+    min-height: 90px;
+    margin-bottom: 8px;
+  }
+
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: #10201f;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .empty-note { font-size: 13px; color: var(--muted); padding: 10px 0; }
+
+  @media (max-width: 600px) {
+    body { padding: 12px; }
+    .layout { gap: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📦 再配達防止プランナー</h1>
+  <p>荷物の受け取り期限を一目で把握して、再配達をゼロに近づける</p>
+</header>
+
+<div class="layout">
+
+  <section class="panel" id="dashboard-panel">
+    <h2>今日・明日の受け取りダッシュボード</h2>
+    <div class="dash-grid">
+      <div class="dash-card">
+        <h3>今日が期限の荷物</h3>
+        <div id="today-list"></div>
+      </div>
+      <div class="dash-card">
+        <h3>明日が期限の荷物</h3>
+        <div id="tomorrow-list"></div>
+      </div>
+      <div class="dash-card">
+        <h3>再配達を防げた件数</h3>
+        <div class="stat-number" id="saved-count">0</div>
+        <div class="stat-sub" id="saved-sub">まだ受け取り記録がありません</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="list-panel">
+    <h2>荷物一覧（期限が近い順）</h2>
+    <div style="overflow-x:auto;">
+      <table id="package-table">
+        <thead>
+          <tr>
+            <th>状態</th>
+            <th>品名</th>
+            <th>配送業者</th>
+            <th>受け取り方法</th>
+            <th>期限</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="package-tbody"></tbody>
+      </table>
+      <div class="empty-note" id="package-empty" style="display:none;">まだ荷物が登録されていません。右のフォームから登録してください。</div>
+    </div>
+
+    <h2 style="margin-top:20px;">受け取り済み</h2>
+    <div style="overflow-x:auto;">
+      <table id="done-table">
+        <thead>
+          <tr>
+            <th>品名</th>
+            <th>配送業者</th>
+            <th>受け取り日</th>
+            <th>結果</th>
+          </tr>
+        </thead>
+        <tbody id="done-tbody"></tbody>
+      </table>
+      <div class="empty-note" id="done-empty" style="display:none;">受け取り済みの荷物はまだありません。</div>
+    </div>
+  </section>
+
+  <section class="panel" id="form-panel">
+    <h2>荷物を登録</h2>
+    <label for="input-name">品名</label>
+    <input type="text" id="input-name" placeholder="例: 冬用パーカー">
+
+    <label for="input-carrier">配送業者</label>
+    <select id="input-carrier"></select>
+
+    <label for="input-method">受け取り方法</label>
+    <select id="input-method">
+      <option value="自宅">自宅</option>
+      <option value="コンビニ受取">コンビニ受取</option>
+      <option value="営業所留め">営業所留め</option>
+    </select>
+
+    <label for="input-deadline">お届け予定日・保管期限日</label>
+    <input type="date" id="input-deadline">
+
+    <button class="btn-primary" onclick="addPackage()">登録する</button>
+
+    <h2 style="margin-top:22px;">配送業者プリセット（標準保管期限）</h2>
+    <div class="preset-list" id="preset-list"></div>
+    <div style="display:flex; gap:6px; margin-bottom:4px;">
+      <input type="text" id="preset-name" placeholder="業者名" style="margin-bottom:0;">
+      <input type="number" id="preset-days" placeholder="日数" min="1" style="margin-bottom:0; width:90px;">
+    </div>
+    <button class="btn-secondary btn-small" onclick="addPreset()">プリセット追加</button>
+
+    <h2 style="margin-top:22px;">データのエクスポート／インポート</h2>
+    <p style="font-size:12px; color:var(--muted); margin-top:0;">このアプリはブラウザに保存しません。次回も使うにはテキストをコピーして保管し、次回起動時に貼り付けてください。</p>
+    <textarea id="export-area" readonly></textarea>
+    <div class="row-actions">
+      <button class="btn-secondary btn-small" onclick="exportData()">エクスポート</button>
+      <button class="btn-secondary btn-small" onclick="copyExport()">コピー</button>
+    </div>
+    <div style="margin-top:10px;">
+      <textarea id="import-area" placeholder="ここに以前エクスポートしたテキストを貼り付け"></textarea>
+      <button class="btn-secondary btn-small" onclick="importData()">インポートして復元</button>
+    </div>
+  </section>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var state = {
+    presets: [
+      { name: "ヤマト運輸", days: 7 },
+      { name: "佐川急便", days: 7 },
+      { name: "日本郵便", days: 10 },
+      { name: "コンビニ受取", days: 3 }
+    ],
+    packages: [],
+    doneList: [],
+    nextId: 1
+  };
+
+  function todayStr() {
+    var d = new Date();
+    return formatDate(d);
+  }
+
+  function formatDate(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
+  function addDays(dateStr, days) {
+    var d = new Date(dateStr + "T00:00:00");
+    if (isNaN(d.getTime())) return "";
+    d.setDate(d.getDate() + days);
+    return formatDate(d);
+  }
+
+  function daysUntil(dateStr) {
+    if (!dateStr) return null;
+    var target = new Date(dateStr + "T00:00:00");
+    if (isNaN(target.getTime())) return null;
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var diffMs = target.getTime() - today.getTime();
+    return Math.round(diffMs / 86400000);
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str == null ? "" : String(str);
+    return div.innerHTML;
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(function () { t.classList.remove("show"); }, 1800);
+  }
+
+  // ---------- Presets ----------
+
+  function renderPresets() {
+    var list = document.getElementById("preset-list");
+    var select = document.getElementById("input-carrier");
+    list.innerHTML = "";
+    select.innerHTML = "";
+
+    if (state.presets.length === 0) {
+      list.innerHTML = '<span style="font-size:12px; color:var(--muted);">プリセットがありません</span>';
+    }
+
+    state.presets.forEach(function (p, i) {
+      var chip = document.createElement("div");
+      chip.className = "preset-chip";
+      chip.innerHTML = escapeHtml(p.name) + "（" + escapeHtml(p.days) + "日）";
+      var delBtn = document.createElement("button");
+      delBtn.textContent = "×";
+      delBtn.onclick = function () { removePreset(i); };
+      chip.appendChild(delBtn);
+      list.appendChild(chip);
+
+      var opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = p.name + "（標準" + p.days + "日）";
+      select.appendChild(opt);
+    });
+
+    var customOpt = document.createElement("option");
+    customOpt.value = "custom";
+    customOpt.textContent = "その他（自分で期限日を入力）";
+    select.appendChild(customOpt);
+  }
+
+  function addPreset() {
+    var nameInput = document.getElementById("preset-name");
+    var daysInput = document.getElementById("preset-days");
+    var name = nameInput.value.trim();
+    var days = parseInt(daysInput.value, 10);
+
+    if (!name) {
+      showToast("業者名を入力してください");
+      return;
+    }
+    if (isNaN(days) || days <= 0) {
+      days = 7;
+    }
+    if (days > 365) days = 365;
+
+    state.presets.push({ name: name, days: days });
+    nameInput.value = "";
+    daysInput.value = "";
+    renderPresets();
+    showToast("プリセットを追加しました");
+  }
+
+  function removePreset(index) {
+    state.presets.splice(index, 1);
+    renderPresets();
+  }
+
+  // ---------- Packages ----------
+
+  function addPackage() {
+    var nameInput = document.getElementById("input-name");
+    var carrierSelect = document.getElementById("input-carrier");
+    var methodSelect = document.getElementById("input-method");
+    var deadlineInput = document.getElementById("input-deadline");
+
+    var name = nameInput.value.trim();
+    if (!name) {
+      showToast("品名を入力してください");
+      return;
+    }
+
+    var carrierName = "";
+    var deadline = deadlineInput.value;
+
+    if (carrierSelect.value !== "custom" && carrierSelect.value !== "") {
+      var preset = state.presets[parseInt(carrierSelect.value, 10)];
+      if (preset) {
+        carrierName = preset.name;
+        if (!deadline) {
+          deadline = addDays(todayStr(), preset.days);
+        }
+      }
+    } else {
+      carrierName = "未指定";
+    }
+
+    if (!deadline) {
+      showToast("期限日を入力するか、業者プリセットを選択してください");
+      return;
+    }
+
+    state.packages.push({
+      id: state.nextId++,
+      name: name,
+      carrier: carrierName || "未指定",
+      method: methodSelect.value,
+      deadline: deadline
+    });
+
+    nameInput.value = "";
+    deadlineInput.value = "";
+    render();
+    showToast("荷物を登録しました");
+  }
+
+  function markReceived(id) {
+    var idx = state.packages.findIndex(function (p) { return p.id === id; });
+    if (idx === -1) return;
+    var pkg = state.packages[idx];
+    var diff = daysUntil(pkg.deadline);
+    var result = (diff !== null && diff >= 0) ? "期限内に受け取り" : "期限超過（再配達発生の可能性）";
+
+    state.doneList.unshift({
+      name: pkg.name,
+      carrier: pkg.carrier,
+      receivedDate: todayStr(),
+      result: result,
+      onTime: diff !== null && diff >= 0
+    });
+
+    state.packages.splice(idx, 1);
+    render();
+    showToast("受け取り済みにしました");
+  }
+
+  function removePackage(id) {
+    state.packages = state.packages.filter(function (p) { return p.id !== id; });
+    render();
+  }
+
+  // ---------- Rendering ----------
+
+  function badgeForDiff(diff) {
+    if (diff === null) return '<span class="badge badge-ok">-</span>';
+    if (diff < 0) return '<span class="badge badge-danger">期限切れ</span>';
+    if (diff === 0) return '<span class="badge badge-danger">本日まで</span>';
+    if (diff <= 2) return '<span class="badge badge-warn">残り' + diff + '日</span>';
+    return '<span class="badge badge-ok">残り' + diff + '日</span>';
+  }
+
+  function renderDashboard() {
+    var todayEl = document.getElementById("today-list");
+    var tomorrowEl = document.getElementById("tomorrow-list");
+    var today = [];
+    var tomorrow = [];
+
+    state.packages.forEach(function (p) {
+      var diff = daysUntil(p.deadline);
+      if (diff !== null && diff <= 0) today.push(p); // 期限切れ・本日期限をまとめて強調表示
+      else if (diff === 1) tomorrow.push(p);
+    });
+
+    todayEl.innerHTML = today.length
+      ? today.map(function (p) { return '<div class="dash-item">' + escapeHtml(p.name) + "（" + escapeHtml(p.carrier) + "）</div>"; }).join("")
+      : '<div class="dash-empty">今日期限の荷物はありません</div>';
+
+    tomorrowEl.innerHTML = tomorrow.length
+      ? tomorrow.map(function (p) { return '<div class="dash-item">' + escapeHtml(p.name) + "（" + escapeHtml(p.carrier) + "）</div>"; }).join("")
+      : '<div class="dash-empty">明日期限の荷物はありません</div>';
+
+    var savedCount = state.doneList.filter(function (d) { return d.onTime; }).length;
+    var totalDone = state.doneList.length;
+    document.getElementById("saved-count").textContent = savedCount;
+    document.getElementById("saved-sub").textContent = totalDone
+      ? "受け取り済み" + totalDone + "件中、期限内が" + savedCount + "件"
+      : "まだ受け取り記録がありません";
+  }
+
+  function renderPackageTable() {
+    var tbody = document.getElementById("package-tbody");
+    var emptyNote = document.getElementById("package-empty");
+    tbody.innerHTML = "";
+
+    var sorted = state.packages.slice().sort(function (a, b) {
+      var da = daysUntil(a.deadline);
+      var db = daysUntil(b.deadline);
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return da - db;
+    });
+
+    if (sorted.length === 0) {
+      emptyNote.style.display = "block";
+    } else {
+      emptyNote.style.display = "none";
+    }
+
+    sorted.forEach(function (p) {
+      var diff = daysUntil(p.deadline);
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + badgeForDiff(diff) + "</td>" +
+        "<td>" + escapeHtml(p.name) + "</td>" +
+        "<td>" + escapeHtml(p.carrier) + "</td>" +
+        "<td>" + escapeHtml(p.method) + "</td>" +
+        "<td>" + escapeHtml(p.deadline) + "</td>" +
+        "<td></td>";
+
+      var actionsTd = tr.querySelector("td:last-child");
+      var actionsWrap = document.createElement("div");
+      actionsWrap.className = "row-actions";
+
+      var recvBtn = document.createElement("button");
+      recvBtn.className = "btn-primary btn-small";
+      recvBtn.textContent = "受け取った";
+      recvBtn.onclick = function () { markReceived(p.id); };
+
+      var delBtn = document.createElement("button");
+      delBtn.className = "btn-danger-outline btn-small";
+      delBtn.textContent = "削除";
+      delBtn.onclick = function () { removePackage(p.id); };
+
+      actionsWrap.appendChild(recvBtn);
+      actionsWrap.appendChild(delBtn);
+      actionsTd.appendChild(actionsWrap);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderDoneTable() {
+    var tbody = document.getElementById("done-tbody");
+    var emptyNote = document.getElementById("done-empty");
+    tbody.innerHTML = "";
+
+    if (state.doneList.length === 0) {
+      emptyNote.style.display = "block";
+    } else {
+      emptyNote.style.display = "none";
+    }
+
+    state.doneList.forEach(function (d) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(d.name) + "</td>" +
+        "<td>" + escapeHtml(d.carrier) + "</td>" +
+        "<td>" + escapeHtml(d.receivedDate) + "</td>" +
+        "<td>" + escapeHtml(d.result) + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function render() {
+    renderDashboard();
+    renderPackageTable();
+    renderDoneTable();
+  }
+
+  // ---------- Export / Import ----------
+
+  function exportData() {
+    var data = {
+      presets: state.presets,
+      packages: state.packages,
+      doneList: state.doneList,
+      nextId: state.nextId
+    };
+    document.getElementById("export-area").value = JSON.stringify(data);
+    showToast("エクスポートしました");
+  }
+
+  function copyExport() {
+    var area = document.getElementById("export-area");
+    if (!area.value) {
+      exportData();
+    }
+    area.select();
+    var copied = false;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(area.value).then(function () {
+        showToast("コピーしました");
+      }).catch(function () {
+        fallbackCopy(area);
+      });
+    } else {
+      fallbackCopy(area);
+    }
+  }
+
+  function fallbackCopy(area) {
+    try {
+      area.select();
+      document.execCommand("copy");
+      showToast("コピーしました");
+    } catch (e) {
+      showToast("コピーに失敗しました。手動で選択してください");
+    }
+  }
+
+  function importData() {
+    var text = document.getElementById("import-area").value.trim();
+    if (!text) {
+      showToast("インポートするテキストを貼り付けてください");
+      return;
+    }
+    try {
+      var data = JSON.parse(text);
+      if (Array.isArray(data.presets)) state.presets = data.presets;
+      if (Array.isArray(data.packages)) state.packages = data.packages;
+      if (Array.isArray(data.doneList)) state.doneList = data.doneList;
+      if (typeof data.nextId === "number") state.nextId = data.nextId;
+      else {
+        var maxId = 0;
+        state.packages.forEach(function (p) { if (p.id > maxId) maxId = p.id; });
+        state.nextId = maxId + 1;
+      }
+      renderPresets();
+      render();
+      showToast("復元しました");
+    } catch (e) {
+      showToast("読み込みに失敗しました。形式を確認してください");
+    }
+  }
+
+  // ---------- Init ----------
+
+  document.getElementById("input-deadline").min = todayStr();
+
+  renderPresets();
+  render();
+
+  // Expose for inline onclick handlers
+  window.addPackage = addPackage;
+  window.addPreset = addPreset;
+  window.removePreset = removePreset;
+  window.markReceived = markReceived;
+  window.removePackage = removePackage;
+  window.exportData = exportData;
+  window.copyExport = copyExport;
+  window.importData = importData;
+
+})();
+</script>
+
+</body>
+</html>
