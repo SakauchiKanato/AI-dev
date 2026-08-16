@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>テキスト差分チェッカー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #3ea6ff;
+    --add: #3ecf8e;
+    --del: #e0596a;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 16px; }
+  header h1 { font-size: 20px; margin: 0 0 6px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  .layout { display: flex; flex-direction: column; gap: 20px; max-width: 1200px; margin: 0 auto; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px 0; }
+
+  .input-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .input-col { flex: 1 1 320px; min-width: 280px; }
+  .input-col label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  textarea {
+    width: 100%;
+    height: 220px;
+    background: #1a1a28;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 13px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+  textarea:focus { outline: 1px solid var(--accent); }
+
+  .options-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 14px;
+  }
+  .option-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .option-item input { accent-color: var(--accent); }
+
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    background: var(--accent);
+    color: #10131c;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { opacity: 0.88; }
+  button.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-weight: 500;
+  }
+  button.secondary:hover { border-color: var(--accent); }
+
+  .summary-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .summary-card {
+    flex: 1 1 140px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .summary-card .label { font-size: 12px; color: var(--muted); }
+  .summary-card .value { font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .summary-card.add .value { color: var(--add); }
+  .summary-card.del .value { color: var(--del); }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tab-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .tab-btn.active { background: var(--accent); color: #10131c; border-color: var(--accent); font-weight: 600; }
+
+  .diff-view { display: none; }
+  .diff-view.active { display: block; }
+
+  .diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12.5px;
+    table-layout: fixed;
+  }
+  .diff-table td {
+    padding: 3px 8px;
+    vertical-align: top;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border-bottom: 1px solid #2a2a3c;
+  }
+  .diff-table .ln {
+    width: 40px;
+    color: var(--muted);
+    text-align: right;
+    user-select: none;
+  }
+  .side-table { display: flex; gap: 2px; }
+  .side-col { flex: 1; min-width: 0; overflow-x: auto; }
+  .side-col table { width: 100%; }
+
+  .row-equal { background: transparent; }
+  .row-add { background: rgba(62, 207, 142, 0.14); }
+  .row-del { background: rgba(224, 89, 106, 0.14); }
+  .row-add .text { color: var(--add); }
+  .row-del .text { color: var(--del); }
+
+  .unified-line { display: flex; }
+  .unified-line .ln { flex: 0 0 40px; }
+  .unified-line .ln2 { flex: 0 0 40px; }
+  .unified-line .marker { flex: 0 0 18px; text-align: center; }
+  .unified-line .text { flex: 1; }
+
+  .empty-state { color: var(--muted); font-size: 13px; padding: 20px 0; text-align: center; }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #10131c;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 700px) {
+    .side-table { flex-direction: column; }
+    textarea { height: 160px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>テキスト差分チェッカー</h1>
+  <p>2つのテキストを貼り付けて、変わった行をすぐに見つける。行単位の差分をハイライト表示します。</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel">
+    <h2>入力</h2>
+    <div class="input-row">
+      <div class="input-col">
+        <label for="textBefore">変更前</label>
+        <textarea id="textBefore" placeholder="変更前のテキスト・コードを貼り付け"></textarea>
+      </div>
+      <div class="input-col">
+        <label for="textAfter">変更後</label>
+        <textarea id="textAfter" placeholder="変更後のテキスト・コードを貼り付け"></textarea>
+      </div>
+    </div>
+
+    <div class="options-row">
+      <div class="option-item">
+        <input type="checkbox" id="optIgnoreCase">
+        <label for="optIgnoreCase">大文字・小文字を区別しない</label>
+      </div>
+      <div class="option-item">
+        <input type="checkbox" id="optIgnoreWhitespace">
+        <label for="optIgnoreWhitespace">行頭・行末の空白を無視</label>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="btnCompare" onclick="runCompare()">比較する</button>
+      <button class="secondary" id="btnSample" onclick="loadSample()">サンプルを読み込む</button>
+      <button class="secondary" id="btnClear" onclick="clearAll()">クリア</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>結果</h2>
+    <div class="summary-row">
+      <div class="summary-card add">
+        <div class="label">追加された行</div>
+        <div class="value" id="summaryAdd">0</div>
+      </div>
+      <div class="summary-card del">
+        <div class="label">削除された行</div>
+        <div class="value" id="summaryDel">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">変わらない行</div>
+        <div class="value" id="summaryEqual">0</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tabSide" onclick="switchTab('side')">並列表示</button>
+      <button class="tab-btn" id="tabUnified" onclick="switchTab('unified')">統合表示</button>
+    </div>
+
+    <div class="btn-row" style="margin-top:0; margin-bottom:14px;">
+      <button class="secondary" onclick="copyUnifiedDiff()">差分をコピー（unified diff形式）</button>
+    </div>
+
+    <div id="viewSide" class="diff-view active">
+      <div id="sideContent"><div class="empty-state">「比較する」を押すと結果がここに表示されます</div></div>
+    </div>
+    <div id="viewUnified" class="diff-view">
+      <div id="unifiedContent"><div class="empty-state">「比較する」を押すと結果がここに表示されます</div></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  var lastOps = null; // 直近の差分結果（コピー用）
+
+  function normalizeLine(line, ignoreCase, ignoreWs) {
+    var s = line;
+    if (ignoreWs) { s = s.replace(/^\s+|\s+$/g, ''); }
+    if (ignoreCase) { s = s.toLowerCase(); }
+    return s;
+  }
+
+  // LCSベースの行差分。ops = [{type:'equal'|'add'|'del', text, lineA, lineB}]
+  function computeDiff(before, after, ignoreCase, ignoreWs) {
+    var a = before.length === 0 ? [] : before.split('\n');
+    var b = after.length === 0 ? [] : after.split('\n');
+    var na = a.length, nb = b.length;
+
+    var normA = a.map(function (l) { return normalizeLine(l, ignoreCase, ignoreWs); });
+    var normB = b.map(function (l) { return normalizeLine(l, ignoreCase, ignoreWs); });
+
+    // DPテーブル（LCS長）
+    var dp = [];
+    for (var i = 0; i <= na; i++) {
+      dp.push(new Array(nb + 1).fill(0));
+    }
+    for (var i2 = na - 1; i2 >= 0; i2--) {
+      for (var j2 = nb - 1; j2 >= 0; j2--) {
+        if (normA[i2] === normB[j2]) {
+          dp[i2][j2] = dp[i2 + 1][j2 + 1] + 1;
+        } else {
+          dp[i2][j2] = Math.max(dp[i2 + 1][j2], dp[i2][j2 + 1]);
+        }
+      }
+    }
+
+    // バックトラックしてops生成
+    var ops = [];
+    var i = 0, j = 0;
+    while (i < na && j < nb) {
+      if (normA[i] === normB[j]) {
+        ops.push({ type: 'equal', textA: a[i], textB: b[j], lineA: i + 1, lineB: j + 1 });
+        i++; j++;
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+        ops.push({ type: 'del', textA: a[i], textB: null, lineA: i + 1, lineB: null });
+        i++;
+      } else {
+        ops.push({ type: 'add', textA: null, textB: b[j], lineA: null, lineB: j + 1 });
+        j++;
+      }
+    }
+    while (i < na) {
+      ops.push({ type: 'del', textA: a[i], textB: null, lineA: i + 1, lineB: null });
+      i++;
+    }
+    while (j < nb) {
+      ops.push({ type: 'add', textA: null, textB: b[j], lineA: null, lineB: j + 1 });
+      j++;
+    }
+    return ops;
+  }
+
+  function escapeHtml(str) {
+    if (str === null || str === undefined) { return ''; }
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function runCompare() {
+    var before = document.getElementById('textBefore').value;
+    var after = document.getElementById('textAfter').value;
+    var ignoreCase = document.getElementById('optIgnoreCase').checked;
+    var ignoreWs = document.getElementById('optIgnoreWhitespace').checked;
+
+    var ops = computeDiff(before, after, ignoreCase, ignoreWs);
+    lastOps = ops;
+
+    var addCount = 0, delCount = 0, equalCount = 0;
+    ops.forEach(function (op) {
+      if (op.type === 'add') addCount++;
+      else if (op.type === 'del') delCount++;
+      else equalCount++;
+    });
+    document.getElementById('summaryAdd').textContent = addCount;
+    document.getElementById('summaryDel').textContent = delCount;
+    document.getElementById('summaryEqual').textContent = equalCount;
+
+    renderSideBySide(ops);
+    renderUnified(ops);
+  }
+
+  function renderSideBySide(ops) {
+    var container = document.getElementById('sideContent');
+    if (ops.length === 0) {
+      container.innerHTML = '<div class="empty-state">差分はありません（両方とも空です）</div>';
+      return;
+    }
+    var leftRows = '';
+    var rightRows = '';
+    ops.forEach(function (op) {
+      var leftCls = op.type === 'del' ? 'row-del' : (op.type === 'add' ? '' : 'row-equal');
+      var rightCls = op.type === 'add' ? 'row-add' : (op.type === 'del' ? '' : 'row-equal');
+      var leftLn = op.lineA !== null ? op.lineA : '';
+      var rightLn = op.lineB !== null ? op.lineB : '';
+      var leftText = op.textA !== null ? escapeHtml(op.textA) : '';
+      var rightText = op.textB !== null ? escapeHtml(op.textB) : '';
+      leftRows += '<tr class="' + leftCls + '"><td class="ln">' + leftLn + '</td><td class="text">' + (leftText || '&nbsp;') + '</td></tr>';
+      rightRows += '<tr class="' + rightCls + '"><td class="ln">' + rightLn + '</td><td class="text">' + (rightText || '&nbsp;') + '</td></tr>';
+    });
+    container.innerHTML =
+      '<div class="side-table">' +
+        '<div class="side-col"><table class="diff-table"><tbody>' + leftRows + '</tbody></table></div>' +
+        '<div class="side-col"><table class="diff-table"><tbody>' + rightRows + '</tbody></table></div>' +
+      '</div>';
+  }
+
+  function renderUnified(ops) {
+    var container = document.getElementById('unifiedContent');
+    if (ops.length === 0) {
+      container.innerHTML = '<div class="empty-state">差分はありません（両方とも空です）</div>';
+      return;
+    }
+    var html = '<table class="diff-table"><tbody>';
+    ops.forEach(function (op) {
+      var cls, marker, text, lnA, lnB;
+      if (op.type === 'equal') {
+        cls = 'row-equal'; marker = '&nbsp;'; text = escapeHtml(op.textA);
+        lnA = op.lineA; lnB = op.lineB;
+      } else if (op.type === 'del') {
+        cls = 'row-del'; marker = '-'; text = escapeHtml(op.textA);
+        lnA = op.lineA; lnB = '';
+      } else {
+        cls = 'row-add'; marker = '+'; text = escapeHtml(op.textB);
+        lnA = ''; lnB = op.lineB;
+      }
+      html += '<tr class="' + cls + '">' +
+        '<td class="ln">' + lnA + '</td>' +
+        '<td class="ln">' + lnB + '</td>' +
+        '<td style="width:20px; text-align:center;">' + marker + '</td>' +
+        '<td class="text">' + (text || '&nbsp;') + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  function switchTab(which) {
+    var isSide = which === 'side';
+    document.getElementById('tabSide').classList.toggle('active', isSide);
+    document.getElementById('tabUnified').classList.toggle('active', !isSide);
+    document.getElementById('viewSide').classList.toggle('active', isSide);
+    document.getElementById('viewUnified').classList.toggle('active', !isSide);
+  }
+
+  function buildUnifiedDiffText(ops) {
+    var lines = [];
+    ops.forEach(function (op) {
+      if (op.type === 'equal') {
+        lines.push('  ' + op.textA);
+      } else if (op.type === 'del') {
+        lines.push('- ' + op.textA);
+      } else {
+        lines.push('+ ' + op.textB);
+      }
+    });
+    return lines.join('\n');
+  }
+
+  function copyUnifiedDiff() {
+    if (!lastOps) {
+      showToast('先に「比較する」を実行してください');
+      return;
+    }
+    var text = buildUnifiedDiffText(lastOps);
+    copyToClipboard(text);
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast('コピーしました');
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('コピーしました');
+    } catch (e) {
+      showToast('コピーに失敗しました');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function showToast(msg) {
+    var toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(function () {
+      toast.classList.remove('show');
+    }, 1800);
+  }
+
+  function loadSample() {
+    var sampleBefore = [
+      'function greet(name) {',
+      '  console.log("Hello, " + name);',
+      '  return true;',
+      '}',
+      '',
+      'const version = "1.0.0";',
+      'greet("World");'
+    ].join('\n');
+    var sampleAfter = [
+      'function greet(name, punctuation) {',
+      '  console.log("Hello, " + name + (punctuation || "!"));',
+      '  return true;',
+      '}',
+      '',
+      'const version = "1.1.0";',
+      'greet("World", "!!");',
+      'greet("Claude");'
+    ].join('\n');
+    document.getElementById('textBefore').value = sampleBefore;
+    document.getElementById('textAfter').value = sampleAfter;
+    runCompare();
+  }
+
+  function clearAll() {
+    document.getElementById('textBefore').value = '';
+    document.getElementById('textAfter').value = '';
+    lastOps = null;
+    document.getElementById('summaryAdd').textContent = '0';
+    document.getElementById('summaryDel').textContent = '0';
+    document.getElementById('summaryEqual').textContent = '0';
+    document.getElementById('sideContent').innerHTML = '<div class="empty-state">「比較する」を押すと結果がここに表示されます</div>';
+    document.getElementById('unifiedContent').innerHTML = '<div class="empty-state">「比較する」を押すと結果がここに表示されます</div>';
+  }
+</script>
+
+</body>
+</html>
