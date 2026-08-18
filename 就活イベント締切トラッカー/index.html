@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>就活イベント締切トラッカー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #3d7bf5;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --red: #e5566c;
+    --yellow: #e0b23c;
+    --green: #3fc98a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    line-height: 1.5;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  .layout { display: flex; flex-wrap: wrap; gap: 20px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+  .panel h3 { font-size: 13px; margin: 16px 0 8px; color: var(--muted); }
+
+  /* ダッシュボード */
+  #dashboard { flex: 1 1 100%; }
+  .dash-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+  .dash-card {
+    flex: 1 1 240px;
+    background: #1a1a29;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .dash-card .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .dash-card .empty { font-size: 13px; color: var(--muted); }
+  .dash-item { font-size: 13px; padding: 4px 0; border-bottom: 1px dashed var(--border); }
+  .dash-item:last-child { border-bottom: none; }
+
+  /* フォーム */
+  #form-panel { flex: 1 1 320px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  input[type=text], input[type=date], input[type=time], input[type=url], textarea, select {
+    width: 100%;
+    background: #1a1a29;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 7px 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 50px; }
+
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-family: inherit;
+    background: var(--accent);
+    color: #fff;
+  }
+  button:hover { opacity: 0.88; }
+  button.secondary { background: #3a3a52; color: var(--text); }
+  button.small { padding: 4px 8px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+  /* リスト */
+  #list-panel { flex: 2 1 460px; }
+  .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .filter-row button { background: #1a1a29; color: var(--muted); border: 1px solid var(--border); }
+  .filter-row button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .item-card {
+    background: #1a1a29;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .item-card.warn-red { border-left-color: var(--red); }
+  .item-card.warn-yellow { border-left-color: var(--yellow); }
+  .item-card .top-row { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .item-card .company { font-weight: bold; font-size: 14px; }
+  .item-card .type-tag {
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-left: 6px;
+  }
+  .item-card .deadline {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .deadline.d-red { background: rgba(229,86,108,0.2); color: var(--red); }
+  .deadline.d-yellow { background: rgba(224,178,60,0.2); color: var(--yellow); }
+  .deadline.d-normal { background: rgba(154,151,181,0.15); color: var(--muted); }
+  .item-card .memo { font-size: 12px; color: var(--muted); margin-top: 6px; white-space: pre-wrap; }
+  .item-card .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .item-card .meta a { color: var(--accent); }
+  .item-card .status-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .status-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #3a3a52;
+    color: var(--text);
+  }
+  .empty-msg { font-size: 13px; color: var(--muted); padding: 8px 0; }
+
+  /* カレンダー */
+  #calendar-panel { flex: 1 1 320px; }
+  .cal-day { margin-bottom: 8px; }
+  .cal-day .cal-date { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .cal-day .cal-events { font-size: 12px; }
+  .cal-day .cal-events .cal-event { padding: 3px 6px; background: #1a1a29; border-radius: 4px; margin-bottom: 3px; border: 1px solid var(--border); }
+  .cal-day .cal-none { color: var(--muted); }
+
+  /* エクスポート/インポート */
+  #io-panel { flex: 1 1 100%; }
+  #io-panel textarea { min-height: 90px; font-family: monospace; font-size: 12px; }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--green);
+    color: #10221a;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 480px) {
+    body { padding: 12px; }
+    .layout { gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>就活イベント締切トラッカー</h1>
+  <p>複数の就活プラットフォームから届くイベント案内・エントリー締切を一元管理する</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel" id="dashboard">
+    <h2>今日の締切・開催</h2>
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="label">本日が締切</div>
+        <div id="dash-deadline-today"></div>
+      </div>
+      <div class="dash-card">
+        <div class="label">本日開催</div>
+        <div id="dash-event-today"></div>
+      </div>
+      <div class="dash-card">
+        <div class="label">期限切れ（未対応のまま）</div>
+        <div id="dash-overdue"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="form-panel">
+    <h2>新規登録</h2>
+    <label for="in-company">企業名</label>
+    <input type="text" id="in-company" placeholder="例: ○○株式会社">
+
+    <label for="in-title">イベント/エントリー内容</label>
+    <input type="text" id="in-title" placeholder="例: 冬インターンシップ エントリー">
+
+    <label for="in-type">種別</label>
+    <select id="in-type">
+      <option value="説明会">説明会</option>
+      <option value="ワークショップ">ワークショップ</option>
+      <option value="エントリー">エントリー</option>
+      <option value="選考">選考</option>
+      <option value="その他">その他</option>
+    </select>
+
+    <label for="in-event-date">開催日（任意）</label>
+    <input type="date" id="in-event-date">
+
+    <label for="in-event-time">開催時刻（任意）</label>
+    <input type="time" id="in-event-time">
+
+    <label for="in-deadline">締切日</label>
+    <input type="date" id="in-deadline">
+
+    <label for="in-url">参考URL（任意）</label>
+    <input type="url" id="in-url" placeholder="https://...">
+
+    <label for="in-memo">メモ（任意）</label>
+    <textarea id="in-memo" placeholder="メールの要点など"></textarea>
+
+    <div class="btn-row">
+      <button id="btn-add">登録する</button>
+    </div>
+  </div>
+
+  <div class="panel" id="list-panel">
+    <h2>登録一覧（締切順）</h2>
+    <div class="filter-row" id="filter-row">
+      <button class="filter-btn active" data-filter="active">未対応・エントリー済み</button>
+      <button class="filter-btn" data-filter="done">参加した・見送り</button>
+      <button class="filter-btn" data-filter="all">すべて</button>
+    </div>
+    <div id="list-container"></div>
+  </div>
+
+  <div class="panel" id="calendar-panel">
+    <h2>今後7日間の予定</h2>
+    <div id="calendar-container"></div>
+  </div>
+
+  <div class="panel" id="io-panel">
+    <h2>エクスポート / インポート</h2>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">このページを閉じるとデータは消えます。次回も使う場合はエクスポートしたテキストを保存し、次回起動時にインポート欄へ貼り付けてください。</p>
+    <h3>エクスポート</h3>
+    <textarea id="export-area" readonly></textarea>
+    <div class="btn-row">
+      <button id="btn-export" class="secondary">最新の状態を書き出す</button>
+      <button id="btn-copy" class="secondary">コピーする</button>
+    </div>
+    <h3>インポート</h3>
+    <textarea id="import-area" placeholder="以前エクスポートしたテキストを貼り付け"></textarea>
+    <div class="btn-row">
+      <button id="btn-import" class="secondary">この内容を読み込む</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /** @type {Array<{id:number, company:string, title:string, type:string, eventDate:string, eventTime:string, deadline:string, url:string, memo:string, status:string}>} */
+  var items = [];
+  var nextId = 1;
+  var currentFilter = "active";
+
+  function todayStr() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+
+  function daysUntil(dateStr) {
+    if (!dateStr) return null;
+    var today = new Date(todayStr() + "T00:00:00");
+    var target = new Date(dateStr + "T00:00:00");
+    var diffMs = target.getTime() - today.getTime();
+    return Math.round(diffMs / (1000 * 60 * 60 * 24));
+  }
+
+  function escapeHtml(str) {
+    if (str == null) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(function () { t.classList.remove("show"); }, 1800);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast("コピーしました");
+      }).catch(function () { fallbackCopy(text); });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showToast("コピーしました");
+    } catch (e) {
+      showToast("コピーに失敗しました");
+    }
+    document.body.removeChild(ta);
+  }
+
+  function addItem() {
+    var company = document.getElementById("in-company").value.trim();
+    var title = document.getElementById("in-title").value.trim();
+    var type = document.getElementById("in-type").value;
+    var eventDate = document.getElementById("in-event-date").value;
+    var eventTime = document.getElementById("in-event-time").value;
+    var deadline = document.getElementById("in-deadline").value;
+    var url = document.getElementById("in-url").value.trim();
+    var memo = document.getElementById("in-memo").value.trim();
+
+    if (!company && !title) {
+      showToast("企業名かイベント内容のどちらかは入力してください");
+      return;
+    }
+
+    items.push({
+      id: nextId++,
+      company: company,
+      title: title,
+      type: type,
+      eventDate: eventDate,
+      eventTime: eventTime,
+      deadline: deadline,
+      url: url,
+      memo: memo,
+      status: "未対応"
+    });
+
+    document.getElementById("in-company").value = "";
+    document.getElementById("in-title").value = "";
+    document.getElementById("in-event-date").value = "";
+    document.getElementById("in-event-time").value = "";
+    document.getElementById("in-deadline").value = "";
+    document.getElementById("in-url").value = "";
+    document.getElementById("in-memo").value = "";
+
+    showToast("登録しました");
+    renderAll();
+  }
+
+  function setStatus(id, status) {
+    var item = items.filter(function (it) { return it.id === id; })[0];
+    if (item) {
+      item.status = status;
+      showToast(status + " に変更しました");
+      renderAll();
+    }
+  }
+
+  function deleteItem(id) {
+    items = items.filter(function (it) { return it.id !== id; });
+    renderAll();
+  }
+
+  function warnLevel(deadline, status) {
+    if (status === "参加した" || status === "見送り") return "none";
+    var d = daysUntil(deadline);
+    if (d === null) return "none";
+    if (d <= 0) return "red";
+    if (d <= 3) return "yellow";
+    return "none";
+  }
+
+  function renderDashboard() {
+    var today = todayStr();
+    var deadlineToday = items.filter(function (it) {
+      return it.deadline === today && it.status !== "参加した" && it.status !== "見送り";
+    });
+    var eventToday = items.filter(function (it) {
+      return it.eventDate === today && it.status !== "見送り";
+    });
+    var overdue = items.filter(function (it) {
+      var d = daysUntil(it.deadline);
+      return d !== null && d < 0 && (it.status === "未対応" || it.status === "エントリー済み");
+    });
+
+    fillDashCard("dash-deadline-today", deadlineToday, function (it) {
+      return escapeHtml(it.company || "(企業名未入力)") + " ／ " + escapeHtml(it.title || it.type);
+    });
+    fillDashCard("dash-event-today", eventToday, function (it) {
+      var t = it.eventTime ? " " + escapeHtml(it.eventTime) : "";
+      return escapeHtml(it.company || "(企業名未入力)") + t + " ／ " + escapeHtml(it.title || it.type);
+    });
+    fillDashCard("dash-overdue", overdue, function (it) {
+      return escapeHtml(it.company || "(企業名未入力)") + " ／ " + escapeHtml(it.title || it.type);
+    });
+  }
+
+  function fillDashCard(elId, list, formatter) {
+    var el = document.getElementById(elId);
+    if (list.length === 0) {
+      el.innerHTML = '<div class="empty">なし</div>';
+      return;
+    }
+    var html = "";
+    list.forEach(function (it) {
+      html += '<div class="dash-item">' + formatter(it) + "</div>";
+    });
+    el.innerHTML = html;
+  }
+
+  function renderList() {
+    var container = document.getElementById("list-container");
+    var filtered = items.filter(function (it) {
+      if (currentFilter === "active") return it.status === "未対応" || it.status === "エントリー済み";
+      if (currentFilter === "done") return it.status === "参加した" || it.status === "見送り";
+      return true;
+    });
+
+    filtered = filtered.slice().sort(function (a, b) {
+      var da = a.deadline ? a.deadline : "9999-99-99";
+      var db = b.deadline ? b.deadline : "9999-99-99";
+      if (da < db) return -1;
+      if (da > db) return 1;
+      return 0;
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="empty-msg">該当する登録はありません</div>';
+      return;
+    }
+
+    var html = "";
+    filtered.forEach(function (it) {
+      var level = warnLevel(it.deadline, it.status);
+      var cardClass = level === "red" ? "warn-red" : (level === "yellow" ? "warn-yellow" : "");
+      var d = daysUntil(it.deadline);
+      var deadlineClass = "d-normal";
+      var deadlineText = it.deadline ? it.deadline : "締切未設定";
+      if (it.deadline && (it.status === "未対応" || it.status === "エントリー済み")) {
+        if (d < 0) { deadlineClass = "d-red"; deadlineText += "（期限切れ）"; }
+        else if (d === 0) { deadlineClass = "d-red"; deadlineText += "（本日締切）"; }
+        else if (d <= 3) { deadlineClass = "d-yellow"; deadlineText += "（あと" + d + "日）"; }
+        else { deadlineText += "（あと" + d + "日）"; }
+      }
+
+      var eventText = "";
+      if (it.eventDate) {
+        eventText = "開催: " + escapeHtml(it.eventDate) + (it.eventTime ? " " + escapeHtml(it.eventTime) : "");
+      }
+
+      html += '<div class="item-card ' + cardClass + '">';
+      html += '<div class="top-row">';
+      html += '<div><span class="company">' + escapeHtml(it.company || "(企業名未入力)") + '</span>';
+      html += '<span class="type-tag">' + escapeHtml(it.type) + '</span></div>';
+      html += '<span class="deadline ' + deadlineClass + '">' + escapeHtml(deadlineText) + '</span>';
+      html += '</div>';
+      if (it.title) html += '<div class="meta">' + escapeHtml(it.title) + '</div>';
+      if (eventText) html += '<div class="meta">' + eventText + '</div>';
+      if (it.url) html += '<div class="meta"><a href="' + escapeHtml(it.url) + '" target="_blank" rel="noopener">参考URL</a></div>';
+      if (it.memo) html += '<div class="memo">' + escapeHtml(it.memo) + '</div>';
+
+      html += '<div class="status-row">';
+      html += '<span class="status-badge">状態: ' + escapeHtml(it.status) + '</span>';
+      ["未対応", "エントリー済み", "参加した", "見送り"].forEach(function (s) {
+        if (s !== it.status) {
+          html += '<button class="secondary small" onclick="JobTracker.setStatus(' + it.id + ', \'' + s + '\')">' + s + 'にする</button>';
+        }
+      });
+      html += '<button class="secondary small" onclick="JobTracker.deleteItem(' + it.id + ')">削除</button>';
+      html += '</div>';
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+  }
+
+  function renderCalendar() {
+    var container = document.getElementById("calendar-container");
+    var html = "";
+    var today = new Date(todayStr() + "T00:00:00");
+    var weekday = ["日", "月", "火", "水", "木", "金", "土"];
+
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(today.getTime());
+      d.setDate(d.getDate() + i);
+      var dateStr = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+      var label = (d.getMonth() + 1) + "/" + d.getDate() + "（" + weekday[d.getDay()] + "）" + (i === 0 ? " ・今日" : "");
+
+      var dayItems = items.filter(function (it) {
+        return (it.eventDate === dateStr || it.deadline === dateStr) && it.status !== "見送り";
+      });
+
+      html += '<div class="cal-day"><div class="cal-date">' + escapeHtml(label) + '</div><div class="cal-events">';
+      if (dayItems.length === 0) {
+        html += '<div class="cal-none">予定なし</div>';
+      } else {
+        dayItems.forEach(function (it) {
+          var tags = [];
+          if (it.eventDate === dateStr) tags.push("開催");
+          if (it.deadline === dateStr) tags.push("締切");
+          html += '<div class="cal-event">[' + tags.join("/") + '] ' + escapeHtml(it.company || "(企業名未入力)") + ' ／ ' + escapeHtml(it.title || it.type) + '</div>';
+        });
+      }
+      html += '</div></div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function renderAll() {
+    renderDashboard();
+    renderList();
+    renderCalendar();
+  }
+
+  function exportData() {
+    var data = { nextId: nextId, items: items };
+    var text = JSON.stringify(data, null, 2);
+    document.getElementById("export-area").value = text;
+    showToast("書き出しました");
+  }
+
+  function importData() {
+    var text = document.getElementById("import-area").value.trim();
+    if (!text) {
+      showToast("インポートするテキストを貼り付けてください");
+      return;
+    }
+    var data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      showToast("読み込みに失敗しました（形式エラー）");
+      return;
+    }
+    if (!data || !Array.isArray(data.items)) {
+      showToast("読み込みに失敗しました（データ形式が不正です）");
+      return;
+    }
+    items = data.items;
+    nextId = typeof data.nextId === "number" ? data.nextId : (items.reduce(function (m, it) { return Math.max(m, it.id || 0); }, 0) + 1);
+    showToast("読み込みました");
+    renderAll();
+  }
+
+  function setFilter(filter) {
+    currentFilter = filter;
+    var buttons = document.querySelectorAll(".filter-btn");
+    buttons.forEach(function (b) {
+      if (b.getAttribute("data-filter") === filter) b.classList.add("active");
+      else b.classList.remove("active");
+    });
+    renderList();
+  }
+
+  // 公開API（インラインonclickから呼ぶため）
+  window.JobTracker = {
+    setStatus: setStatus,
+    deleteItem: deleteItem
+  };
+
+  document.addEventListener("DOMContentLoaded", function () {
+    document.getElementById("btn-add").addEventListener("click", addItem);
+    document.getElementById("btn-export").addEventListener("click", exportData);
+    document.getElementById("btn-copy").addEventListener("click", function () {
+      var text = document.getElementById("export-area").value;
+      if (!text) { exportData(); text = document.getElementById("export-area").value; }
+      copyText(text);
+    });
+    document.getElementById("btn-import").addEventListener("click", importData);
+
+    var filterButtons = document.querySelectorAll(".filter-btn");
+    filterButtons.forEach(function (b) {
+      b.addEventListener("click", function () {
+        setFilter(b.getAttribute("data-filter"));
+      });
+    });
+
+    renderAll();
+  });
+})();
+</script>
+
+</body>
+</html>
