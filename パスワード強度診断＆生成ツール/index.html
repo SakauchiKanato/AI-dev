@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>パスワード強度診断＆生成ツール</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #3fae7a;
+    --accent-weak: #d85a5a;
+    --accent-warn: #d8b35a;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .col-main { flex: 1 1 420px; min-width: 300px; }
+  .col-sub { flex: 1 1 320px; min-width: 280px; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+  .pw-input-row {
+    display: flex;
+    gap: 8px;
+  }
+  input[type="text"], input[type="password"] {
+    flex: 1;
+    padding: 10px 12px;
+    background: #1a1a29;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 15px;
+  }
+  button {
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: #33334a;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 13px;
+  }
+  button:hover { background: #3d3d58; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #10261c; font-weight: bold; }
+  button.primary:hover { filter: brightness(1.08); }
+  .meter-wrap { margin-top: 16px; }
+  .meter-bar-bg {
+    height: 14px;
+    background: #1a1a29;
+    border-radius: 7px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .meter-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent-weak);
+    transition: width 0.25s ease, background 0.25s ease;
+  }
+  .meter-label {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    font-size: 13px;
+  }
+  .meter-label .level { font-weight: bold; }
+  ul.hints { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: var(--text); }
+  ul.hints li { margin-bottom: 4px; }
+  ul.hints.ok { color: var(--muted); }
+  .crack-time {
+    margin-top: 14px;
+    font-size: 13px;
+    background: #1a1a29;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .crack-time .value { font-size: 16px; font-weight: bold; color: var(--accent); }
+  .note {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .gen-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-bottom: 12px;
+    font-size: 13px;
+  }
+  .gen-options label.checkbox { display: flex; align-items: center; gap: 6px; color: var(--text); margin: 0; }
+  .gen-length-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .gen-length-row input[type="range"] { flex: 1; }
+  .gen-length-row span { font-size: 13px; min-width: 46px; text-align: right; }
+  .candidate {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #1a1a29;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 14px;
+  }
+  .candidate span.pw { flex: 1; word-break: break-all; }
+  .candidate button { flex-shrink: 0; padding: 6px 10px; font-size: 12px; }
+  .toast {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 12px;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .toast.show { opacity: 1; }
+  .cheatsheet li { margin-bottom: 8px; font-size: 13px; line-height: 1.5; }
+  .cheatsheet { margin: 0; padding-left: 18px; }
+  .warn-pattern { color: var(--accent-warn); }
+  @media (max-width: 480px) {
+    body { padding: 12px; }
+    .pw-input-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔐 パスワード強度診断＆生成ツール</h1>
+  <p>入力したパスワードは外部へ送信されず、すべてこの画面（ブラウザ）内だけで計算されます。新規登録・パスワード変更の前にどうぞ。</p>
+</header>
+
+<div class="layout">
+  <div class="panel col-main">
+    <h2>パスワード強度チェック</h2>
+    <label for="pwInput">診断したいパスワードを入力</label>
+    <div class="pw-input-row">
+      <input type="password" id="pwInput" placeholder="パスワードを入力（送信されません）" autocomplete="off">
+      <button id="toggleShow" type="button">表示</button>
+    </div>
+
+    <div class="meter-wrap">
+      <div class="meter-bar-bg"><div class="meter-bar-fill" id="meterFill"></div></div>
+      <div class="meter-label">
+        <span id="scoreText">スコア: -</span>
+        <span class="level" id="levelText">未入力</span>
+      </div>
+    </div>
+
+    <ul class="hints" id="hintsList"></ul>
+
+    <div class="crack-time" id="crackTimeBox" style="display:none;">
+      推定解析時間の目安（総当たり攻撃・参考値）: <span class="value" id="crackTimeValue">-</span>
+    </div>
+
+    <p class="note">
+      ※ 強度スコア・解析時間はいずれもヒューリスティックな概算です。実際の安全性は使い回しの有無や漏えい履歴にも左右されるため、あくまで目安として参考にしてください。解析時間は「毎秒100億回の試行が可能なオフライン攻撃」を仮定した概算です。
+    </p>
+  </div>
+
+  <div class="panel col-sub">
+    <h2>安全なパスワードを生成</h2>
+    <div class="gen-length-row">
+      <label for="lenRange" style="margin:0; white-space:nowrap;">長さ</label>
+      <input type="range" id="lenRange" min="8" max="32" value="16">
+      <span id="lenValue">16文字</span>
+    </div>
+    <div class="gen-options">
+      <label class="checkbox"><input type="checkbox" id="optLower" checked> 小文字 (a-z)</label>
+      <label class="checkbox"><input type="checkbox" id="optUpper" checked> 大文字 (A-Z)</label>
+      <label class="checkbox"><input type="checkbox" id="optDigit" checked> 数字 (0-9)</label>
+      <label class="checkbox"><input type="checkbox" id="optSymbol" checked> 記号 (!@#など)</label>
+    </div>
+    <button class="primary" id="generateBtn" type="button">候補を5件生成</button>
+    <div id="candidateList" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:20px;">
+  <h2>セキュリティ豆知識チートシート</h2>
+  <ul class="cheatsheet">
+    <li>同じパスワードを複数サービスで使い回さない。1サービス漏えいが芋づる式の乗っ取りにつながる。</li>
+    <li>可能なサービスでは2段階認証（SMS・認証アプリ・パスキー）を有効にする。</li>
+    <li>「名前＋誕生日」「連番」「qwerty」など推測されやすいパターンは長さがあっても弱い。</li>
+    <li>定期的な変更よりも、漏えいが疑われた時にすぐ変更する方が実務的に有効とされている。</li>
+    <li>メール・SMSのリンクからログイン画面に飛んでパスワードを入力しない（フィッシング対策は「あやしいメール見極めチェッカー」も参照）。</li>
+    <li>覚えきれない場合はパスワードマネージャーの利用も検討する。</li>
+  </ul>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var pwInput = document.getElementById("pwInput");
+  var toggleShow = document.getElementById("toggleShow");
+  var meterFill = document.getElementById("meterFill");
+  var scoreText = document.getElementById("scoreText");
+  var levelText = document.getElementById("levelText");
+  var hintsList = document.getElementById("hintsList");
+  var crackTimeBox = document.getElementById("crackTimeBox");
+  var crackTimeValue = document.getElementById("crackTimeValue");
+
+  var lenRange = document.getElementById("lenRange");
+  var lenValue = document.getElementById("lenValue");
+  var optLower = document.getElementById("optLower");
+  var optUpper = document.getElementById("optUpper");
+  var optDigit = document.getElementById("optDigit");
+  var optSymbol = document.getElementById("optSymbol");
+  var generateBtn = document.getElementById("generateBtn");
+  var candidateList = document.getElementById("candidateList");
+
+  var COMMON_WEAK = [
+    "password", "passw0rd", "123456", "1234567", "12345678", "123456789",
+    "qwerty", "qwertyuiop", "asdfgh", "asdfghjkl", "zxcvbn", "letmein",
+    "admin", "iloveyou", "welcome", "monkey", "dragon", "football",
+    "abcdef", "abc123", "111111", "000000", "sunshine", "princess",
+    "login", "passpass", "1q2w3e4r"
+  ];
+
+  function toggleVisibility() {
+    if (pwInput.type === "password") {
+      pwInput.type = "text";
+      toggleShow.textContent = "隠す";
+    } else {
+      pwInput.type = "password";
+      toggleShow.textContent = "表示";
+    }
+  }
+  toggleShow.addEventListener("click", toggleVisibility);
+
+  function hasSequential(pw) {
+    var lower = pw.toLowerCase();
+    var seqs = ["abcdefghijklmnopqrstuvwxyz", "0123456789", "qwertyuiop", "asdfghjkl", "zxcvbnm"];
+    for (var s = 0; s < seqs.length; s++) {
+      var seq = seqs[s];
+      for (var i = 0; i <= seq.length - 4; i++) {
+        var chunk = seq.substring(i, i + 4);
+        var chunkRev = chunk.split("").reverse().join("");
+        if (lower.indexOf(chunk) !== -1 || lower.indexOf(chunkRev) !== -1) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function hasRepeated(pw) {
+    return /(.)\1\1\1/.test(pw);
+  }
+
+  function hasDateLikePattern(pw) {
+    // 4桁の19xx/20xx年っぽい数字、または6-8桁の生年月日っぽい連続数字
+    return /(19|20)\d{2}/.test(pw) || /\d{6,8}/.test(pw);
+  }
+
+  function containsCommonWeak(pw) {
+    var lower = pw.toLowerCase();
+    for (var i = 0; i < COMMON_WEAK.length; i++) {
+      if (lower.indexOf(COMMON_WEAK[i]) !== -1) return COMMON_WEAK[i];
+    }
+    return null;
+  }
+
+  function analyze(pw) {
+    var result = { score: 0, level: "未入力", hints: [], crackTimeText: null };
+    if (!pw) return result;
+
+    var hasLower = /[a-z]/.test(pw);
+    var hasUpper = /[A-Z]/.test(pw);
+    var hasDigit = /[0-9]/.test(pw);
+    var hasSymbol = /[^a-zA-Z0-9]/.test(pw);
+    var classCount = [hasLower, hasUpper, hasDigit, hasSymbol].filter(Boolean).length;
+
+    var charsetSize = 0;
+    if (hasLower) charsetSize += 26;
+    if (hasUpper) charsetSize += 26;
+    if (hasDigit) charsetSize += 10;
+    if (hasSymbol) charsetSize += 32;
+    if (charsetSize === 0) charsetSize = 1;
+
+    // 概算エントロピー(bit) = 長さ * log2(文字種の広さ)
+    var entropyBits = pw.length * Math.log2(charsetSize);
+
+    var score = Math.min(100, Math.round((entropyBits / 100) * 100));
+
+    var weakHit = containsCommonWeak(pw);
+    var seqHit = hasSequential(pw);
+    var repHit = hasRepeated(pw);
+    var dateHit = hasDateLikePattern(pw) && pw.length <= 10;
+
+    if (weakHit) score -= 40;
+    if (seqHit) score -= 20;
+    if (repHit) score -= 15;
+    if (dateHit) score -= 10;
+    if (pw.length < 8) score -= 20;
+
+    score = Math.max(0, Math.min(100, score));
+
+    var level, colorVar;
+    if (score < 40) { level = "弱い"; colorVar = "var(--accent-weak)"; }
+    else if (score < 60) { level = "普通"; colorVar = "var(--accent-warn)"; }
+    else if (score < 80) { level = "強い"; colorVar = "#5aa7d8"; }
+    else { level = "非常に強い"; colorVar = "var(--accent)"; }
+
+    var hints = [];
+    if (pw.length < 8) hints.push("長さが" + pw.length + "文字と短めです。最低8文字、できれば12文字以上を推奨します。");
+    if (classCount < 3) hints.push("文字種が" + classCount + "種類です。大文字・小文字・数字・記号のうち3種類以上を組み合わせましょう。");
+    if (weakHit) hints.push("「" + weakHit + "」のようなよくある弱い単語・並びが含まれています。避けましょう。");
+    if (seqHit) hints.push("「abcd」「1234」「qwer」のような連続・規則的な並びが含まれています。");
+    if (repHit) hints.push("同じ文字が4回以上連続しています。");
+    if (dateHit) hints.push("生年月日や年号のように推測されやすい数字の並びが含まれている可能性があります。");
+    if (hints.length === 0) hints.push("目立った弱点は検出されませんでした。長さと文字種のバランスが良好です。");
+
+    // 解析時間の概算（毎秒100億回のオフライン攻撃を仮定）
+    var combinations = Math.pow(charsetSize, pw.length);
+    var guessesPerSecond = 1e10;
+    var seconds = combinations / guessesPerSecond / 2; // 平均で半分の探索で当たると仮定
+
+    result.score = score;
+    result.level = level;
+    result.colorVar = colorVar;
+    result.hints = hints;
+    result.crackTimeText = formatDuration(seconds);
+    result.weakPatternHit = !!(weakHit || seqHit);
+    return result;
+  }
+
+  function formatDuration(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return "算出不可";
+    if (seconds < 1) return "1秒未満";
+    var units = [
+      { label: "年", secs: 60 * 60 * 24 * 365 },
+      { label: "日", secs: 60 * 60 * 24 },
+      { label: "時間", secs: 60 * 60 },
+      { label: "分", secs: 60 },
+      { label: "秒", secs: 1 }
+    ];
+    if (seconds > units[0].secs * 1e6) {
+      var yearsHuge = seconds / units[0].secs;
+      return yearsHuge.toExponential(1) + "年（天文学的な時間）";
+    }
+    for (var i = 0; i < units.length; i++) {
+      if (seconds >= units[i].secs) {
+        var val = seconds / units[i].secs;
+        return Math.round(val).toLocaleString("ja-JP") + units[i].label;
+      }
+    }
+    return "1秒未満";
+  }
+
+  function renderHints(hints, ok) {
+    hintsList.innerHTML = "";
+    hintsList.className = ok ? "hints ok" : "hints";
+    hints.forEach(function (h) {
+      var li = document.createElement("li");
+      li.textContent = h;
+      hintsList.appendChild(li);
+    });
+  }
+
+  function updateUI() {
+    var pw = pwInput.value;
+    var result = analyze(pw);
+
+    if (!pw) {
+      meterFill.style.width = "0%";
+      meterFill.style.background = "var(--accent-weak)";
+      scoreText.textContent = "スコア: -";
+      levelText.textContent = "未入力";
+      hintsList.innerHTML = "";
+      crackTimeBox.style.display = "none";
+      return;
+    }
+
+    meterFill.style.width = result.score + "%";
+    meterFill.style.background = result.colorVar;
+    scoreText.textContent = "スコア: " + result.score + " / 100";
+    levelText.textContent = result.level;
+    renderHints(result.hints, result.hints.length === 1 && result.hints[0].indexOf("検出されませんでした") !== -1);
+    crackTimeBox.style.display = "block";
+    if (result.weakPatternHit) {
+      crackTimeValue.textContent = result.crackTimeText + "（総当たり換算）";
+      crackTimeBox.title = "";
+      var warnNote = crackTimeBox.querySelector(".warn-note");
+      if (!warnNote) {
+        warnNote = document.createElement("div");
+        warnNote.className = "warn-note";
+        warnNote.style.marginTop = "6px";
+        warnNote.style.color = "var(--accent-weak)";
+        crackTimeBox.appendChild(warnNote);
+      }
+      warnNote.textContent = "※ よくある単語・並びを含むため、実際は辞書攻撃で数秒〜数分程度で破られる可能性があります。上記の時間は当てになりません。";
+    } else {
+      crackTimeValue.textContent = result.crackTimeText;
+      var existingWarn = crackTimeBox.querySelector(".warn-note");
+      if (existingWarn) existingWarn.remove();
+    }
+  }
+
+  pwInput.addEventListener("input", updateUI);
+
+  // --- パスワード生成 ---
+  var SETS = {
+    lower: "abcdefghijklmnopqrstuvwxyz",
+    upper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    digit: "0123456789",
+    symbol: "!@#$%^&*()-_=+[]{}?"
+  };
+
+  lenRange.addEventListener("input", function () {
+    lenValue.textContent = lenRange.value + "文字";
+  });
+
+  function secureRandomInt(max) {
+    var arr = new Uint32Array(1);
+    window.crypto.getRandomValues(arr);
+    return arr[0] % max;
+  }
+
+  function generateOnePassword(length, charset) {
+    var pw = "";
+    for (var i = 0; i < length; i++) {
+      pw += charset.charAt(secureRandomInt(charset.length));
+    }
+    return pw;
+  }
+
+  function copyToClipboard(text, feedbackEl) {
+    function showToast() {
+      if (feedbackEl) {
+        feedbackEl.classList.add("show");
+        setTimeout(function () { feedbackEl.classList.remove("show"); }, 1500);
+      }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showToast).catch(function () {
+        fallbackCopy(text);
+        showToast();
+      });
+    } else {
+      fallbackCopy(text);
+      showToast();
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) { /* 失敗しても静かに無視 */ }
+    document.body.removeChild(ta);
+  }
+
+  function renderCandidates(list) {
+    candidateList.innerHTML = "";
+    list.forEach(function (pw) {
+      var row = document.createElement("div");
+      row.className = "candidate";
+
+      var span = document.createElement("span");
+      span.className = "pw";
+      span.textContent = pw;
+
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "コピー";
+
+      var toast = document.createElement("span");
+      toast.className = "toast";
+      toast.textContent = "コピーしました";
+
+      btn.addEventListener("click", function () {
+        copyToClipboard(pw, toast);
+      });
+
+      row.appendChild(span);
+      row.appendChild(btn);
+      row.appendChild(toast);
+      candidateList.appendChild(row);
+    });
+  }
+
+  function handleGenerate() {
+    var length = parseInt(lenRange.value, 10);
+    var charset = "";
+    if (optLower.checked) charset += SETS.lower;
+    if (optUpper.checked) charset += SETS.upper;
+    if (optDigit.checked) charset += SETS.digit;
+    if (optSymbol.checked) charset += SETS.symbol;
+
+    if (!charset) {
+      candidateList.innerHTML = "<p style='color:var(--accent-weak); font-size:13px;'>少なくとも1つの文字種を選択してください。</p>";
+      return;
+    }
+
+    var results = [];
+    for (var i = 0; i < 5; i++) {
+      results.push(generateOnePassword(length, charset));
+    }
+    renderCandidates(results);
+  }
+
+  generateBtn.addEventListener("click", handleGenerate);
+
+  // 初期表示
+  updateUI();
+  handleGenerate();
+})();
+</script>
+
+</body>
+</html>
