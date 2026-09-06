@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON整形＆型定義ジェネレーター</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #38a3a5;
+    --accent-dim: #2a7d7e;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --red: #e0607a;
+    --green: #7fd88f;
+    --yellow: #e0c667;
+    --blue: #7fb8e0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    font-size: 14px;
+  }
+  .app { max-width: 1300px; margin: 0 auto; }
+  header h1 { font-size: 20px; margin: 0 0 4px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 18px 0; }
+  .layout { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    flex: 1;
+    min-width: 320px;
+  }
+  .panel > label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: bold;
+  }
+  textarea {
+    width: 100%;
+    min-height: 180px;
+    background: #16161f;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px 0;
+  }
+  button {
+    background: #33334a;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover { background: #3d3d58; }
+  button.active { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
+  .toolbar .hint { font-size: 11px; color: var(--muted); margin-left: auto; }
+  .error-box {
+    background: rgba(224,96,122,0.12);
+    border: 1px solid var(--red);
+    color: var(--red);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 12.5px;
+    margin-top: 10px;
+    white-space: pre-wrap;
+    line-height: 1.6;
+  }
+  .error-box .hint-line { color: #f0b9c6; }
+  .output-box {
+    background: #16161f;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 12.5px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    min-height: 100px;
+    max-height: 340px;
+    overflow: auto;
+    margin: 0 0 10px 0;
+  }
+  .tree-box {
+    background: #16161f;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 12.5px;
+    min-height: 180px;
+    max-height: 420px;
+    overflow: auto;
+    color: var(--muted);
+  }
+  .tree-box details { margin: 2px 0; }
+  .tree-box summary { cursor: pointer; list-style: revert; }
+  .tree-box summary::-webkit-details-marker { color: var(--muted); }
+  .tv-indent { margin-left: 16px; border-left: 1px dashed var(--border); padding-left: 10px; }
+  .tv-row { padding: 1px 0; }
+  .tv-key { color: var(--blue); }
+  .tv-string { color: var(--green); }
+  .tv-number { color: var(--yellow); }
+  .tv-bool { color: #d199e0; }
+  .tv-null { color: var(--muted); font-style: italic; }
+  .tv-bracket { color: var(--muted); }
+  .stats {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .stats b { color: var(--text); }
+  .type-panel { width: 100%; }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--accent-dim);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  @media (max-width: 700px) {
+    body { padding: 12px; }
+    .panel { min-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>JSON整形＆型定義ジェネレーター</h1>
+    <p>API応答やAIの出力で返ってきたJSONを整形・可視化し、TypeScript型定義まで自動生成します。入力したJSONは一切外部送信せず、ブラウザ内のみで処理します。</p>
+  </header>
+
+  <div class="layout">
+    <div class="panel">
+      <label for="jsonInput">JSON入力</label>
+      <textarea id="jsonInput" placeholder='ここにJSONを貼り付け（例: {"name":"太郎","age":20}）'></textarea>
+      <div class="error-box" id="errorBox" style="display:none"></div>
+      <div class="toolbar">
+        <button id="btnPrettify" class="active">Prettify</button>
+        <button id="btnMinify">Minify</button>
+        <button id="btnSample">サンプルを読み込む</button>
+        <span class="hint">ブラウザ内のみで処理・外部送信なし</span>
+      </div>
+      <label for="formattedOutput">整形結果</label>
+      <pre class="output-box" id="formattedOutput"></pre>
+      <button id="copyFormatted">整形結果をコピー</button>
+    </div>
+
+    <div class="panel">
+      <label>ツリービュー</label>
+      <div class="tree-box" id="treeView">左にJSONを貼り付けると、ここにツリー表示されます</div>
+      <div class="stats" id="statsBox"></div>
+    </div>
+  </div>
+
+  <div class="panel type-panel">
+    <div class="toolbar">
+      <label style="margin:0;">型定義生成</label>
+      <button id="btnTs" class="active">TypeScript</button>
+      <button id="btnJsdoc">JSDoc</button>
+      <button id="copyType">型定義をコピー</button>
+    </div>
+    <pre class="output-box" id="typeOutput" style="max-height:400px;"></pre>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  var jsonInput = document.getElementById('jsonInput');
+  var errorBox = document.getElementById('errorBox');
+  var formattedOutput = document.getElementById('formattedOutput');
+  var treeView = document.getElementById('treeView');
+  var statsBox = document.getElementById('statsBox');
+  var typeOutput = document.getElementById('typeOutput');
+  var btnPrettify = document.getElementById('btnPrettify');
+  var btnMinify = document.getElementById('btnMinify');
+  var btnSample = document.getElementById('btnSample');
+  var btnTs = document.getElementById('btnTs');
+  var btnJsdoc = document.getElementById('btnJsdoc');
+  var copyFormatted = document.getElementById('copyFormatted');
+  var copyType = document.getElementById('copyType');
+  var toast = document.getElementById('toast');
+
+  var formatMode = 'pretty'; // pretty | minify
+  var typeMode = 'ts'; // ts | jsdoc
+  var lastParsed = null;
+  var hasValue = false;
+
+  var SAMPLE = '{\n  "id": 1024,\n  "name": "山田太郎",\n  "isActive": true,\n  "email": null,\n  "tags": ["admin", "beta"],\n  "profile": {\n    "age": 21,\n    "university": "サンプル大学"\n  },\n  "orders": [\n    { "orderId": "A-1", "amount": 1200, "note": "初回注文" },\n    { "orderId": "A-2", "amount": 980 }\n  ]\n}';
+
+  // ---------- ユーティリティ ----------
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(function () { toast.classList.remove('show'); }, 1600);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast('コピーしました');
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast(ok ? 'コピーしました' : 'コピーに失敗しました');
+    } catch (e) {
+      showToast('コピーに失敗しました');
+    }
+  }
+
+  // ---------- JSONパース＆エラー位置特定 ----------
+  function parseJsonWithLocation(text) {
+    try {
+      return { value: JSON.parse(text), error: null };
+    } catch (e) {
+      var pos = null;
+      var m = /position (\d+)/.exec(e.message);
+      if (m) pos = parseInt(m[1], 10);
+      var line = null, col = null;
+      if (pos !== null && pos >= 0 && pos <= text.length) {
+        var before = text.slice(0, pos);
+        var lines = before.split('\n');
+        line = lines.length;
+        col = lines[lines.length - 1].length + 1;
+      }
+      return { value: null, error: { message: e.message, line: line, col: col, pos: pos } };
+    }
+  }
+
+  function detectHints(text) {
+    var hints = [];
+    if (/,\s*[}\]]/.test(text)) {
+      hints.push('・末尾に余分なカンマがある可能性があります（ , の後に } や ] が続いていないか確認）');
+    }
+    if (/'[^']*'\s*:/.test(text) || /:\s*'[^']*'/.test(text)) {
+      hints.push('・シングルクォート（\') が使われている可能性があります。JSONはダブルクォート（"）のみ有効です');
+    }
+    if (/(\{|,)\s*[A-Za-z_$][A-Za-z0-9_$]*\s*:/.test(text)) {
+      hints.push('・キーがクォートで囲まれていない可能性があります（例: name: → "name": ）');
+    }
+    if (/\/\/|\/\*/.test(text)) {
+      hints.push('・コメント（//や/* */）が含まれている可能性があります。JSONはコメント非対応です');
+    }
+    if (text.trim() === '') {
+      hints.push('・入力が空です');
+    }
+    return hints;
+  }
+
+  // ---------- ツリービュー ----------
+  var MAX_ARRAY_DISPLAY = 500;
+
+  function renderValueHtml(value, keyLabel) {
+    var keyHtml = keyLabel != null ? '<span class="tv-key">' + escapeHtml(keyLabel) + ': </span>' : '';
+    if (value === null) {
+      return keyHtml + '<span class="tv-null">null</span>';
+    }
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return keyHtml + '<span class="tv-bracket">[] (空配列)</span>';
+      }
+      var shown = value.slice(0, MAX_ARRAY_DISPLAY);
+      var inner = shown.map(function (v) {
+        return '<div class="tv-row">' + renderValueHtml(v, null) + '</div>';
+      }).join('');
+      if (value.length > MAX_ARRAY_DISPLAY) {
+        inner += '<div class="tv-row tv-bracket">…他 ' + (value.length - MAX_ARRAY_DISPLAY) + ' 件（表示省略）</div>';
+      }
+      return '<details open><summary>' + keyHtml + '<span class="tv-bracket">Array(' + value.length + ')</span></summary><div class="tv-indent">' + inner + '</div></details>';
+    }
+    if (typeof value === 'object') {
+      var entries = Object.entries(value);
+      if (entries.length === 0) {
+        return keyHtml + '<span class="tv-bracket">{} (空オブジェクト)</span>';
+      }
+      var innerObj = entries.map(function (pair) {
+        return '<div class="tv-row">' + renderValueHtml(pair[1], pair[0]) + '</div>';
+      }).join('');
+      return '<details open><summary>' + keyHtml + '<span class="tv-bracket">Object(' + entries.length + ')</span></summary><div class="tv-indent">' + innerObj + '</div></details>';
+    }
+    var t = typeof value;
+    var cls = t === 'string' ? 'tv-string' : t === 'number' ? 'tv-number' : t === 'boolean' ? 'tv-bool' : 'tv-other';
+    var display = t === 'string' ? '"' + escapeHtml(value) + '"' : escapeHtml(String(value));
+    return keyHtml + '<span class="' + cls + '">' + display + '</span>';
+  }
+
+  // ---------- 統計 ----------
+  function computeStats(value) {
+    var stats = { objects: 0, arrays: 0, keys: 0, maxDepth: 0 };
+    function walk(v, depth) {
+      stats.maxDepth = Math.max(stats.maxDepth, depth);
+      if (Array.isArray(v)) {
+        stats.arrays++;
+        v.forEach(function (item) { walk(item, depth + 1); });
+      } else if (v !== null && typeof v === 'object') {
+        stats.objects++;
+        var keys = Object.keys(v);
+        stats.keys += keys.length;
+        keys.forEach(function (k) { walk(v[k], depth + 1); });
+      }
+    }
+    walk(value, 1);
+    return stats;
+  }
+
+  // ---------- TypeScript / JSDoc 型定義生成 ----------
+  function pascalCase(str) {
+    if (!str) return 'Root';
+    var s = String(str).replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+    if (!s) return 'Field';
+    s = s.split(' ').filter(Boolean).map(function (w) {
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join('');
+    if (/^[0-9]/.test(s)) s = 'N' + s;
+    return s || 'Field';
+  }
+
+  function singular(str) {
+    if (!str) return 'Item';
+    if (/ies$/.test(str)) return str.slice(0, -3) + 'y';
+    if (/ses$/.test(str)) return str.slice(0, -2);
+    if (/s$/.test(str) && !/ss$/.test(str)) return str.slice(0, -1);
+    return str;
+  }
+
+  function jsSafeKey(k) {
+    return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k) ? k : JSON.stringify(k);
+  }
+
+  var interfaceOrder, usedNames;
+
+  function uniqueName(base) {
+    var name = base || 'Object';
+    if (!usedNames.has(name)) { usedNames.add(name); return name; }
+    var i = 2;
+    while (usedNames.has(name + i)) i++;
+    name = name + i;
+    usedNames.add(name);
+    return name;
+  }
+
+  function buildType(value, keyHint) {
+    if (value === null) return 'null';
+    if (Array.isArray(value)) {
+      if (value.length === 0) return 'any[]';
+      var allObj = value.every(function (v) { return v !== null && typeof v === 'object' && !Array.isArray(v); });
+      if (allObj) {
+        var name = buildObjectArrayInterface(value, singular(keyHint || 'Item'));
+        return name + '[]';
+      } else {
+        var types = new Set(value.map(function (v) { return primType(v, keyHint); }));
+        var arr = Array.from(types);
+        return arr.length === 1 ? arr[0] + '[]' : '(' + arr.join(' | ') + ')[]';
+      }
+    }
+    if (typeof value === 'object') return buildObjectInterface(value, keyHint);
+    return typeof value;
+  }
+
+  function primType(v, keyHint) {
+    if (v === null) return 'null';
+    if (Array.isArray(v)) return buildType(v, keyHint);
+    if (typeof v === 'object') return buildObjectInterface(v, keyHint);
+    return typeof v;
+  }
+
+  function buildObjectInterface(obj, keyHint) {
+    var name = uniqueName(pascalCase(keyHint || 'Root'));
+    var fields = [];
+    Object.entries(obj).forEach(function (pair) {
+      var k = pair[0], v = pair[1];
+      var optional = v === null;
+      var t = v === null ? 'any' : buildType(v, singular(k));
+      fields.push({ key: k, optional: optional, nullable: optional, type: t });
+    });
+    interfaceOrder.push({ name: name, fields: fields });
+    return name;
+  }
+
+  function buildObjectArrayInterface(items, keyHint) {
+    var name = uniqueName(pascalCase(keyHint || 'Item'));
+    var keys = [];
+    var keySet = new Set();
+    items.forEach(function (it) {
+      Object.keys(it).forEach(function (k) {
+        if (!keySet.has(k)) { keySet.add(k); keys.push(k); }
+      });
+    });
+    var fields = keys.map(function (k) {
+      var presentCount = 0, nullCount = 0, sampleValue;
+      items.forEach(function (it) {
+        if (Object.prototype.hasOwnProperty.call(it, k)) {
+          presentCount++;
+          var v = it[k];
+          if (v === null) nullCount++;
+          else if (sampleValue === undefined) sampleValue = v;
+        }
+      });
+      var optional = presentCount < items.length || nullCount > 0;
+      var t = sampleValue === undefined ? 'any' : buildType(sampleValue, singular(k));
+      return { key: k, optional: optional, nullable: nullCount > 0, type: t };
+    });
+    interfaceOrder.push({ name: name, fields: fields });
+    return name;
+  }
+
+  function generateTypeModel(root) {
+    interfaceOrder = [];
+    usedNames = new Set();
+    var rootTypeName;
+    if (Array.isArray(root)) {
+      if (root.length === 0) {
+        rootTypeName = 'any[]';
+      } else {
+        var allObj = root.every(function (v) { return v !== null && typeof v === 'object' && !Array.isArray(v); });
+        if (allObj) {
+          var itemName = buildObjectArrayInterface(root, 'RootItem');
+          rootTypeName = itemName + '[]';
+        } else {
+          var types = new Set(root.map(function (v) { return primType(v, 'Root'); }));
+          var arr = Array.from(types);
+          rootTypeName = arr.length === 1 ? arr[0] + '[]' : '(' + arr.join(' | ') + ')[]';
+        }
+      }
+    } else if (root !== null && typeof root === 'object') {
+      rootTypeName = buildObjectInterface(root, 'Root');
+    } else {
+      rootTypeName = typeof root;
+    }
+    return { rootTypeName: rootTypeName, interfaces: interfaceOrder };
+  }
+
+  function renderTs(model) {
+    var out = '';
+    model.interfaces.forEach(function (iface) {
+      out += 'interface ' + iface.name + ' {\n';
+      iface.fields.forEach(function (f) {
+        var t = f.nullable ? f.type + ' | null' : f.type;
+        out += '  ' + jsSafeKey(f.key) + (f.optional ? '?' : '') + ': ' + t + ';\n';
+      });
+      out += '}\n\n';
+    });
+    var isDefinedInterface = model.interfaces.some(function (i) { return i.name === model.rootTypeName; });
+    if (!isDefinedInterface) {
+      out += 'type Root = ' + model.rootTypeName + ';\n';
+    }
+    return out.trim() + '\n';
+  }
+
+  function renderJsdoc(model) {
+    var out = '';
+    model.interfaces.forEach(function (iface) {
+      out += '/**\n * @typedef {Object} ' + iface.name + '\n';
+      iface.fields.forEach(function (f) {
+        var t = f.nullable ? f.type + '|null' : f.type;
+        var propName = f.optional ? '[' + f.key + ']' : f.key;
+        out += ' * @property {' + t + '} ' + propName + '\n';
+      });
+      out += ' */\n\n';
+    });
+    var isDefinedInterface = model.interfaces.some(function (i) { return i.name === model.rootTypeName; });
+    if (!isDefinedInterface) {
+      out += '/** @typedef {' + model.rootTypeName + '} Root */\n';
+    }
+    return out.trim() + '\n';
+  }
+
+  // ---------- メイン処理 ----------
+  function update() {
+    var text = jsonInput.value;
+    if (text.trim() === '') {
+      hasValue = false;
+      errorBox.style.display = 'none';
+      formattedOutput.textContent = '';
+      treeView.textContent = '左にJSONを貼り付けると、ここにツリー表示されます';
+      statsBox.textContent = '';
+      typeOutput.textContent = '';
+      return;
+    }
+
+    var result = parseJsonWithLocation(text);
+    if (result.error) {
+      hasValue = false;
+      var e = result.error;
+      var msg = '構文エラー: ' + e.message;
+      if (e.line !== null) msg += '\n位置: ' + e.line + '行目 ' + e.col + '文字目付近';
+      var hints = detectHints(text);
+      if (hints.length > 0) {
+        msg += '\n\nよくある原因のヒント:\n' + hints.map(function (h) { return h; }).join('\n');
+      }
+      errorBox.textContent = msg;
+      errorBox.style.display = 'block';
+      formattedOutput.textContent = '';
+      treeView.innerHTML = '<span class="tv-null">JSONを解析できませんでした</span>';
+      statsBox.textContent = '';
+      typeOutput.textContent = '';
+      return;
+    }
+
+    hasValue = true;
+    lastParsed = result.value;
+    errorBox.style.display = 'none';
+
+    // 整形結果
+    formattedOutput.textContent = formatMode === 'pretty'
+      ? JSON.stringify(lastParsed, null, 2)
+      : JSON.stringify(lastParsed);
+
+    // ツリービュー
+    treeView.innerHTML = renderValueHtml(lastParsed, null);
+
+    // 統計
+    var stats = computeStats(lastParsed);
+    statsBox.innerHTML =
+      '<span>オブジェクト数: <b>' + stats.objects + '</b></span>' +
+      '<span>配列数: <b>' + stats.arrays + '</b></span>' +
+      '<span>総キー数: <b>' + stats.keys + '</b></span>' +
+      '<span>最大ネスト深さ: <b>' + stats.maxDepth + '</b></span>';
+
+    // 型定義
+    var model = generateTypeModel(lastParsed);
+    typeOutput.textContent = typeMode === 'ts' ? renderTs(model) : renderJsdoc(model);
+  }
+
+  // ---------- イベント ----------
+  jsonInput.addEventListener('input', update);
+
+  btnPrettify.addEventListener('click', function () {
+    formatMode = 'pretty';
+    btnPrettify.classList.add('active');
+    btnMinify.classList.remove('active');
+    update();
+  });
+  btnMinify.addEventListener('click', function () {
+    formatMode = 'minify';
+    btnMinify.classList.add('active');
+    btnPrettify.classList.remove('active');
+    update();
+  });
+  btnSample.addEventListener('click', function () {
+    jsonInput.value = SAMPLE;
+    update();
+  });
+  btnTs.addEventListener('click', function () {
+    typeMode = 'ts';
+    btnTs.classList.add('active');
+    btnJsdoc.classList.remove('active');
+    update();
+  });
+  btnJsdoc.addEventListener('click', function () {
+    typeMode = 'jsdoc';
+    btnJsdoc.classList.add('active');
+    btnTs.classList.remove('active');
+    update();
+  });
+  copyFormatted.addEventListener('click', function () {
+    if (!hasValue) { showToast('コピーする内容がありません'); return; }
+    copyText(formattedOutput.textContent);
+  });
+  copyType.addEventListener('click', function () {
+    if (!hasValue) { showToast('コピーする内容がありません'); return; }
+    copyText(typeOutput.textContent);
+  });
+})();
+</script>
+</body>
+</html>
