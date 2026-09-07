@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>防災タイムラインプランナー</title>
+<style>
+  :root {
+    --bg:#1e1e2e;
+    --panel:#262638;
+    --accent:#e08a3c;
+    --accent2:#d8455e;
+    --text:#e8e6f2;
+    --muted:#9a97b5;
+    --border:#3a3a52;
+    --ok:#4caf7d;
+    --warn:#e0c23c;
+    --danger:#d8455e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    padding:20px;
+  }
+  header { margin-bottom:20px; }
+  header h1 { font-size:20px; margin:0 0 6px 0; }
+  header p { font-size:13px; color:var(--muted); margin:0; }
+  .layout {
+    display:flex;
+    flex-wrap:wrap;
+    gap:20px;
+  }
+  .panel {
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px;
+    flex:1 1 320px;
+  }
+  .panel h2 {
+    font-size:15px;
+    margin:0 0 12px 0;
+    border-bottom:1px solid var(--border);
+    padding-bottom:8px;
+  }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; margin-top:12px; }
+  label:first-of-type { margin-top:0; }
+  input[type="datetime-local"], select, textarea {
+    width:100%;
+    background:#1a1a28;
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:6px;
+    padding:8px;
+    font-size:14px;
+    font-family:inherit;
+  }
+  textarea { resize:vertical; min-height:60px; }
+  .level-buttons {
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .level-btn {
+    flex:1 1 auto;
+    min-width:50px;
+    padding:8px 4px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#1a1a28;
+    color:var(--text);
+    cursor:pointer;
+    font-size:13px;
+    text-align:center;
+  }
+  .level-btn.active[data-level="1"] { background:#3a5a3c; border-color:#4caf7d; }
+  .level-btn.active[data-level="2"] { background:#5a5a3c; border-color:var(--warn); }
+  .level-btn.active[data-level="3"] { background:#6a5228; border-color:var(--accent); }
+  .level-btn.active[data-level="4"] { background:#6a2f3a; border-color:var(--danger); }
+  .level-btn.active[data-level="5"] { background:#8a1f30; border-color:#ff5577; font-weight:bold; }
+
+  .level-banner {
+    margin-top:14px;
+    padding:10px 12px;
+    border-radius:8px;
+    font-size:13px;
+    border:1px solid var(--border);
+    background:#1a1a28;
+  }
+  .level-banner.lv5 { background:#4a1420; border-color:var(--danger); color:#ffb3c0; }
+  .level-banner.lv4 { background:#3a1a20; border-color:var(--danger); color:#ffcdd6; }
+  .level-banner.lv3 { background:#3a2c14; border-color:var(--accent); }
+
+  .btn {
+    background:var(--accent);
+    color:#1e1e2e;
+    border:none;
+    border-radius:6px;
+    padding:9px 14px;
+    font-size:13px;
+    cursor:pointer;
+    font-weight:bold;
+  }
+  .btn:hover { opacity:0.9; }
+  .btn.secondary {
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text);
+    font-weight:normal;
+  }
+
+  .timeline-item {
+    display:flex;
+    gap:10px;
+    padding:10px 8px;
+    border-bottom:1px solid var(--border);
+    align-items:flex-start;
+  }
+  .timeline-item:last-child { border-bottom:none; }
+  .timeline-item input[type="checkbox"] { margin-top:3px; width:16px; height:16px; flex-shrink:0; }
+  .timeline-item.checked .ti-label { text-decoration:line-through; color:var(--muted); }
+  .ti-time { font-size:12px; color:var(--muted); min-width:100px; }
+  .ti-body { flex:1; }
+  .ti-label { font-size:14px; font-weight:bold; }
+  .ti-detail { font-size:12px; color:var(--muted); margin-top:2px; }
+  .ti-tag {
+    display:inline-block;
+    font-size:11px;
+    padding:1px 6px;
+    border-radius:4px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
+  .ti-tag.important { background:#6a2f3a; color:#ffcdd6; }
+  .ti-tag.urgent { background:var(--danger); color:#fff; }
+
+  .dashboard {
+    display:flex;
+    gap:14px;
+    align-items:center;
+    margin-bottom:14px;
+    font-size:13px;
+  }
+  .progress-bar-outer {
+    flex:1;
+    background:#1a1a28;
+    border:1px solid var(--border);
+    border-radius:6px;
+    height:14px;
+    overflow:hidden;
+  }
+  .progress-bar-inner {
+    height:100%;
+    background:var(--ok);
+    width:0%;
+    transition:width 0.2s;
+  }
+
+  .level-table {
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+    margin-top:8px;
+  }
+  .level-table th, .level-table td {
+    border:1px solid var(--border);
+    padding:6px 8px;
+    text-align:left;
+  }
+  .level-table th { color:var(--muted); font-weight:normal; }
+
+  .copy-toast {
+    display:inline-block;
+    margin-left:10px;
+    font-size:12px;
+    color:var(--ok);
+    opacity:0;
+    transition:opacity 0.3s;
+  }
+  .copy-toast.show { opacity:1; }
+
+  .footer-note {
+    font-size:11px;
+    color:var(--muted);
+    margin-top:16px;
+    line-height:1.6;
+  }
+
+  @media (max-width:600px) {
+    .panel { flex:1 1 100%; }
+    .ti-time { min-width:80px; font-size:11px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌀 防災タイムラインプランナー</h1>
+  <p>台風・大雨の接近予想時刻と気象庁の警戒レベルから、「今、何をすべきか」を時系列で可視化するマイ・タイムライン作成ツール。</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel" id="panel-input">
+    <h2>① 状況を入力</h2>
+
+    <label for="targetTime">台風・大雨の接近予想時刻（暴風域到達・氾濫発生等の想定時刻）</label>
+    <input type="datetime-local" id="targetTime">
+
+    <label>現在の気象庁警戒レベル</label>
+    <div class="level-buttons" id="levelButtons">
+      <button class="level-btn" data-level="1">Lv1<br>心構え</button>
+      <button class="level-btn" data-level="2">Lv2<br>避難確認</button>
+      <button class="level-btn" data-level="3">Lv3<br>高齢者等避難</button>
+      <button class="level-btn" data-level="4">Lv4<br>全員避難</button>
+      <button class="level-btn" data-level="5">Lv5<br>災害発生</button>
+    </div>
+    <div class="level-banner" id="levelBanner">警戒レベルを選択すると、今とるべき行動が表示されます。</div>
+
+    <label for="floor">住居の階数</label>
+    <select id="floor">
+      <option value="1">1階</option>
+      <option value="2" selected>2階以上</option>
+    </select>
+
+    <label for="risk">周辺のリスク</label>
+    <select id="risk">
+      <option value="none" selected>特になし</option>
+      <option value="river">河川の近く</option>
+      <option value="low">低地・窪地</option>
+      <option value="sediment">土砂災害警戒区域</option>
+    </select>
+
+    <label for="memo">避難先メモ・同居人への連絡状況</label>
+    <textarea id="memo" placeholder="例: 避難先は近隣の〇〇小学校。実家に一報済み。垂直避難の場合は2階の寝室に。"></textarea>
+  </div>
+
+  <div class="panel" id="panel-timeline">
+    <h2>② 行動タイムライン</h2>
+    <div class="dashboard">
+      <span id="progressText">0 / 0 完了</span>
+      <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar"></div></div>
+    </div>
+    <div id="timelineList"></div>
+    <p class="footer-note" id="timelineNote"></p>
+  </div>
+
+  <div class="panel" id="panel-reference">
+    <h2>③ 警戒レベル早見表 ／ 出力</h2>
+    <table class="level-table">
+      <tr><th>レベル</th><th>状況</th><th>とるべき行動</th></tr>
+      <tr><td>1</td><td>今後気象状況悪化のおそれ</td><td>災害への心構えを高める</td></tr>
+      <tr><td>2</td><td>気象状況悪化</td><td>避難先・避難経路の確認</td></tr>
+      <tr><td>3</td><td>災害のおそれあり</td><td>高齢者・障がいのある方等は避難</td></tr>
+      <tr><td>4</td><td>災害のおそれ高い</td><td>危険な場所から全員避難</td></tr>
+      <tr><td>5</td><td>災害発生・切迫</td><td>命を守る最善の行動を</td></tr>
+    </table>
+    <p class="footer-note">※警戒レベルの定義は気象庁・内閣府の「避難情報に関するガイドライン」に基づく一般的な目安です。実際の避難判断は自治体の発令情報に従ってください。</p>
+
+    <label for="memo2" style="margin-top:16px;">&nbsp;</label>
+    <button class="btn" id="copyBtn" style="margin-top:8px;">タイムラインをコピー</button>
+    <span class="copy-toast" id="copyToast">コピーしました</span>
+  </div>
+
+</div>
+
+<p class="footer-note">
+  このアプリは目安の行動計画を提示するものであり、避難の要否・タイミングは必ずお住まいの自治体からの避難情報・気象庁の発表を最優先してください。入力した内容は外部に送信されず、ブラウザ内のみで処理されます（ページを閉じるとリセットされます）。
+</p>
+
+<script>
+(function(){
+  var state = {
+    level: null,
+    checked: {}
+  };
+
+  var milestones = [
+    { hoursBefore: 72, label: "情報収集・ハザードマップ確認", detail: "自宅周辺の想定リスク（洪水・土砂災害・高潮）をハザードマップで確認する", earlyImportant: true },
+    { hoursBefore: 48, label: "非常持ち出し品の点検", detail: "懐中電灯・モバイルバッテリー・常備薬・現金・貴重品などを点検する", earlyImportant: true },
+    { hoursBefore: 24, label: "買い出し・充電", detail: "水・食料の買い出し、スマホ・モバイルバッテリーの充電を済ませておく", earlyImportant: false },
+    { hoursBefore: 12, label: "避難先の最終確認", detail: "避難先（自宅待機／垂直避難／指定避難所）とそこまでのルートを確認する", earlyImportant: false, levelHighlight: [3,4,5] },
+    { hoursBefore: 6,  label: "避難準備を整える", detail: "貴重品・持ち出し袋をまとめ、いつでも避難できる状態にする", earlyImportant: false, levelHighlight: [3,4,5] },
+    { hoursBefore: 3,  label: "警戒レベルに応じた避難判断", detail: "警戒レベル4相当（危険な場所から全員避難）になったら、この時点で避難を開始する", earlyImportant: false, levelHighlight: [4,5], urgentAt: [4,5] }
+  ];
+
+  var levelBannerText = {
+    1: { text: "レベル1: 今後、気象状況が悪化するおそれがあります。災害への心構えを高めましょう。", cls: "" },
+    2: { text: "レベル2: 気象状況が悪化しています。避難先・避難経路をハザードマップ等で確認しましょう。", cls: "" },
+    3: { text: "レベル3【高齢者等避難】: 避難に時間のかかる高齢者・障がいのある方等は避難してください。それ以外の方も自主的な避難を検討しましょう。", cls: "lv3" },
+    4: { text: "レベル4【全員避難】: 危険な場所にいる方は全員、速やかに避難してください。", cls: "lv4" },
+    5: { text: "レベル5【緊急安全確保】: 既に災害が発生・切迫している可能性があります。命を守る最善の行動をとってください。", cls: "lv5" }
+  };
+
+  var levelButtons = document.querySelectorAll(".level-btn");
+  var levelBanner = document.getElementById("levelBanner");
+  var timelineList = document.getElementById("timelineList");
+  var timelineNote = document.getElementById("timelineNote");
+  var progressText = document.getElementById("progressText");
+  var progressBar = document.getElementById("progressBar");
+  var targetTimeInput = document.getElementById("targetTime");
+  var floorSelect = document.getElementById("floor");
+  var riskSelect = document.getElementById("risk");
+
+  function fmtDateTime(d) {
+    var mm = String(d.getMonth()+1).padStart(2,"0");
+    var dd = String(d.getDate()).padStart(2,"0");
+    var hh = String(d.getHours()).padStart(2,"0");
+    var mi = String(d.getMinutes()).padStart(2,"0");
+    return mm + "/" + dd + " " + hh + ":" + mi;
+  }
+
+  function isEarlyAction(floor, risk) {
+    return floor === "1" || risk !== "none";
+  }
+
+  function renderTimeline() {
+    var targetVal = targetTimeInput.value;
+    var target = targetVal ? new Date(targetVal) : null;
+    var floor = floorSelect.value;
+    var risk = riskSelect.value;
+    var early = isEarlyAction(floor, risk);
+
+    timelineList.innerHTML = "";
+    var doneCount = 0;
+
+    milestones.forEach(function(m, idx){
+      var item = document.createElement("div");
+      item.className = "timeline-item";
+      var key = "m" + idx;
+      var isChecked = !!state.checked[key];
+      if (isChecked) { item.className += " checked"; doneCount++; }
+
+      var timeStr;
+      if (target && !isNaN(target.getTime())) {
+        var dt = new Date(target.getTime() - m.hoursBefore * 3600 * 1000);
+        timeStr = fmtDateTime(dt);
+      } else {
+        timeStr = "接近" + m.hoursBefore + "時間前";
+      }
+
+      var tags = "";
+      if ((m.earlyImportant && early)) {
+        tags += '<span class="ti-tag important">早めの行動推奨</span>';
+      }
+      if (m.levelHighlight && state.level && m.levelHighlight.indexOf(state.level) !== -1) {
+        tags += '<span class="ti-tag important">現在の警戒レベルで重要</span>';
+      }
+      if (m.urgentAt && state.level && m.urgentAt.indexOf(state.level) !== -1) {
+        tags += '<span class="ti-tag urgent">今すぐ確認</span>';
+      }
+
+      item.innerHTML =
+        '<input type="checkbox" data-key="' + key + '" ' + (isChecked ? "checked" : "") + '>' +
+        '<div class="ti-time">' + timeStr + '</div>' +
+        '<div class="ti-body">' +
+          '<div class="ti-label">' + m.label + tags + '</div>' +
+          '<div class="ti-detail">' + m.detail + '</div>' +
+        '</div>';
+
+      timelineList.appendChild(item);
+    });
+
+    timelineList.querySelectorAll('input[type="checkbox"]').forEach(function(cb){
+      cb.addEventListener("change", function(){
+        state.checked[cb.getAttribute("data-key")] = cb.checked;
+        renderTimeline();
+      });
+    });
+
+    var total = milestones.length;
+    progressText.textContent = doneCount + " / " + total + " 完了";
+    progressBar.style.width = (total ? (doneCount/total*100) : 0) + "%";
+
+    if (!target || isNaN(target ? target.getTime() : NaN)) {
+      timelineNote.textContent = "接近予想時刻を入力すると、具体的な日時つきのタイムラインが表示されます（未入力の場合は接近何時間前かのみ表示）。";
+    } else {
+      timelineNote.textContent = "";
+    }
+  }
+
+  function renderLevelBanner() {
+    levelButtons.forEach(function(btn){
+      var lvl = parseInt(btn.getAttribute("data-level"), 10);
+      if (lvl === state.level) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+    if (state.level && levelBannerText[state.level]) {
+      var info = levelBannerText[state.level];
+      levelBanner.textContent = info.text;
+      levelBanner.className = "level-banner" + (info.cls ? " " + info.cls : "");
+    } else {
+      levelBanner.textContent = "警戒レベルを選択すると、今とるべき行動が表示されます。";
+      levelBanner.className = "level-banner";
+    }
+  }
+
+  levelButtons.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var lvl = parseInt(btn.getAttribute("data-level"), 10);
+      state.level = (state.level === lvl) ? null : lvl;
+      renderLevelBanner();
+      renderTimeline();
+    });
+  });
+
+  targetTimeInput.addEventListener("change", renderTimeline);
+  floorSelect.addEventListener("change", renderTimeline);
+  riskSelect.addEventListener("change", renderTimeline);
+
+  function buildCopyText() {
+    var lines = [];
+    lines.push("【防災タイムラインプランナー】");
+    var lvl = state.level;
+    lines.push("現在の警戒レベル: " + (lvl ? ("レベル" + lvl) : "未選択"));
+    lines.push("");
+    var targetVal = targetTimeInput.value;
+    var target = targetVal ? new Date(targetVal) : null;
+
+    milestones.forEach(function(m, idx){
+      var key = "m" + idx;
+      var done = state.checked[key] ? "[x]" : "[ ]";
+      var timeStr;
+      if (target && !isNaN(target.getTime())) {
+        timeStr = fmtDateTime(new Date(target.getTime() - m.hoursBefore*3600*1000));
+      } else {
+        timeStr = "接近" + m.hoursBefore + "時間前";
+      }
+      lines.push(done + " " + timeStr + " " + m.label + " - " + m.detail);
+    });
+
+    var memo = document.getElementById("memo").value.trim();
+    if (memo) {
+      lines.push("");
+      lines.push("【避難先メモ・連絡状況】");
+      lines.push(memo);
+    }
+    return lines.join("\n");
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  document.getElementById("copyBtn").addEventListener("click", function(){
+    var text = buildCopyText();
+    var toast = document.getElementById("copyToast");
+    function showToast(){
+      toast.classList.add("show");
+      setTimeout(function(){ toast.classList.remove("show"); }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showToast, function(){
+        fallbackCopy(text);
+        showToast();
+      });
+    } else {
+      fallbackCopy(text);
+      showToast();
+    }
+  });
+
+  renderLevelBanner();
+  renderTimeline();
+})();
+</script>
+
+</body>
+</html>
