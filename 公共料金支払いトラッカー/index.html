@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>公共料金支払いトラッカー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #3fa9f5;
+    --accent2: #f5a93f;
+    --red: #e5566a;
+    --yellow: #e0b93f;
+    --green: #4cc98a;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+  .layout { display: flex; flex-wrap: wrap; gap: 20px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+  .col-wide { flex: 2 1 480px; }
+  .col-narrow { flex: 1 1 320px; }
+  .col-full { flex: 1 1 100%; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  input, select, textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 13px;
+    margin-bottom: 10px;
+    font-family: inherit;
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > div { flex: 1 1 140px; }
+  button {
+    background: var(--accent);
+    color: #0f0f18;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  button.secondary { background: var(--border); color: var(--text); }
+  button.small { padding: 5px 10px; font-size: 12px; }
+  button:active { opacity: 0.8; }
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: rgba(255,255,255,0.02);
+  }
+  .card.red { border-color: var(--red); background: rgba(229,86,106,0.12); }
+  .card.yellow { border-color: var(--yellow); background: rgba(224,185,63,0.12); }
+  .card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .card-name { font-weight: bold; font-size: 14px; }
+  .card-meta { font-size: 12px; color: var(--muted); }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--border);
+    color: var(--text);
+    margin-left: 6px;
+  }
+  .badge.red { background: var(--red); color: #1a0508; }
+  .badge.yellow { background: var(--yellow); color: #1a1608; }
+  .badge.green { background: var(--green); color: #06180f; }
+  .card-actions { margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .card-actions input { width: 100px; margin: 0; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+  .stat-big { font-size: 24px; font-weight: bold; }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #0f0f18;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .toast.show { opacity: 1; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  .history-item { font-size: 12px; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>公共料金支払いトラッカー</h1>
+  <p>電気・ガス・水道・家賃・NHK受信料など、支払いサイクルと金額がバラバラな固定費の払い忘れ・口座残高不足を防ぐツールです。</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel col-full">
+    <h2>💰 支払い期限ダッシュボード</h2>
+    <div id="dashboard"></div>
+  </div>
+
+  <div class="panel col-narrow">
+    <h2>🏦 口座振替 残高チェック</h2>
+    <label>今月使える残高（円）</label>
+    <input type="number" id="balanceInput" placeholder="例: 50000">
+    <button onclick="checkBalance()">チェックする</button>
+    <div id="balanceResult" style="margin-top:12px;"></div>
+  </div>
+
+  <div class="panel col-narrow">
+    <h2>📊 今月の固定費合計</h2>
+    <div class="stat-big" id="monthTotal">¥0</div>
+    <div class="muted" id="monthTotalNote">まだ支払い記録がありません</div>
+    <div id="monthHistory" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="panel col-wide">
+    <h2>➕ 支払い項目を登録</h2>
+    <div class="row">
+      <div>
+        <label>名称</label>
+        <input type="text" id="inpName" placeholder="例: 電気代（東京電力）">
+      </div>
+      <div>
+        <label>金額の種類</label>
+        <select id="inpAmountType">
+          <option value="fixed">固定額</option>
+          <option value="variable">変動額（電気・ガス等）</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>金額（円・目安）</label>
+        <input type="number" id="inpAmount" placeholder="例: 6500">
+      </div>
+      <div>
+        <label>支払い方法</label>
+        <select id="inpMethod">
+          <option value="automatic">口座振替</option>
+          <option value="transfer">振込</option>
+          <option value="credit">クレジットカード</option>
+          <option value="cash">現金</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>支払いサイクル</label>
+        <select id="inpCycle">
+          <option value="monthly">毎月</option>
+          <option value="bimonthly">隔月</option>
+          <option value="yearly">年1回</option>
+        </select>
+      </div>
+      <div>
+        <label>次回支払い予定日</label>
+        <input type="date" id="inpNextDate">
+      </div>
+    </div>
+    <button onclick="addItem()">登録する</button>
+  </div>
+
+  <div class="panel col-wide">
+    <h2>📈 変動費の履歴</h2>
+    <div id="varHistoryPanel"></div>
+  </div>
+
+  <div class="panel col-full">
+    <h2>💾 データのエクスポート／インポート</h2>
+    <p class="muted">このアプリはブラウザに保存しません。次回また使うときは、下のテキストをコピーして保管し、次回開いたときに貼り付けて「読み込む」を押してください。</p>
+    <div class="row">
+      <div style="flex:1 1 100%;">
+        <label>データ（テキスト）</label>
+        <textarea id="dataArea" rows="4" placeholder="ここにエクスポートしたデータが表示されます。読み込む時はここに貼り付けてください。"></textarea>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:4px;">
+      <button onclick="exportData()">エクスポート（コピー）</button>
+      <button class="secondary" onclick="importData()">このテキストから読み込む</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ---- 状態（localStorage不使用。JS変数のみで保持） ----
+  let items = [];
+  // items: { id, name, amount, amountType, method, cycle, nextDate, history: [{date, amount}] }
+  let paidLog = []; // { itemId, date(YYYY-MM-DD), amount }
+  let nextId = 1;
+
+  const methodLabel = { automatic: '口座振替', transfer: '振込', credit: 'クレジットカード', cash: '現金' };
+  const cycleLabel = { monthly: '毎月', bimonthly: '隔月', yearly: '年1回' };
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
+  function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function daysUntil(dateStr) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const target = new Date(dateStr + 'T00:00:00');
+    return Math.round((target - today) / 86400000);
+  }
+
+  function addCycle(dateStr, cycle) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const addMonths = cycle === 'monthly' ? 1 : (cycle === 'bimonthly' ? 2 : 12);
+    const totalMonth = (m - 1) + addMonths;
+    const newY = y + Math.floor(totalMonth / 12);
+    const newM = ((totalMonth % 12) + 12) % 12;
+    const daysInMonth = new Date(newY, newM + 1, 0).getDate();
+    const newD = Math.min(d, daysInMonth);
+    return `${newY}-${String(newM+1).padStart(2,'0')}-${String(newD).padStart(2,'0')}`;
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => showToast('コピーしました'),
+        () => fallbackCopy(text)
+      );
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('コピーしました');
+    } catch (e) {
+      showToast('コピーに失敗しました');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function addItem() {
+    const name = document.getElementById('inpName').value.trim();
+    const amountType = document.getElementById('inpAmountType').value;
+    const amountRaw = document.getElementById('inpAmount').value;
+    const method = document.getElementById('inpMethod').value;
+    const cycle = document.getElementById('inpCycle').value;
+    const nextDate = document.getElementById('inpNextDate').value;
+
+    if (!name) { showToast('名称を入力してください'); return; }
+    const amount = Number(amountRaw);
+    if (!amountRaw || isNaN(amount) || amount < 0) { showToast('金額を正しく入力してください'); return; }
+    if (!nextDate) { showToast('次回支払い予定日を入力してください'); return; }
+
+    items.push({
+      id: nextId++,
+      name,
+      amount: Math.round(amount),
+      amountType,
+      method,
+      cycle,
+      nextDate,
+      history: []
+    });
+
+    document.getElementById('inpName').value = '';
+    document.getElementById('inpAmount').value = '';
+    document.getElementById('inpNextDate').value = '';
+
+    showToast('登録しました');
+    renderAll();
+  }
+
+  function payItem(id) {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    let paidAmount = item.amount;
+    if (item.amountType === 'variable') {
+      const inp = document.getElementById('actual-' + id);
+      const v = inp ? Number(inp.value) : NaN;
+      if (inp && inp.value && !isNaN(v) && v >= 0) {
+        paidAmount = Math.round(v);
+      }
+    }
+    const date = todayStr();
+    paidLog.push({ itemId: id, date, amount: paidAmount });
+    if (item.amountType === 'variable') {
+      item.history.push({ date, amount: paidAmount });
+    }
+    item.nextDate = addCycle(item.nextDate, item.cycle);
+    showToast(`「${item.name}」の支払いを記録しました`);
+    renderAll();
+  }
+
+  function deleteItem(id) {
+    items = items.filter(i => i.id !== id);
+    renderAll();
+  }
+
+  function renderDashboard() {
+    const el = document.getElementById('dashboard');
+    if (items.length === 0) {
+      el.innerHTML = '<div class="empty">まだ支払い項目が登録されていません。下のフォームから登録してください。</div>';
+      return;
+    }
+    const sorted = [...items].sort((a, b) => daysUntil(a.nextDate) - daysUntil(b.nextDate));
+    el.innerHTML = sorted.map(item => {
+      const d = daysUntil(item.nextDate);
+      let cls = '', badge = '';
+      if (d <= 0) { cls = 'red'; badge = '<span class="badge red">' + (d === 0 ? '本日期限' : '期限切れ ' + Math.abs(d) + '日') + '</span>'; }
+      else if (d <= 3) { cls = 'yellow'; badge = '<span class="badge yellow">あと' + d + '日</span>'; }
+      else { badge = '<span class="badge">あと' + d + '日</span>'; }
+
+      const amountDisplay = item.amountType === 'variable'
+        ? `<input type="number" id="actual-${item.id}" placeholder="実際の金額(目安¥${item.amount.toLocaleString()})">`
+        : `<span class="muted">¥${item.amount.toLocaleString()}</span>`;
+
+      return `<div class="card ${cls}">
+        <div class="card-top">
+          <span class="card-name">${escapeHtml(item.name)} ${badge}</span>
+          <span class="card-meta">${methodLabel[item.method]} ・ ${cycleLabel[item.cycle]} ・ 次回: ${item.nextDate}</span>
+        </div>
+        <div class="card-actions">
+          ${amountDisplay}
+          <button class="small" onclick="payItem(${item.id})">支払った</button>
+          <button class="small secondary" onclick="deleteItem(${item.id})">削除</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function checkBalance() {
+    const balanceRaw = document.getElementById('balanceInput').value;
+    const balance = Number(balanceRaw);
+    const el = document.getElementById('balanceResult');
+    if (!balanceRaw || isNaN(balance) || balance < 0) {
+      el.innerHTML = '<span class="muted">残高を正しく入力してください</span>';
+      return;
+    }
+    const now = new Date();
+    const curMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const autoItems = items.filter(i => i.method === 'automatic' && i.nextDate.startsWith(curMonth));
+    const total = autoItems.reduce((s, i) => s + i.amount, 0);
+    if (autoItems.length === 0) {
+      el.innerHTML = '<span class="muted">今月中に予定された口座振替はありません</span>';
+      return;
+    }
+    const diff = balance - total;
+    if (diff < 0) {
+      el.innerHTML = `<div class="badge red" style="display:block;margin-bottom:6px;">不足のおそれ: ¥${Math.abs(diff).toLocaleString()}足りません</div>
+        <div class="muted">今月の振替予定合計: ¥${total.toLocaleString()}（${autoItems.length}件）</div>`;
+    } else {
+      el.innerHTML = `<div class="badge green" style="display:block;margin-bottom:6px;">残高OK（余裕: ¥${diff.toLocaleString()}）</div>
+        <div class="muted">今月の振替予定合計: ¥${total.toLocaleString()}（${autoItems.length}件）</div>`;
+    }
+  }
+
+  function renderMonthTotal() {
+    const now = new Date();
+    const curMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const monthTotals = {};
+    paidLog.forEach(p => {
+      const key = p.date.slice(0, 7);
+      monthTotals[key] = (monthTotals[key] || 0) + p.amount;
+    });
+    const total = monthTotals[curMonth] || 0;
+    document.getElementById('monthTotal').textContent = '¥' + total.toLocaleString();
+    document.getElementById('monthTotalNote').textContent = total > 0
+      ? `今月支払い済みの固定費合計（${paidLog.filter(p => p.date.startsWith(curMonth)).length}件）`
+      : '今回のセッションではまだ支払い記録がありません';
+
+    const keys = Object.keys(monthTotals).filter(k => k !== curMonth).sort().reverse().slice(0, 3);
+    const histEl = document.getElementById('monthHistory');
+    if (keys.length === 0) {
+      histEl.innerHTML = '';
+    } else {
+      histEl.innerHTML = '<table>' + keys.map(k => `<tr><td>${k}</td><td>¥${monthTotals[k].toLocaleString()}</td></tr>`).join('') + '</table>';
+    }
+  }
+
+  function renderVarHistory() {
+    const el = document.getElementById('varHistoryPanel');
+    const varItems = items.filter(i => i.amountType === 'variable');
+    if (varItems.length === 0) {
+      el.innerHTML = '<div class="empty">変動額の項目が登録されるとここに履歴・平均額が表示されます。</div>';
+      return;
+    }
+    el.innerHTML = varItems.map(item => {
+      if (item.history.length === 0) {
+        return `<div class="history-item"><strong>${escapeHtml(item.name)}</strong>: まだ支払い履歴がありません</div>`;
+      }
+      const avg = Math.round(item.history.reduce((s, h) => s + h.amount, 0) / item.history.length);
+      const last = item.history[item.history.length - 1];
+      const prev = item.history.length >= 2 ? item.history[item.history.length - 2] : null;
+      let diffText = '';
+      if (prev) {
+        const diff = last.amount - prev.amount;
+        diffText = diff === 0 ? '（前回と同額）' : diff > 0 ? `（前回より¥${diff.toLocaleString()}増）` : `（前回より¥${Math.abs(diff).toLocaleString()}減）`;
+      }
+      return `<div class="history-item"><strong style="color:var(--text)">${escapeHtml(item.name)}</strong>: 平均¥${avg.toLocaleString()} ／ 直近¥${last.amount.toLocaleString()} ${diffText} ／ 記録${item.history.length}件</div>`;
+    }).join('');
+  }
+
+  function renderAll() {
+    renderDashboard();
+    renderMonthTotal();
+    renderVarHistory();
+  }
+
+  function exportData() {
+    const data = { items, paidLog, nextId };
+    const json = JSON.stringify(data);
+    document.getElementById('dataArea').value = json;
+    copyToClipboard(json);
+  }
+
+  function importData() {
+    const raw = document.getElementById('dataArea').value.trim();
+    if (!raw) { showToast('貼り付けるデータがありません'); return; }
+    try {
+      const data = JSON.parse(raw);
+      if (!Array.isArray(data.items)) throw new Error('形式が不正です');
+      items = data.items;
+      paidLog = Array.isArray(data.paidLog) ? data.paidLog : [];
+      nextId = typeof data.nextId === 'number' ? data.nextId : (items.reduce((m, i) => Math.max(m, i.id || 0), 0) + 1);
+      showToast('読み込みました');
+      renderAll();
+    } catch (e) {
+      showToast('読み込みに失敗しました（形式を確認してください）');
+    }
+  }
+
+  renderAll();
+</script>
+
+</body>
+</html>
