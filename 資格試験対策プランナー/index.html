@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>資格試験対策プランナー</title>
+<style>
+  :root {
+    --bg:#1e1e2e; --panel:#262638; --accent:#3fa9c9; --accent2:#e8b64a;
+    --text:#e8e6f2; --muted:#9a97b5; --border:#3a3a52;
+    --danger:#e2586b; --warn:#e8b64a; --ok:#4ac98a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:20px; background:var(--bg); color:var(--text);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  }
+  header { margin-bottom:20px; }
+  header h1 { font-size:20px; margin:0 0 4px; }
+  header p { font-size:13px; color:var(--muted); margin:0; }
+  .layout { display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+  .panel {
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:16px; flex:1 1 320px; min-width:280px;
+  }
+  .panel h2 { font-size:15px; margin:0 0 12px; color:var(--accent); }
+  label { display:block; font-size:12px; color:var(--muted); margin:8px 0 4px; }
+  input, select, textarea {
+    width:100%; padding:7px 8px; background:#1a1a28; border:1px solid var(--border);
+    border-radius:6px; color:var(--text); font-size:13px; font-family:inherit;
+  }
+  textarea { resize:vertical; min-height:60px; }
+  button {
+    cursor:pointer; background:var(--accent); color:#0d0d16; border:none;
+    border-radius:6px; padding:8px 14px; font-size:13px; font-weight:bold; margin-top:10px;
+    margin-right:6px;
+  }
+  button.secondary { background:#3a3a52; color:var(--text); }
+  button.danger { background:var(--danger); color:#fff; }
+  button:hover { filter:brightness(1.1); }
+  .field-row { display:flex; gap:6px; margin-bottom:6px; }
+  .field-row input { flex:1; }
+  .exam-card {
+    border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px;
+    cursor:pointer; background:#20202f; transition:.15s;
+  }
+  .exam-card:hover { border-color:var(--accent); }
+  .exam-card.selected { border-color:var(--accent); background:#233042; }
+  .exam-card.urgent { border-color:var(--danger); }
+  .exam-card .name { font-weight:bold; font-size:14px; }
+  .exam-card .days { font-size:12px; margin-top:4px; }
+  .days.urgent { color:var(--danger); font-weight:bold; }
+  .days.normal { color:var(--muted); }
+  .progress-bar-bg {
+    background:#1a1a28; border-radius:5px; height:14px; overflow:hidden; margin:4px 0 2px; border:1px solid var(--border);
+  }
+  .progress-bar-fill { height:100%; background:var(--accent); transition:.3s; }
+  .progress-bar-fill.over { background:var(--ok); }
+  .field-progress { margin-bottom:10px; }
+  .field-progress .label-row { display:flex; justify-content:space-between; font-size:12px; }
+  .today-target {
+    background:#20202f; border:1px solid var(--accent); border-radius:8px; padding:12px; margin-bottom:12px; text-align:center;
+  }
+  .today-target .big { font-size:26px; font-weight:bold; color:var(--accent2); }
+  .today-target .small { font-size:12px; color:var(--muted); margin-top:2px; }
+  .pace-warn { color:var(--danger); font-weight:bold; }
+  .pace-ok { color:var(--ok); font-weight:bold; }
+  .week-chart { display:flex; gap:6px; align-items:flex-end; height:120px; margin-top:10px; padding-top:10px; }
+  .week-chart .bar-wrap { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; }
+  .week-chart .bar { width:70%; background:var(--accent); border-radius:3px 3px 0 0; min-height:2px; }
+  .week-chart .bar.under { background:var(--danger); }
+  .week-chart .lbl { font-size:10px; color:var(--muted); margin-top:4px; }
+  .week-chart .val { font-size:10px; color:var(--text); }
+  .log-list, .score-list { max-height:180px; overflow-y:auto; margin-top:8px; }
+  .log-item, .score-item {
+    font-size:12px; border-bottom:1px solid var(--border); padding:5px 0; display:flex; justify-content:space-between; gap:6px;
+  }
+  .log-item .del, .score-item .del { color:var(--danger); cursor:pointer; font-size:11px; }
+  .toast {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--ok); color:#0d0d16; padding:8px 16px; border-radius:6px; font-size:13px;
+    font-weight:bold; opacity:0; pointer-events:none; transition:.25s;
+  }
+  .toast.show { opacity:1; }
+  .muted-note { font-size:11px; color:var(--muted); margin-top:8px; }
+  hr { border:none; border-top:1px solid var(--border); margin:14px 0; }
+  .empty { color:var(--muted); font-size:13px; text-align:center; padding:20px 0; }
+  @media (max-width:600px) {
+    .layout { flex-direction:column; }
+    .panel { min-width:0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📝 資格試験対策プランナー</h1>
+  <p>試験日までの残り日数から今日の学習目安を逆算。分野別の進捗と週間ペースを見える化します。</p>
+</header>
+
+<div class="layout">
+
+  <!-- 左: 試験一覧・登録 -->
+  <div class="panel" style="flex:1 1 320px;">
+    <h2>📋 試験一覧</h2>
+    <div id="examList"></div>
+
+    <hr>
+    <h2>➕ 試験を登録</h2>
+    <label>試験名</label>
+    <input id="inExamName" type="text" placeholder="例: 基本情報技術者試験">
+    <label>試験日</label>
+    <input id="inExamDate" type="date">
+    <label>1日に確保できる学習時間（h）</label>
+    <input id="inDailyHours" type="number" min="0" step="0.5" placeholder="例: 2">
+    <label>出題分野（分野名・目標学習時間h）</label>
+    <div id="fieldInputs"></div>
+    <button type="button" class="secondary" onclick="addFieldInput()">分野を追加</button>
+    <br>
+    <button type="button" onclick="addExam()">この試験を登録</button>
+  </div>
+
+  <!-- 中央: 選択中の試験の詳細 -->
+  <div class="panel" style="flex:2 1 420px;">
+    <h2>🎯 学習状況</h2>
+    <div id="examDetail"><div class="empty">左の一覧から試験を選択してください</div></div>
+  </div>
+
+  <!-- 右: エクスポート/インポート -->
+  <div class="panel" style="flex:1 1 280px;">
+    <h2>💾 データの保存・復元</h2>
+    <p class="muted-note">ブラウザには保存されません。閉じる前にエクスポートし、次回開いたら貼り付けてインポートしてください。</p>
+    <button type="button" onclick="exportData()">エクスポート（テキスト生成）</button>
+    <button type="button" class="secondary" onclick="copyExport()">コピー</button>
+    <textarea id="exportArea" placeholder="ここにエクスポート結果が表示されます"></textarea>
+    <label>インポート（貼り付けて実行）</label>
+    <textarea id="importArea" placeholder="以前エクスポートしたテキストを貼り付け"></textarea>
+    <button type="button" onclick="importData()">インポート実行</button>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var exams = [];
+var selectedExamId = null;
+var fieldInputCount = 0;
+
+function uid() { return 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date(todayStr() + 'T00:00:00');
+  const target = new Date(dateStr + 'T00:00:00');
+  const diff = Math.round((target - today) / (1000*60*60*24));
+  return diff;
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => showToast('コピーしました')).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('コピーしました');
+  } catch (e) {
+    showToast('コピーに失敗しました');
+  }
+  document.body.removeChild(ta);
+}
+
+// ---------- 試験登録フォーム ----------
+function addFieldInput(name, hours) {
+  fieldInputCount++;
+  const wrap = document.getElementById('fieldInputs');
+  const row = document.createElement('div');
+  row.className = 'field-row';
+  row.dataset.idx = fieldInputCount;
+  row.innerHTML =
+    '<input type="text" class="fieldNameInput" placeholder="分野名（例: アルゴリズム）" value="' + esc(name||'') + '">' +
+    '<input type="number" class="fieldHoursInput" min="0" step="0.5" placeholder="目標h" style="max-width:90px;" value="' + (hours!=null?hours:'') + '">' +
+    '<button type="button" class="secondary" style="margin-top:0;padding:6px 10px;" onclick="this.parentElement.remove()">×</button>';
+  wrap.appendChild(row);
+}
+addFieldInput();
+addFieldInput();
+
+function addExam() {
+  const name = document.getElementById('inExamName').value.trim();
+  const date = document.getElementById('inExamDate').value;
+  const dailyHours = parseFloat(document.getElementById('inDailyHours').value);
+
+  if (!name) { showToast('試験名を入力してください'); return; }
+  if (!date) { showToast('試験日を選択してください'); return; }
+
+  const fieldRows = document.querySelectorAll('#fieldInputs .field-row');
+  const fields = [];
+  fieldRows.forEach(row => {
+    const fname = row.querySelector('.fieldNameInput').value.trim();
+    let fhours = parseFloat(row.querySelector('.fieldHoursInput').value);
+    if (!fname) return;
+    if (isNaN(fhours) || fhours < 0) fhours = 0;
+    fields.push({ name: fname, targetHours: fhours });
+  });
+  if (fields.length === 0) {
+    fields.push({ name: '全体', targetHours: 0 });
+  }
+
+  const exam = {
+    id: uid(),
+    name: name,
+    date: date,
+    dailyHours: (isNaN(dailyHours) || dailyHours < 0) ? 0 : dailyHours,
+    fields: fields,
+    logs: [],
+    mockScores: []
+  };
+  exams.push(exam);
+  selectedExamId = exam.id;
+
+  document.getElementById('inExamName').value = '';
+  document.getElementById('inExamDate').value = '';
+  document.getElementById('inDailyHours').value = '';
+  document.getElementById('fieldInputs').innerHTML = '';
+  fieldInputCount = 0;
+  addFieldInput();
+  addFieldInput();
+
+  showToast('試験を登録しました');
+  renderAll();
+}
+
+function deleteExam(id) {
+  exams = exams.filter(e => e.id !== id);
+  if (selectedExamId === id) selectedExamId = null;
+  renderAll();
+}
+
+function selectExam(id) {
+  selectedExamId = id;
+  renderAll();
+}
+
+// ---------- 一覧描画 ----------
+function renderExamList() {
+  const wrap = document.getElementById('examList');
+  if (exams.length === 0) {
+    wrap.innerHTML = '<div class="empty">登録された試験はありません</div>';
+    return;
+  }
+  const sorted = [...exams].sort((a,b) => daysUntil(a.date) - daysUntil(b.date));
+  wrap.innerHTML = '';
+  sorted.forEach(exam => {
+    const d = daysUntil(exam.date);
+    const urgent = d !== null && d <= 3;
+    const card = document.createElement('div');
+    card.className = 'exam-card' + (exam.id === selectedExamId ? ' selected' : '') + (urgent ? ' urgent' : '');
+    let dayLabel;
+    if (d === null) dayLabel = '日付未設定';
+    else if (d < 0) dayLabel = '試験日を過ぎています（' + Math.abs(d) + '日前）';
+    else if (d === 0) dayLabel = '本日が試験日です';
+    else dayLabel = '残り ' + d + ' 日';
+    card.innerHTML =
+      '<div class="name">' + (urgent ? '⚠ ' : '') + esc(exam.name) + '</div>' +
+      '<div class="days ' + (urgent ? 'urgent' : 'normal') + '">' + dayLabel + '</div>';
+    card.onclick = () => selectExam(exam.id);
+    wrap.appendChild(card);
+  });
+}
+
+// ---------- 詳細描画 ----------
+function getExam(id) { return exams.find(e => e.id === id); }
+
+function totalTargetHours(exam) {
+  return exam.fields.reduce((s,f) => s + (f.targetHours||0), 0);
+}
+function loggedHoursForField(exam, fieldName) {
+  return exam.logs.filter(l => l.field === fieldName).reduce((s,l) => s + l.hours, 0);
+}
+function totalLoggedHours(exam) {
+  return exam.logs.reduce((s,l) => s + l.hours, 0);
+}
+
+function renderExamDetail() {
+  const wrap = document.getElementById('examDetail');
+  const exam = getExam(selectedExamId);
+  if (!exam) {
+    wrap.innerHTML = '<div class="empty">左の一覧から試験を選択してください</div>';
+    return;
+  }
+
+  const d = daysUntil(exam.date);
+  const totalTarget = totalTargetHours(exam);
+  const totalLogged = totalLoggedHours(exam);
+  const remainingHours = Math.max(0, totalTarget - totalLogged);
+  const remainingDays = (d === null) ? null : Math.max(1, d);
+  let todayTarget = null;
+  if (remainingDays !== null && totalTarget > 0) {
+    todayTarget = remainingHours / remainingDays;
+  }
+
+  let html = '';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+  html += '<h3 style="margin:0;font-size:16px;">' + esc(exam.name) + '</h3>';
+  html += '<button type="button" class="danger" style="margin-top:0;" onclick="deleteExam(\'' + exam.id + '\')">削除</button>';
+  html += '</div>';
+
+  html += '<div class="today-target">';
+  if (todayTarget === null) {
+    html += '<div class="small">分野の目標時間を登録すると、今日の学習目安を計算します</div>';
+  } else if (d !== null && d < 0) {
+    html += '<div class="small">試験日を過ぎています。お疲れさまでした</div>';
+  } else {
+    html += '<div class="big">' + todayTarget.toFixed(1) + ' 時間</div>';
+    html += '<div class="small">今日確保したい学習時間の目安（残り ' + remainingHours.toFixed(1) + 'h ÷ 残り ' + remainingDays + '日）</div>';
+    if (exam.dailyHours > 0) {
+      if (todayTarget > exam.dailyHours) {
+        html += '<div class="small pace-warn">⚠ 設定した1日の確保可能時間（' + exam.dailyHours + 'h）を上回っています。ペースが遅れ気味です</div>';
+      } else {
+        html += '<div class="small pace-ok">◎ 設定した1日の確保可能時間（' + exam.dailyHours + 'h）の範囲内です</div>';
+      }
+    }
+  }
+  html += '</div>';
+
+  html += '<div><strong style="font-size:13px;">分野別の進捗</strong></div>';
+  exam.fields.forEach(f => {
+    const logged = loggedHoursForField(exam, f.name);
+    const target = f.targetHours || 0;
+    const pct = target > 0 ? Math.min(100, (logged/target)*100) : (logged > 0 ? 100 : 0);
+    html += '<div class="field-progress">';
+    html += '<div class="label-row"><span>' + esc(f.name) + '</span><span>' + logged.toFixed(1) + 'h / ' + target.toFixed(1) + 'h</span></div>';
+    html += '<div class="progress-bar-bg"><div class="progress-bar-fill' + (pct>=100?' over':'') + '" style="width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  });
+
+  // 週間グラフ
+  html += '<hr><strong style="font-size:13px;">直近7日間の学習時間</strong>';
+  const days = [];
+  for (let i=6;i>=0;i--) {
+    const dt = new Date(); dt.setDate(dt.getDate()-i);
+    const key = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+    const total = exam.logs.filter(l=>l.date===key).reduce((s,l)=>s+l.hours,0);
+    days.push({ key, label: (dt.getMonth()+1)+'/'+dt.getDate(), total });
+  }
+  const maxVal = Math.max(1, ...days.map(x=>x.total), exam.dailyHours||0);
+  const pace = todayTarget !== null ? todayTarget : (exam.dailyHours||0);
+  html += '<div class="week-chart">';
+  days.forEach(x => {
+    const h = Math.max(2, (x.total/maxVal)*90);
+    const under = pace > 0 && x.total < pace;
+    html += '<div class="bar-wrap"><div class="val">' + (x.total>0?x.total.toFixed(1):'') + '</div><div class="bar' + (under?' under':'') + '" style="height:' + h + 'px;"></div><div class="lbl">' + x.label + '</div></div>';
+  });
+  html += '</div>';
+
+  // 学習ログ入力
+  html += '<hr><strong style="font-size:13px;">学習ログを記録</strong>';
+  html += '<label>日付</label><input type="date" id="logDate" value="' + todayStr() + '">';
+  html += '<label>分野</label><select id="logField">';
+  exam.fields.forEach(f => { html += '<option value="' + esc(f.name) + '">' + esc(f.name) + '</option>'; });
+  html += '</select>';
+  html += '<label>時間（h）</label><input type="number" id="logHours" min="0" step="0.25" placeholder="例: 1.5">';
+  html += '<label>メモ（任意）</label><input type="text" id="logMemo" placeholder="例: 過去問2年分">';
+  html += '<button type="button" onclick="addLog()">記録する</button>';
+
+  html += '<div class="log-list">';
+  const sortedLogs = [...exam.logs].sort((a,b) => b.date.localeCompare(a.date));
+  if (sortedLogs.length === 0) {
+    html += '<div class="empty">まだ記録がありません</div>';
+  } else {
+    sortedLogs.forEach((l, idx) => {
+      const realIdx = exam.logs.indexOf(l);
+      html += '<div class="log-item"><span>' + l.date + ' ／ ' + esc(l.field) + ' ／ ' + l.hours.toFixed(2) + 'h' + (l.memo?' ／ '+esc(l.memo):'') + '</span><span class="del" onclick="deleteLog(\'' + exam.id + '\',' + realIdx + ')">削除</span></div>';
+    });
+  }
+  html += '</div>';
+
+  // 模試スコア
+  html += '<hr><strong style="font-size:13px;">模試・過去問スコア</strong>';
+  html += '<label>日付</label><input type="date" id="scoreDate" value="' + todayStr() + '">';
+  html += '<label>名称</label><input type="text" id="scoreName" placeholder="例: 模試1回目">';
+  html += '<div style="display:flex;gap:6px;"><div style="flex:1;"><label>得点</label><input type="number" id="scoreVal" min="0" step="1"></div><div style="flex:1;"><label>満点</label><input type="number" id="scoreMax" min="1" step="1" value="100"></div></div>';
+  html += '<button type="button" onclick="addScore()">記録する</button>';
+  html += '<div class="score-list">';
+  const sortedScores = [...exam.mockScores].sort((a,b) => b.date.localeCompare(a.date));
+  if (sortedScores.length === 0) {
+    html += '<div class="empty">まだ記録がありません</div>';
+  } else {
+    sortedScores.forEach(sc => {
+      const realIdx = exam.mockScores.indexOf(sc);
+      const rate = sc.max > 0 ? Math.round((sc.score/sc.max)*100) : 0;
+      html += '<div class="score-item"><span>' + sc.date + ' ／ ' + esc(sc.name) + ' ／ ' + sc.score + '/' + sc.max + '（' + rate + '%）</span><span class="del" onclick="deleteScore(\'' + exam.id + '\',' + realIdx + ')">削除</span></div>';
+    });
+  }
+  html += '</div>';
+
+  html += '<hr><button type="button" class="secondary" onclick="copyExamSummary(\'' + exam.id + '\')">この試験の状況をコピー</button>';
+
+  wrap.innerHTML = html;
+}
+
+function addLog() {
+  const exam = getExam(selectedExamId);
+  if (!exam) return;
+  const date = document.getElementById('logDate').value || todayStr();
+  const field = document.getElementById('logField').value;
+  let hours = parseFloat(document.getElementById('logHours').value);
+  const memo = document.getElementById('logMemo').value.trim();
+  if (isNaN(hours) || hours <= 0) { showToast('学習時間を正しく入力してください'); return; }
+  if (hours > 24) hours = 24;
+  exam.logs.push({ date, field, hours, memo });
+  showToast('記録しました');
+  renderAll();
+}
+function deleteLog(examId, idx) {
+  const exam = getExam(examId);
+  if (!exam) return;
+  exam.logs.splice(idx, 1);
+  renderAll();
+}
+
+function addScore() {
+  const exam = getExam(selectedExamId);
+  if (!exam) return;
+  const date = document.getElementById('scoreDate').value || todayStr();
+  const name = document.getElementById('scoreName').value.trim() || '模試';
+  let score = parseFloat(document.getElementById('scoreVal').value);
+  let max = parseFloat(document.getElementById('scoreMax').value);
+  if (isNaN(score) || score < 0) score = 0;
+  if (isNaN(max) || max <= 0) max = 100;
+  if (score > max) score = max;
+  exam.mockScores.push({ date, name, score, max });
+  showToast('スコアを記録しました');
+  renderAll();
+}
+function deleteScore(examId, idx) {
+  const exam = getExam(examId);
+  if (!exam) return;
+  exam.mockScores.splice(idx, 1);
+  renderAll();
+}
+
+function copyExamSummary(examId) {
+  const exam = getExam(examId);
+  if (!exam) return;
+  const d = daysUntil(exam.date);
+  let text = '【' + exam.name + '】試験日: ' + exam.date + '（残り' + (d!==null?d+'日':'不明') + '）\n';
+  exam.fields.forEach(f => {
+    const logged = loggedHoursForField(exam, f.name);
+    text += '・' + f.name + ': ' + logged.toFixed(1) + 'h / ' + (f.targetHours||0).toFixed(1) + 'h\n';
+  });
+  text += '合計学習時間: ' + totalLoggedHours(exam).toFixed(1) + 'h\n';
+  copyToClipboard(text);
+}
+
+// ---------- エクスポート/インポート ----------
+function exportData() {
+  const data = { exams };
+  document.getElementById('exportArea').value = JSON.stringify(data, null, 2);
+  showToast('エクスポートしました。コピーして保存してください');
+}
+function copyExport() {
+  const text = document.getElementById('exportArea').value;
+  if (!text) { showToast('先にエクスポートしてください'); return; }
+  copyToClipboard(text);
+}
+function importData() {
+  const raw = document.getElementById('importArea').value.trim();
+  if (!raw) { showToast('貼り付けるデータがありません'); return; }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    showToast('データの形式が正しくありません');
+    return;
+  }
+  if (!data || !Array.isArray(data.exams)) {
+    showToast('データの形式が正しくありません');
+    return;
+  }
+  exams = data.exams.map(e => ({
+    id: e.id || uid(),
+    name: e.name || '無題の試験',
+    date: e.date || '',
+    dailyHours: (typeof e.dailyHours === 'number') ? e.dailyHours : 0,
+    fields: Array.isArray(e.fields) ? e.fields.map(f => ({ name: f.name||'分野', targetHours: (typeof f.targetHours==='number')?f.targetHours:0 })) : [],
+    logs: Array.isArray(e.logs) ? e.logs.map(l => ({ date: l.date||todayStr(), field: l.field||'', hours: (typeof l.hours==='number')?l.hours:0, memo: l.memo||'' })) : [],
+    mockScores: Array.isArray(e.mockScores) ? e.mockScores.map(s => ({ date: s.date||todayStr(), name: s.name||'模試', score: (typeof s.score==='number')?s.score:0, max: (typeof s.max==='number')?s.max:100 })) : []
+  }));
+  selectedExamId = exams.length ? exams[0].id : null;
+  showToast('インポートしました');
+  renderAll();
+}
+
+function renderAll() {
+  renderExamList();
+  renderExamDetail();
+}
+
+renderAll();
+</script>
+</body>
+</html>
