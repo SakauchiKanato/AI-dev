@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>誕生日・贈り物管理ノート</title>
+<style>
+  :root {
+    --bg:#1e1e2e; --panel:#262638; --accent:#e0a458; --accent2:#c47a1d;
+    --text:#e8e6f2; --muted:#9a97b5; --border:#3a3a52;
+    --danger:#e05a5a; --warn:#e0c458; --ok:#5ac47d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:20px; background:var(--bg); color:var(--text);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  }
+  header { margin-bottom:20px; }
+  header h1 { font-size:20px; margin:0 0 6px; }
+  header p { font-size:13px; color:var(--muted); margin:0; }
+  .layout { display:flex; gap:20px; flex-wrap:wrap; }
+  .panel {
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:16px; flex:1 1 320px; min-width:280px;
+  }
+  .panel h2 { font-size:15px; margin:0 0 12px; color:var(--accent); }
+  label { display:block; font-size:12px; color:var(--muted); margin:8px 0 4px; }
+  input, select, textarea {
+    width:100%; background:#1c1c2c; border:1px solid var(--border); border-radius:6px;
+    color:var(--text); padding:7px 8px; font-size:13px; font-family:inherit;
+  }
+  textarea { resize:vertical; min-height:50px; }
+  .row2 { display:flex; gap:8px; }
+  .row2 > div { flex:1; }
+  button {
+    background:var(--accent); color:#1e1e2e; border:none; border-radius:6px;
+    padding:8px 14px; font-size:13px; font-weight:bold; cursor:pointer; margin-top:10px;
+  }
+  button:hover { background:var(--accent2); }
+  button.secondary { background:transparent; border:1px solid var(--border); color:var(--text); font-weight:normal; }
+  button.small { padding:4px 8px; font-size:12px; margin:2px 4px 2px 0; }
+  button.danger { background:var(--danger); color:#fff; }
+  ul { list-style:none; margin:0; padding:0; }
+  .event-item, .person-item, .gift-item {
+    border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px;
+    font-size:13px;
+  }
+  .event-item.warn3 { border-color:var(--danger); background:rgba(224,90,90,0.1); }
+  .event-item.warn7 { border-color:var(--warn); background:rgba(224,196,88,0.1); }
+  .event-days { font-weight:bold; color:var(--accent); }
+  .muted { color:var(--muted); font-size:12px; }
+  .badge {
+    display:inline-block; font-size:11px; padding:1px 6px; border-radius:10px;
+    background:var(--border); color:var(--text); margin-left:6px;
+  }
+  .person-item.selected { border-color:var(--accent); }
+  #toast {
+    position:fixed; bottom:20px; right:20px; background:var(--ok); color:#1e1e2e;
+    padding:10px 16px; border-radius:6px; font-size:13px; font-weight:bold;
+    opacity:0; transform:translateY(10px); transition:opacity .2s, transform .2s;
+    pointer-events:none;
+  }
+  #toast.show { opacity:1; transform:translateY(0); }
+  .empty { color:var(--muted); font-size:13px; padding:8px 0; }
+  @media (max-width:600px) {
+    .layout { flex-direction:column; }
+    .row2 { flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎁 誕生日・贈り物管理ノート</h1>
+  <p>大切な人の誕生日・記念日と贈り物の記録を管理するツール</p>
+</header>
+
+<div class="layout">
+
+  <section class="panel" id="dashboardPanel">
+    <h2>直近のイベント（30日以内）</h2>
+    <ul id="eventList"></ul>
+    <button type="button" class="secondary" id="copyDashboardBtn">結果をコピー</button>
+  </section>
+
+  <section class="panel" id="formPanel">
+    <h2>人物を登録</h2>
+    <label for="nameInput">名前</label>
+    <input type="text" id="nameInput" placeholder="例: 山田花子">
+
+    <label for="relationInput">関係性</label>
+    <select id="relationInput">
+      <option value="友人">友人</option>
+      <option value="家族">家族</option>
+      <option value="恋人">恋人</option>
+      <option value="同僚">同僚</option>
+      <option value="その他">その他</option>
+    </select>
+
+    <label>誕生日・記念日</label>
+    <div class="row2">
+      <div>
+        <label for="monthInput">月</label>
+        <input type="number" id="monthInput" min="1" max="12" placeholder="月">
+      </div>
+      <div>
+        <label for="dayInput">日</label>
+        <input type="number" id="dayInput" min="1" max="31" placeholder="日">
+      </div>
+    </div>
+
+    <label for="memoInput">メモ（任意）</label>
+    <textarea id="memoInput" placeholder="好きなもの・注意点など"></textarea>
+
+    <button type="button" id="addPersonBtn">登録する</button>
+
+    <h2 style="margin-top:20px;">登録済みの人物</h2>
+    <ul id="personList"></ul>
+  </section>
+
+  <section class="panel" id="giftPanel">
+    <h2>贈り物の記録・候補アイデア</h2>
+    <div id="selectedPersonInfo" class="empty">左の一覧から人物を選んでください</div>
+
+    <div id="giftFormArea" style="display:none;">
+      <label for="giftDirectionInput">方向</label>
+      <select id="giftDirectionInput">
+        <option value="gave">贈った</option>
+        <option value="received">もらった</option>
+      </select>
+      <label for="giftNameInput">品名</label>
+      <input type="text" id="giftNameInput" placeholder="例: マグカップ">
+      <label for="giftDateInput">日付</label>
+      <input type="date" id="giftDateInput">
+      <label for="giftMemoInput">メモ（任意）</label>
+      <input type="text" id="giftMemoInput" placeholder="感想・場面など">
+      <button type="button" id="addGiftBtn">記録する</button>
+
+      <h2 style="margin-top:16px;">履歴</h2>
+      <ul id="giftHistoryList"></ul>
+
+      <label for="ideaInput" style="margin-top:16px;">次に贈りたい候補・予算メモ</label>
+      <textarea id="ideaInput" placeholder="候補アイデアや予算感を自由に記入"></textarea>
+      <button type="button" id="saveIdeaBtn">メモを保存</button>
+    </div>
+  </section>
+
+</div>
+
+<section class="panel" style="margin-top:20px;">
+  <h2>データのエクスポート／インポート</h2>
+  <p class="muted">このアプリはブラウザに保存しないため、閉じる前にエクスポートし、次回起動時にインポートしてください。</p>
+  <button type="button" class="secondary" id="exportBtn">エクスポート（コピー）</button>
+  <textarea id="importArea" placeholder="ここにエクスポートしたテキストを貼り付けて「インポート」を押す" style="margin-top:10px;"></textarea>
+  <button type="button" class="secondary" id="importBtn">インポート</button>
+</section>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /** @type {Array<{id:number,name:string,relation:string,month:number,day:number,memo:string,celebratedYear:number|null,gifts:Array<{id:number,direction:string,name:string,date:string,memo:string}>,idea:string}>} */
+  var persons = [];
+  var selectedPersonId = null;
+  var nextId = 1;
+
+  function $(id) { return document.getElementById(id); }
+
+  function showToast(msg) {
+    var toast = $("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(function () { toast.classList.remove("show"); }, 1800);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast("コピーしました");
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showToast("コピーしました");
+    } catch (e) {
+      showToast("コピーに失敗しました");
+    }
+    document.body.removeChild(ta);
+  }
+
+  // 次の occurrence（今日以降で最も近い、その月日の日付）を計算
+  function nextOccurrence(month, day, today) {
+    today = today || new Date();
+    var todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    var year = todayMid.getFullYear();
+    var candidate = safeDate(year, month, day);
+    if (candidate < todayMid) {
+      candidate = safeDate(year + 1, month, day);
+    }
+    return candidate;
+  }
+
+  // 2/29など存在しない日付を丸める（例: 非うるう年の2/29 → 3/1相当ではなく2/28に丸める）
+  function safeDate(year, month, day) {
+    var daysInMonth = new Date(year, month, 0).getDate();
+    var d = Math.min(day, daysInMonth);
+    return new Date(year, month - 1, d);
+  }
+
+  function daysUntil(date, today) {
+    today = today || new Date();
+    var todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    var diffMs = date.getTime() - todayMid.getTime();
+    return Math.round(diffMs / 86400000);
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function validatePerson(name, month, day) {
+    if (!name || !name.trim()) return "名前を入力してください";
+    if (!month || !day) return "月と日を入力してください";
+    month = Number(month); day = Number(day);
+    if (isNaN(month) || month < 1 || month > 12) return "月は1〜12で入力してください";
+    if (isNaN(day) || day < 1 || day > 31) return "日は1〜31で入力してください";
+    return null;
+  }
+
+  function addPerson() {
+    var name = $("nameInput").value.trim();
+    var relation = $("relationInput").value;
+    var month = $("monthInput").value;
+    var day = $("dayInput").value;
+    var memo = $("memoInput").value.trim();
+
+    var err = validatePerson(name, month, day);
+    if (err) { showToast(err); return; }
+
+    persons.push({
+      id: nextId++,
+      name: name,
+      relation: relation,
+      month: Number(month),
+      day: Number(day),
+      memo: memo,
+      celebratedYear: null,
+      gifts: [],
+      idea: ""
+    });
+
+    $("nameInput").value = "";
+    $("monthInput").value = "";
+    $("dayInput").value = "";
+    $("memoInput").value = "";
+
+    renderAll();
+    showToast("登録しました");
+  }
+
+  function deletePerson(id) {
+    persons = persons.filter(function (p) { return p.id !== id; });
+    if (selectedPersonId === id) selectedPersonId = null;
+    renderAll();
+  }
+
+  function selectPerson(id) {
+    selectedPersonId = id;
+    renderAll();
+  }
+
+  function toggleCelebrated(id) {
+    var p = persons.find(function (p) { return p.id === id; });
+    if (!p) return;
+    var occ = nextOccurrence(p.month, p.day);
+    p.celebratedYear = occ.getFullYear();
+    renderAll();
+    showToast("お祝い済みにしました");
+  }
+
+  function addGift() {
+    if (selectedPersonId === null) return;
+    var p = persons.find(function (p) { return p.id === selectedPersonId; });
+    if (!p) return;
+
+    var direction = $("giftDirectionInput").value;
+    var name = $("giftNameInput").value.trim();
+    var date = $("giftDateInput").value;
+    var memo = $("giftMemoInput").value.trim();
+
+    if (!name) { showToast("品名を入力してください"); return; }
+
+    p.gifts.unshift({
+      id: nextId++,
+      direction: direction,
+      name: name,
+      date: date || "",
+      memo: memo
+    });
+
+    $("giftNameInput").value = "";
+    $("giftDateInput").value = "";
+    $("giftMemoInput").value = "";
+
+    renderAll();
+    showToast("記録しました");
+  }
+
+  function deleteGift(personId, giftId) {
+    var p = persons.find(function (p) { return p.id === personId; });
+    if (!p) return;
+    p.gifts = p.gifts.filter(function (g) { return g.id !== giftId; });
+    renderAll();
+  }
+
+  function saveIdea() {
+    if (selectedPersonId === null) return;
+    var p = persons.find(function (p) { return p.id === selectedPersonId; });
+    if (!p) return;
+    p.idea = $("ideaInput").value;
+    showToast("メモを保存しました");
+  }
+
+  function getUpcomingEvents() {
+    var today = new Date();
+    var list = [];
+    persons.forEach(function (p) {
+      var occ = nextOccurrence(p.month, p.day, today);
+      if (p.celebratedYear === occ.getFullYear()) return;
+      var d = daysUntil(occ, today);
+      if (d >= 0 && d <= 30) {
+        list.push({ person: p, date: occ, days: d });
+      }
+    });
+    list.sort(function (a, b) { return a.days - b.days; });
+    return list;
+  }
+
+  function renderDashboard() {
+    var list = getUpcomingEvents();
+    var ul = $("eventList");
+    ul.innerHTML = "";
+    if (list.length === 0) {
+      ul.innerHTML = '<li class="empty">直近30日以内のイベントはありません</li>';
+      return;
+    }
+    list.forEach(function (item) {
+      var li = document.createElement("li");
+      li.className = "event-item";
+      if (item.days <= 3) li.className += " warn3";
+      else if (item.days <= 7) li.className += " warn7";
+
+      var dLabel = item.days === 0 ? "今日" : item.days + "日後";
+      li.innerHTML =
+        '<div><strong>' + escapeHtml(item.person.name) + '</strong>' +
+        '<span class="badge">' + escapeHtml(item.person.relation) + '</span>' +
+        ' <span class="event-days">' + dLabel + '</span></div>' +
+        '<div class="muted">' + item.person.month + '月' + item.person.day + '日' +
+        (item.person.memo ? "　" + escapeHtml(item.person.memo) : "") + '</div>' +
+        '<button type="button" class="small secondary" data-action="celebrate" data-id="' + item.person.id + '">お祝い済みにする</button>';
+      ul.appendChild(li);
+    });
+  }
+
+  function renderPersonList() {
+    var ul = $("personList");
+    ul.innerHTML = "";
+    if (persons.length === 0) {
+      ul.innerHTML = '<li class="empty">まだ登録がありません</li>';
+      return;
+    }
+    persons.forEach(function (p) {
+      var li = document.createElement("li");
+      li.className = "person-item" + (p.id === selectedPersonId ? " selected" : "");
+      li.innerHTML =
+        '<div><strong>' + escapeHtml(p.name) + '</strong>' +
+        '<span class="badge">' + escapeHtml(p.relation) + '</span></div>' +
+        '<div class="muted">' + p.month + '月' + p.day + '日' +
+        (p.memo ? "　" + escapeHtml(p.memo) : "") + '</div>' +
+        '<button type="button" class="small" data-action="select" data-id="' + p.id + '">履歴を見る</button>' +
+        '<button type="button" class="small danger" data-action="delete" data-id="' + p.id + '">削除</button>';
+      ul.appendChild(li);
+    });
+  }
+
+  function renderGiftPanel() {
+    var info = $("selectedPersonInfo");
+    var area = $("giftFormArea");
+    if (selectedPersonId === null) {
+      info.style.display = "block";
+      area.style.display = "none";
+      return;
+    }
+    var p = persons.find(function (p) { return p.id === selectedPersonId; });
+    if (!p) {
+      selectedPersonId = null;
+      info.style.display = "block";
+      area.style.display = "none";
+      return;
+    }
+    info.style.display = "none";
+    area.style.display = "block";
+
+    $("ideaInput").value = p.idea || "";
+
+    var ul = $("giftHistoryList");
+    ul.innerHTML = "";
+    if (p.gifts.length === 0) {
+      ul.innerHTML = '<li class="empty">' + escapeHtml(p.name) + 'さんの記録はまだありません</li>';
+      return;
+    }
+    p.gifts.forEach(function (g) {
+      var li = document.createElement("li");
+      li.className = "gift-item";
+      var dirLabel = g.direction === "gave" ? "贈った" : "もらった";
+      li.innerHTML =
+        '<div><strong>' + escapeHtml(g.name) + '</strong>' +
+        '<span class="badge">' + dirLabel + '</span></div>' +
+        '<div class="muted">' + escapeHtml(g.date || "日付未記入") +
+        (g.memo ? "　" + escapeHtml(g.memo) : "") + '</div>' +
+        '<button type="button" class="small danger" data-action="deleteGift" data-id="' + g.id + '">削除</button>';
+      ul.appendChild(li);
+    });
+  }
+
+  function renderAll() {
+    renderDashboard();
+    renderPersonList();
+    renderGiftPanel();
+  }
+
+  function exportData() {
+    var payload = { persons: persons, nextId: nextId };
+    var text = JSON.stringify(payload);
+    copyText(text);
+  }
+
+  function importData() {
+    var text = $("importArea").value.trim();
+    if (!text) { showToast("貼り付けるテキストがありません"); return; }
+    var data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      showToast("インポートに失敗しました（形式が不正です）");
+      return;
+    }
+    if (!data || !Array.isArray(data.persons)) {
+      showToast("インポートに失敗しました（データ形式が違います）");
+      return;
+    }
+    persons = data.persons.map(function (p) {
+      return {
+        id: typeof p.id === "number" ? p.id : nextId++,
+        name: String(p.name || ""),
+        relation: String(p.relation || "その他"),
+        month: Number(p.month) || 1,
+        day: Number(p.day) || 1,
+        memo: String(p.memo || ""),
+        celebratedYear: typeof p.celebratedYear === "number" ? p.celebratedYear : null,
+        gifts: Array.isArray(p.gifts) ? p.gifts.map(function (g) {
+          return {
+            id: typeof g.id === "number" ? g.id : nextId++,
+            direction: g.direction === "received" ? "received" : "gave",
+            name: String(g.name || ""),
+            date: String(g.date || ""),
+            memo: String(g.memo || "")
+          };
+        }) : [],
+        idea: String(p.idea || "")
+      };
+    });
+    nextId = typeof data.nextId === "number" ? data.nextId : (nextId + 1);
+    selectedPersonId = null;
+    renderAll();
+    showToast("インポートしました");
+  }
+
+  function copyDashboard() {
+    var list = getUpcomingEvents();
+    if (list.length === 0) {
+      copyText("直近30日以内のイベントはありません");
+      return;
+    }
+    var lines = list.map(function (item) {
+      var dLabel = item.days === 0 ? "今日" : item.days + "日後";
+      return item.person.name + "（" + item.person.relation + "）: " +
+        item.person.month + "月" + item.person.day + "日 - " + dLabel;
+    });
+    copyText(lines.join("\n"));
+  }
+
+  // イベント委譲
+  document.addEventListener("click", function (e) {
+    var target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    var action = target.getAttribute("data-action");
+    if (!action) return;
+    var id = Number(target.getAttribute("data-id"));
+    if (action === "select") selectPerson(id);
+    else if (action === "delete") deletePerson(id);
+    else if (action === "celebrate") toggleCelebrated(id);
+    else if (action === "deleteGift") {
+      if (selectedPersonId !== null) deleteGift(selectedPersonId, id);
+    }
+  });
+
+  $("addPersonBtn").addEventListener("click", addPerson);
+  $("addGiftBtn").addEventListener("click", addGift);
+  $("saveIdeaBtn").addEventListener("click", saveIdea);
+  $("exportBtn").addEventListener("click", exportData);
+  $("importBtn").addEventListener("click", importData);
+  $("copyDashboardBtn").addEventListener("click", copyDashboard);
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
