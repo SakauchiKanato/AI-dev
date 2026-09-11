@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JWTデコーダー＆検証ツール</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #4a86e8;
+    --accent2: #43d692;
+    --danger: #fb4c2f;
+    --warn: #fad165;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout { display: flex; flex-wrap: wrap; gap: 20px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 420px;
+    min-width: 300px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 10px 0; }
+  .panel h3 { font-size: 13px; margin: 14px 0 6px 0; color: var(--muted); }
+  textarea, input, select {
+    width: 100%;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 13px;
+    padding: 8px;
+    resize: vertical;
+  }
+  textarea { min-height: 90px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 8px;
+    margin-right: 6px;
+  }
+  button:hover { opacity: 0.85; }
+  button.secondary { background: #3a3a52; }
+  button.copy { background: var(--accent2); color: #1a1a28; }
+  pre.jsonview {
+    background: #14141f;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 12.5px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  .k { color: #7dc4ff; }
+  .s { color: #a5e07a; }
+  .n { color: #f2b56b; }
+  .b { color: #e08bd0; }
+  .nul { color: #9a97b5; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11.5px;
+    font-weight: bold;
+    margin-left: 6px;
+  }
+  .badge.ok { background: var(--accent2); color: #1a1a28; }
+  .badge.warn { background: var(--warn); color: #1a1a28; }
+  .badge.danger { background: var(--danger); color: #fff; }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent2);
+    color: #1a1a28;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; }
+  .error-box {
+    background: rgba(251,76,47,0.12);
+    border: 1px solid var(--danger);
+    color: #ff9a86;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    margin-top: 8px;
+  }
+  .cheat-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  .cheat-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .cheat-table td:first-child { color: var(--accent); font-family: monospace; white-space: nowrap; }
+  .note { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > div { flex: 1 1 140px; }
+  .parts { font-size: 11px; word-break: break-all; margin-top: 6px; }
+  .parts span.h { color: #f2b56b; }
+  .parts span.p { color: #7dc4ff; }
+  .parts span.sig { color: #e08bd0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>JWTデコーダー＆検証ツール</h1>
+  <p>JWTを貼り付けてHeader/Payloadを確認・期限チェック・HS256署名検証・新規トークン生成ができます。入力内容は一切外部送信せず、ブラウザ内のみで処理します。</p>
+</header>
+
+<div class="layout">
+
+  <!-- デコードパネル -->
+  <div class="panel" style="flex-basis: 100%;">
+    <h2>① JWTを貼り付けてデコード</h2>
+    <textarea id="jwtInput" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
+    <button id="decodeBtn">デコードする</button>
+    <button class="secondary" id="sampleBtn">サンプルを読み込む</button>
+    <span style="font-size:11.5px; color:var(--muted);">（サンプルの署名検証用シークレットは "your-256-bit-secret"）</span>
+    <div id="decodeError"></div>
+    <div id="decodeResultArea" style="display:none;">
+      <div class="parts">
+        <span class="h" id="partHeader"></span>.<span class="p" id="partPayload"></span>.<span class="sig" id="partSig"></span>
+      </div>
+      <div class="layout" style="margin-top:12px;">
+        <div class="panel" style="flex:1 1 300px;">
+          <h3>Header <span id="algBadge"></span></h3>
+          <pre class="jsonview" id="headerView"></pre>
+          <button class="copy" data-copy-target="headerView">コピー</button>
+        </div>
+        <div class="panel" style="flex:1 1 300px;">
+          <h3>Payload <span id="expBadge"></span></h3>
+          <pre class="jsonview" id="payloadView"></pre>
+          <button class="copy" data-copy-target="payloadView">コピー</button>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:12px;">
+        <h3>タイムスタンプ系クレーム</h3>
+        <div id="timeClaims" style="font-size:12.5px; line-height:1.8;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 署名検証パネル -->
+  <div class="panel">
+    <h2>② 署名検証（HS256のみ対応）</h2>
+    <label>秘密鍵（Secret）</label>
+    <input type="text" id="verifySecret" placeholder="your-256-bit-secret">
+    <button id="verifyBtn">検証する</button>
+    <div id="verifyResult" style="margin-top:10px; font-size:13px;"></div>
+    <div class="note">
+      デコード対象のアルゴリズムがHS256以外（RS256/ES256など非対称鍵方式）の場合、このツールでは公開鍵検証に対応していません。トークンの改ざん有無を鍵なしで確認することはできない旨ご了承ください。
+    </div>
+  </div>
+
+  <!-- 新規JWT生成パネル -->
+  <div class="panel">
+    <h2>③ 新規JWTを生成（HS256）</h2>
+    <label>Header（JSON）</label>
+    <textarea id="genHeader">{
+  "alg": "HS256",
+  "typ": "JWT"
+}</textarea>
+    <label>Payload（JSON）</label>
+    <textarea id="genPayload">{
+  "sub": "user-001",
+  "name": "Kanato",
+  "iat": 1757548800
+}</textarea>
+    <label>秘密鍵（Secret）</label>
+    <input type="text" id="genSecret" placeholder="your-256-bit-secret">
+    <button id="genBtn">生成する</button>
+    <div id="genError"></div>
+    <div id="genResultArea" style="display:none; margin-top:10px;">
+      <label>生成されたJWT</label>
+      <pre class="jsonview" id="genOutput" style="max-height:120px;"></pre>
+      <button class="copy" data-copy-target="genOutput">コピー</button>
+    </div>
+  </div>
+
+  <!-- クレーム早見表 -->
+  <div class="panel" style="flex-basis: 100%;">
+    <h2>よく使うクレーム早見表</h2>
+    <table class="cheat-table">
+      <tr><td>sub</td><td>Subject。トークンの主体（通常はユーザーID）</td></tr>
+      <tr><td>iss</td><td>Issuer。トークンの発行者</td></tr>
+      <tr><td>aud</td><td>Audience。トークンの受信者・想定利用先</td></tr>
+      <tr><td>exp</td><td>Expiration Time。有効期限（UNIX時間、これを過ぎたら失効）</td></tr>
+      <tr><td>nbf</td><td>Not Before。これより前は無効（UNIX時間）</td></tr>
+      <tr><td>iat</td><td>Issued At。発行時刻（UNIX時間）</td></tr>
+      <tr><td>jti</td><td>JWT ID。トークン固有の識別子</td></tr>
+      <tr><td>alg</td><td>署名アルゴリズム（HS256/RS256/ES256など、Headerに含まれる）</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ---------- ユーティリティ ----------
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 1600);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast('コピーしました');
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('コピーしました');
+    } catch (e) {
+      showToast('コピーに失敗しました');
+    }
+    document.body.removeChild(ta);
+  }
+
+  document.body.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('.copy') : null;
+    if (btn && btn.dataset.copyTarget) {
+      var el = document.getElementById(btn.dataset.copyTarget);
+      if (el) copyText(el.textContent);
+    }
+  });
+
+  // Base64URL <-> 文字列 / バイト列
+  function base64UrlToBytes(b64url) {
+    var b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  function bytesToBase64Url(bytes) {
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    var b64 = btoa(bin);
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function utf8Encode(str) {
+    return new TextEncoder().encode(str);
+  }
+  function utf8Decode(bytes) {
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  function base64UrlToUtf8(b64url) {
+    return utf8Decode(base64UrlToBytes(b64url));
+  }
+  function utf8ToBase64Url(str) {
+    return bytesToBase64Url(utf8Encode(str));
+  }
+
+  // JSON文字列を色分けしてHTML化（textContentへの直代入を避けるためinnerHTML、エスケープ関数を通す）
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function syntaxHighlight(jsonObj) {
+    var json = JSON.stringify(jsonObj, null, 2);
+    json = escapeHtml(json);
+    json = json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false)\b|\bnull\b|-?\d+\.?\d*(e[+-]?\d+)?)/g,
+      function (match) {
+        var cls = 'n';
+        if (/^"/.test(match)) {
+          cls = /:$/.test(match) ? 'k' : 's';
+        } else if (/true|false/.test(match)) {
+          cls = 'b';
+        } else if (/null/.test(match)) {
+          cls = 'nul';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+      });
+    return json;
+  }
+
+  function fmtTime(unixSec) {
+    if (typeof unixSec !== 'number' || isNaN(unixSec)) return null;
+    var d = new Date(unixSec * 1000);
+    if (isNaN(d.getTime())) return null;
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+      pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
+  // ---------- デコード ----------
+  var currentHeaderObj = null;
+  var currentPayloadObj = null;
+  var currentParts = null;
+
+  document.getElementById('decodeBtn').addEventListener('click', function () {
+    decodeJwt(document.getElementById('jwtInput').value.trim());
+  });
+
+  document.getElementById('sampleBtn').addEventListener('click', function () {
+    // "secret" で署名されたサンプルHS256トークン（alg:HS256, typ:JWT / sub:1234567890,name:John Doe,iat:1516239022）
+    var sample = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+    document.getElementById('jwtInput').value = sample;
+    decodeJwt(sample);
+  });
+
+  function decodeJwt(token) {
+    var errEl = document.getElementById('decodeError');
+    var resultArea = document.getElementById('decodeResultArea');
+    errEl.innerHTML = '';
+    resultArea.style.display = 'none';
+    currentHeaderObj = null;
+    currentPayloadObj = null;
+    currentParts = null;
+
+    if (!token) {
+      errEl.innerHTML = '<div class="error-box">JWTを貼り付けてください</div>';
+      return;
+    }
+    var parts = token.split('.');
+    if (parts.length !== 3) {
+      errEl.innerHTML = '<div class="error-box">JWTの形式が不正です（. で区切られた3パートが必要）。パート数: ' + parts.length + '</div>';
+      return;
+    }
+    var headerObj, payloadObj;
+    try {
+      headerObj = JSON.parse(base64UrlToUtf8(parts[0]));
+    } catch (e) {
+      errEl.innerHTML = '<div class="error-box">Headerのデコードに失敗しました: ' + escapeHtml(String(e.message || e)) + '</div>';
+      return;
+    }
+    try {
+      payloadObj = JSON.parse(base64UrlToUtf8(parts[1]));
+    } catch (e) {
+      errEl.innerHTML = '<div class="error-box">Payloadのデコードに失敗しました: ' + escapeHtml(String(e.message || e)) + '</div>';
+      return;
+    }
+
+    currentHeaderObj = headerObj;
+    currentPayloadObj = payloadObj;
+    currentParts = parts;
+
+    document.getElementById('headerView').innerHTML = syntaxHighlight(headerObj);
+    document.getElementById('payloadView').innerHTML = syntaxHighlight(payloadObj);
+
+    document.getElementById('partHeader').textContent = parts[0];
+    document.getElementById('partPayload').textContent = parts[1];
+    document.getElementById('partSig').textContent = parts[2] || '(署名なし)';
+
+    var algBadge = document.getElementById('algBadge');
+    if (headerObj && headerObj.alg) {
+      algBadge.textContent = headerObj.alg;
+      algBadge.className = 'badge ' + (headerObj.alg === 'HS256' ? 'ok' : 'warn');
+    } else {
+      algBadge.textContent = 'alg不明';
+      algBadge.className = 'badge danger';
+    }
+
+    // タイムスタンプ系クレーム
+    var now = Math.floor(Date.now() / 1000);
+    var timeHtml = '';
+    var expBadge = document.getElementById('expBadge');
+    expBadge.textContent = '';
+    expBadge.className = 'badge';
+
+    ['iat', 'nbf', 'exp'].forEach(function (key) {
+      if (payloadObj && typeof payloadObj[key] !== 'undefined') {
+        var t = fmtTime(payloadObj[key]);
+        var label = { iat: '発行時刻 (iat)', nbf: '有効開始 (nbf)', exp: '有効期限 (exp)' }[key];
+        var extra = '';
+        if (key === 'exp') {
+          if (payloadObj[key] < now) {
+            extra = ' <span class="badge danger">期限切れ</span>';
+            expBadge.textContent = '期限切れ';
+            expBadge.className = 'badge danger';
+          } else {
+            extra = ' <span class="badge ok">有効</span>';
+            expBadge.textContent = '有効';
+            expBadge.className = 'badge ok';
+          }
+        }
+        if (key === 'nbf' && payloadObj[key] > now) {
+          extra += ' <span class="badge warn">まだ有効開始前</span>';
+        }
+        timeHtml += '<div>' + label + ': ' + (t || '(不正な値: ' + escapeHtml(String(payloadObj[key])) + ')') + extra + '</div>';
+      }
+    });
+    if (!timeHtml) {
+      timeHtml = '<div style="color:var(--muted);">exp / iat / nbf クレームは含まれていません</div>';
+    }
+    document.getElementById('timeClaims').innerHTML = timeHtml;
+
+    resultArea.style.display = 'block';
+    document.getElementById('verifyResult').innerHTML = '';
+  }
+
+  // ---------- 署名検証（HS256） ----------
+  document.getElementById('verifyBtn').addEventListener('click', function () {
+    var resEl = document.getElementById('verifyResult');
+    resEl.innerHTML = '';
+    if (!currentParts || !currentHeaderObj) {
+      resEl.innerHTML = '<div class="error-box">先に①でJWTをデコードしてください</div>';
+      return;
+    }
+    if (currentHeaderObj.alg !== 'HS256') {
+      resEl.innerHTML = '<div class="error-box">このトークンのアルゴリズムは ' + escapeHtml(String(currentHeaderObj.alg || '不明')) + ' です。HS256以外は検証できません</div>';
+      return;
+    }
+    var secret = document.getElementById('verifySecret').value;
+    if (!secret) {
+      resEl.innerHTML = '<div class="error-box">秘密鍵を入力してください</div>';
+      return;
+    }
+    var signingInput = currentParts[0] + '.' + currentParts[1];
+    var providedSig = currentParts[2] || '';
+
+    hmacSha256(secret, signingInput).then(function (computedSigBytes) {
+      var computedSig = bytesToBase64Url(computedSigBytes);
+      if (computedSig === providedSig) {
+        resEl.innerHTML = '<span class="badge ok">署名OK</span> 秘密鍵とトークンの署名が一致しました';
+      } else {
+        resEl.innerHTML = '<span class="badge danger">不一致</span> 署名が一致しません（鍵違いまたは改ざんの可能性）';
+      }
+    }).catch(function (e) {
+      resEl.innerHTML = '<div class="error-box">検証中にエラーが発生しました: ' + escapeHtml(String(e.message || e)) + '</div>';
+    });
+  });
+
+  function hmacSha256(secret, message) {
+    var keyData = utf8Encode(secret);
+    var msgData = utf8Encode(message);
+    return crypto.subtle.importKey(
+      'raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    ).then(function (key) {
+      return crypto.subtle.sign('HMAC', key, msgData);
+    }).then(function (sigBuffer) {
+      return new Uint8Array(sigBuffer);
+    });
+  }
+
+  // ---------- 新規JWT生成 ----------
+  document.getElementById('genBtn').addEventListener('click', function () {
+    var errEl = document.getElementById('genError');
+    var resultArea = document.getElementById('genResultArea');
+    errEl.innerHTML = '';
+    resultArea.style.display = 'none';
+
+    var headerText = document.getElementById('genHeader').value.trim();
+    var payloadText = document.getElementById('genPayload').value.trim();
+    var secret = document.getElementById('genSecret').value;
+
+    if (!headerText || !payloadText) {
+      errEl.innerHTML = '<div class="error-box">HeaderとPayloadを入力してください</div>';
+      return;
+    }
+    var headerObj, payloadObj;
+    try {
+      headerObj = JSON.parse(headerText);
+    } catch (e) {
+      errEl.innerHTML = '<div class="error-box">HeaderのJSONが不正です: ' + escapeHtml(String(e.message || e)) + '</div>';
+      return;
+    }
+    try {
+      payloadObj = JSON.parse(payloadText);
+    } catch (e) {
+      errEl.innerHTML = '<div class="error-box">PayloadのJSONが不正です: ' + escapeHtml(String(e.message || e)) + '</div>';
+      return;
+    }
+    if (!secret) {
+      errEl.innerHTML = '<div class="error-box">秘密鍵を入力してください</div>';
+      return;
+    }
+    if (headerObj.alg && headerObj.alg !== 'HS256') {
+      errEl.innerHTML = '<div class="error-box">このツールで生成できるのはHS256のみです（Headerのalgを"HS256"にしてください）</div>';
+      return;
+    }
+    headerObj.alg = 'HS256';
+    if (!headerObj.typ) headerObj.typ = 'JWT';
+
+    var headerB64 = utf8ToBase64Url(JSON.stringify(headerObj));
+    var payloadB64 = utf8ToBase64Url(JSON.stringify(payloadObj));
+    var signingInput = headerB64 + '.' + payloadB64;
+
+    hmacSha256(secret, signingInput).then(function (sigBytes) {
+      var sigB64 = bytesToBase64Url(sigBytes);
+      var token = signingInput + '.' + sigB64;
+      document.getElementById('genOutput').textContent = token;
+      resultArea.style.display = 'block';
+    }).catch(function (e) {
+      errEl.innerHTML = '<div class="error-box">生成中にエラーが発生しました: ' + escapeHtml(String(e.message || e)) + '</div>';
+    });
+  });
+</script>
+
+</body>
+</html>
