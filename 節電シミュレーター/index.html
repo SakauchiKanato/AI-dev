@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>節電シミュレーター</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #f2b134;
+    --accent2: #e8593f;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 20px;
+  }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+  .layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 320px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], input[type=number] {
+    width: 100%;
+    padding: 8px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  .row2 { display: flex; gap: 8px; }
+  .row2 > div { flex: 1; }
+  button {
+    background: var(--accent);
+    color: #1e1e2e;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  button:hover { opacity: 0.9; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: normal; font-size: 12px; }
+  .rank-top td:first-child { color: var(--accent2); font-weight: bold; }
+  .del-btn { background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 14px; }
+  .del-btn:hover { color: var(--accent2); }
+  .summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .summary .box {
+    flex: 1 1 120px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+  }
+  .summary .box .val { font-size: 18px; font-weight: bold; color: var(--accent); }
+  .summary .box .lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .goal-diff { font-size: 13px; margin-top: 6px; }
+  .goal-diff.ok { color: #6fcf97; }
+  .goal-diff.ng { color: var(--accent2); }
+  .sim-item { border-bottom: 1px solid var(--border); padding: 8px 0; }
+  .sim-item .sname { font-size: 13px; margin-bottom: 4px; }
+  .sim-item .sctrl { display: flex; align-items: center; gap: 8px; }
+  .sim-item input[type=range] { flex: 1; }
+  .sim-item .sresult { font-size: 12px; color: var(--muted); min-width: 90px; text-align: right; }
+  textarea {
+    width: 100%;
+    height: 90px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 8px;
+    resize: vertical;
+  }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #1e1e2e;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .toast.show { opacity: 1; }
+  .empty-note { color: var(--muted); font-size: 12px; padding: 8px 0; }
+  .btn-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ 節電シミュレーター</h1>
+  <p>家電の消費電力から電気代を試算し、どれを減らせば節約になるか見える化するツール</p>
+</header>
+
+<div class="layout">
+
+  <!-- 設定パネル -->
+  <div class="panel" style="flex-basis:100%;">
+    <h2>設定</h2>
+    <div class="row2">
+      <div>
+        <label for="unitPrice">電力単価（円/kWh）</label>
+        <input type="number" id="unitPrice" value="31" min="0" step="0.1">
+      </div>
+      <div>
+        <label for="goalAmount">目標節約額（円/月）</label>
+        <input type="number" id="goalAmount" value="1000" min="0" step="10">
+      </div>
+    </div>
+  </div>
+
+  <!-- 家電登録パネル -->
+  <div class="panel">
+    <h2>家電を登録</h2>
+    <label for="applianceName">家電の名前</label>
+    <input type="text" id="applianceName" placeholder="例: エアコン">
+    <div class="row2">
+      <div>
+        <label for="wattage">消費電力（W）</label>
+        <input type="number" id="wattage" placeholder="例: 800" min="0" step="1">
+      </div>
+      <div>
+        <label for="hoursPerDay">1日の使用時間（h）</label>
+        <input type="number" id="hoursPerDay" placeholder="例: 6" min="0" max="24" step="0.5">
+      </div>
+    </div>
+    <label for="quantity">台数</label>
+    <input type="number" id="quantity" value="1" min="1" step="1">
+    <button id="addBtn">追加する</button>
+    <p id="addError" style="color:var(--accent2); font-size:12px; margin-top:6px;"></p>
+  </div>
+
+  <!-- ランキングパネル -->
+  <div class="panel" style="flex-basis:100%;">
+    <h2>電気代ランキング（月間概算）</h2>
+    <div class="summary">
+      <div class="box"><div class="val" id="totalKwh">0</div><div class="lbl">合計 kWh/月</div></div>
+      <div class="box"><div class="val" id="totalCost">0円</div><div class="lbl">合計 電気代/月</div></div>
+      <div class="box"><div class="val" id="applianceCount">0</div><div class="lbl">登録家電数</div></div>
+    </div>
+    <table>
+      <thead>
+        <tr><th>#</th><th>家電名</th><th>台数</th><th>1日使用</th><th>月間kWh</th><th>月間電気代</th><th></th></tr>
+      </thead>
+      <tbody id="rankBody">
+        <tr><td colspan="7" class="empty-note">まだ家電が登録されていません</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- シミュレーションパネル -->
+  <div class="panel" style="flex-basis:100%;">
+    <h2>節電シミュレーション（使用時間を減らしたら？）</h2>
+    <div id="simList"><p class="empty-note">家電を登録するとここでシミュレーションできます</p></div>
+    <div class="summary" style="margin-top:12px;">
+      <div class="box"><div class="val" id="simTotalSaving">0円</div><div class="lbl">削減額合計/月</div></div>
+    </div>
+    <p class="goal-diff" id="goalDiff"></p>
+  </div>
+
+  <!-- エクスポート/インポート -->
+  <div class="panel" style="flex-basis:100%;">
+    <h2>データの保存・読み込み</h2>
+    <p style="font-size:12px; color:var(--muted); margin-top:0;">このアプリはブラウザに保存しません。閉じる前にエクスポートし、次回開いたら貼り付けてインポートしてください。</p>
+    <div class="btn-row">
+      <button id="exportBtn" class="secondary">エクスポート</button>
+      <button id="importBtn" class="secondary">インポート</button>
+      <button id="copyBtn" class="secondary">コピー</button>
+    </div>
+    <textarea id="dataArea" placeholder="エクスポートした内容がここに表示されます。インポート時はここに貼り付けてから「インポート」を押してください。"></textarea>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let appliances = []; // { id, name, watt, hours, qty, reduceHours }
+  let nextId = 1;
+
+  const unitPriceEl = document.getElementById('unitPrice');
+  const goalAmountEl = document.getElementById('goalAmount');
+  const nameEl = document.getElementById('applianceName');
+  const wattEl = document.getElementById('wattage');
+  const hoursEl = document.getElementById('hoursPerDay');
+  const qtyEl = document.getElementById('quantity');
+  const addBtn = document.getElementById('addBtn');
+  const addError = document.getElementById('addError');
+  const rankBody = document.getElementById('rankBody');
+  const totalKwhEl = document.getElementById('totalKwh');
+  const totalCostEl = document.getElementById('totalCost');
+  const applianceCountEl = document.getElementById('applianceCount');
+  const simList = document.getElementById('simList');
+  const simTotalSavingEl = document.getElementById('simTotalSaving');
+  const goalDiffEl = document.getElementById('goalDiff');
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+  const copyBtn = document.getElementById('copyBtn');
+  const dataArea = document.getElementById('dataArea');
+  const toast = document.getElementById('toast');
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1800);
+  }
+
+  function getUnitPrice() {
+    const v = parseFloat(unitPriceEl.value);
+    return (isNaN(v) || v < 0) ? 0 : v;
+  }
+
+  function monthlyKwh(a) {
+    // 消費電力(W) * 使用時間(h) * 台数 * 30日 / 1000
+    return (a.watt * a.hours * a.qty * 30) / 1000;
+  }
+
+  function monthlyCost(a) {
+    return monthlyKwh(a) * getUnitPrice();
+  }
+
+  function fmt(n) {
+    if (!isFinite(n)) return '0';
+    return Math.round(n * 10) / 10;
+  }
+  function fmtYen(n) {
+    if (!isFinite(n)) return '0円';
+    return Math.round(n).toLocaleString('ja-JP') + '円';
+  }
+
+  function addAppliance() {
+    const name = nameEl.value.trim();
+    const watt = parseFloat(wattEl.value);
+    const hours = parseFloat(hoursEl.value);
+    const qty = parseInt(qtyEl.value, 10);
+
+    if (!name) {
+      addError.textContent = '家電の名前を入力してください';
+      return;
+    }
+    if (isNaN(watt) || watt < 0) {
+      addError.textContent = '消費電力は0以上の数値で入力してください';
+      return;
+    }
+    if (isNaN(hours) || hours < 0 || hours > 24) {
+      addError.textContent = '1日の使用時間は0〜24の数値で入力してください';
+      return;
+    }
+    if (isNaN(qty) || qty < 1) {
+      addError.textContent = '台数は1以上の整数で入力してください';
+      return;
+    }
+    addError.textContent = '';
+
+    appliances.push({
+      id: nextId++,
+      name: name.slice(0, 40),
+      watt: watt,
+      hours: hours,
+      qty: qty,
+      reduceHours: 0
+    });
+
+    nameEl.value = '';
+    wattEl.value = '';
+    hoursEl.value = '';
+    qtyEl.value = '1';
+    render();
+    showToast('追加しました');
+  }
+
+  function removeAppliance(id) {
+    appliances = appliances.filter(a => a.id !== id);
+    render();
+  }
+
+  function render() {
+    renderRanking();
+    renderSimulation();
+  }
+
+  function renderRanking() {
+    if (appliances.length === 0) {
+      rankBody.innerHTML = '<tr><td colspan="7" class="empty-note">まだ家電が登録されていません</td></tr>';
+      totalKwhEl.textContent = '0';
+      totalCostEl.textContent = '0円';
+      applianceCountEl.textContent = '0';
+      return;
+    }
+
+    const sorted = [...appliances].sort((a, b) => monthlyCost(b) - monthlyCost(a));
+    let totalKwh = 0, totalCost = 0;
+
+    rankBody.innerHTML = sorted.map((a, i) => {
+      const kwh = monthlyKwh(a);
+      const cost = monthlyCost(a);
+      totalKwh += kwh;
+      totalCost += cost;
+      const rankClass = i === 0 ? 'rank-top' : '';
+      return `<tr class="${rankClass}">
+        <td>${i + 1}</td>
+        <td>${escapeHtml(a.name)}</td>
+        <td>${a.qty}台</td>
+        <td>${fmt(a.hours)}h</td>
+        <td>${fmt(kwh)}</td>
+        <td>${fmtYen(cost)}</td>
+        <td><button class="del-btn" data-id="${a.id}" title="削除">✕</button></td>
+      </tr>`;
+    }).join('');
+
+    rankBody.querySelectorAll('.del-btn').forEach(btn => {
+      btn.addEventListener('click', () => removeAppliance(parseInt(btn.dataset.id, 10)));
+    });
+
+    totalKwhEl.textContent = fmt(totalKwh);
+    totalCostEl.textContent = fmtYen(totalCost);
+    applianceCountEl.textContent = appliances.length;
+  }
+
+  function renderSimulation() {
+    if (appliances.length === 0) {
+      simList.innerHTML = '<p class="empty-note">家電を登録するとここでシミュレーションできます</p>';
+      simTotalSavingEl.textContent = '0円';
+      goalDiffEl.textContent = '';
+      return;
+    }
+
+    simList.innerHTML = appliances.map(a => {
+      const maxReduce = a.hours;
+      return `<div class="sim-item">
+        <div class="sname">${escapeHtml(a.name)}（現在 ${fmt(a.hours)}h/日）</div>
+        <div class="sctrl">
+          <input type="range" min="0" max="${maxReduce}" step="0.5" value="${a.reduceHours}" data-id="${a.id}" class="reduce-slider">
+          <span class="sresult" data-result-id="${a.id}"></span>
+        </div>
+      </div>`;
+    }).join('');
+
+    simList.querySelectorAll('.reduce-slider').forEach(slider => {
+      slider.addEventListener('input', () => {
+        const id = parseInt(slider.dataset.id, 10);
+        const a = appliances.find(x => x.id === id);
+        if (a) {
+          a.reduceHours = parseFloat(slider.value);
+          updateSimResults();
+        }
+      });
+    });
+
+    updateSimResults();
+  }
+
+  function updateSimResults() {
+    let totalSaving = 0;
+    appliances.forEach(a => {
+      const before = monthlyCost(a);
+      const reducedHours = Math.max(0, a.hours - a.reduceHours);
+      const afterKwh = (a.watt * reducedHours * a.qty * 30) / 1000;
+      const after = afterKwh * getUnitPrice();
+      const saving = before - after;
+      totalSaving += saving;
+      const resEl = simList.querySelector(`[data-result-id="${a.id}"]`);
+      if (resEl) {
+        resEl.textContent = a.reduceHours > 0 ? `-${fmt(a.reduceHours)}h → ${fmtYen(saving)}削減` : '削減なし';
+      }
+    });
+
+    simTotalSavingEl.textContent = fmtYen(totalSaving);
+
+    const goal = parseFloat(goalAmountEl.value) || 0;
+    if (goal <= 0) {
+      goalDiffEl.textContent = '';
+    } else if (totalSaving >= goal) {
+      goalDiffEl.textContent = `目標達成！ 目標${fmtYen(goal)}に対し ${fmtYen(totalSaving - goal)} 上回っています`;
+      goalDiffEl.className = 'goal-diff ok';
+    } else {
+      goalDiffEl.textContent = `目標まであと ${fmtYen(goal - totalSaving)} 足りません`;
+      goalDiffEl.className = 'goal-diff ng';
+    }
+  }
+
+  function exportData() {
+    const payload = {
+      unitPrice: getUnitPrice(),
+      goalAmount: parseFloat(goalAmountEl.value) || 0,
+      appliances: appliances.map(a => ({ name: a.name, watt: a.watt, hours: a.hours, qty: a.qty, reduceHours: a.reduceHours }))
+    };
+    dataArea.value = JSON.stringify(payload, null, 2);
+    showToast('エクスポートしました');
+  }
+
+  function importData() {
+    const raw = dataArea.value.trim();
+    if (!raw) {
+      showToast('貼り付け欄が空です');
+      return;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      showToast('JSONの形式が正しくありません');
+      return;
+    }
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.appliances)) {
+      showToast('データの形式が正しくありません');
+      return;
+    }
+
+    if (typeof parsed.unitPrice === 'number' && parsed.unitPrice >= 0) {
+      unitPriceEl.value = parsed.unitPrice;
+    }
+    if (typeof parsed.goalAmount === 'number' && parsed.goalAmount >= 0) {
+      goalAmountEl.value = parsed.goalAmount;
+    }
+
+    appliances = parsed.appliances
+      .filter(a => a && typeof a.name === 'string' && a.name.trim() &&
+        typeof a.watt === 'number' && a.watt >= 0 &&
+        typeof a.hours === 'number' && a.hours >= 0 && a.hours <= 24 &&
+        typeof a.qty === 'number' && a.qty >= 1)
+      .map(a => ({
+        id: nextId++,
+        name: a.name.trim().slice(0, 40),
+        watt: a.watt,
+        hours: a.hours,
+        qty: Math.round(a.qty),
+        reduceHours: (typeof a.reduceHours === 'number' && a.reduceHours >= 0) ? a.reduceHours : 0
+      }));
+
+    render();
+    showToast('インポートしました');
+  }
+
+  function copyToClipboard() {
+    if (!dataArea.value) {
+      exportData();
+    }
+    const text = dataArea.value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('コピーしました');
+      }).catch(() => {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('コピーしました');
+    } catch (e) {
+      showToast('コピーに失敗しました');
+    }
+    document.body.removeChild(ta);
+  }
+
+  addBtn.addEventListener('click', addAppliance);
+  unitPriceEl.addEventListener('input', render);
+  goalAmountEl.addEventListener('input', updateSimResults);
+  exportBtn.addEventListener('click', exportData);
+  importBtn.addEventListener('click', importData);
+  copyBtn.addEventListener('click', copyToClipboard);
+
+  render();
+</script>
+
+</body>
+</html>
