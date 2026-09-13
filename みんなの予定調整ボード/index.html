@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>みんなの予定調整ボード</title>
+<style>
+  :root {
+    --bg:#1e1e2e; --panel:#262638; --accent:#3fb6a8; --text:#e8e6f2; --muted:#9a97b5; --border:#3a3a52;
+    --ok:#3fb6a8; --maybe:#d9b84a; --ng:#e05a5a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    margin: 0; padding: 20px;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tab-btn {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 16px; cursor: pointer; font-size: 14px;
+  }
+  .tab-btn.active { background: var(--accent); color: #12211f; font-weight: bold; border-color: var(--accent); }
+
+  .layout { display: flex; flex-wrap: wrap; gap: 20px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; flex: 1 1 380px; min-width: 280px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 10px; }
+  .panel h3 { font-size: 13px; margin: 16px 0 6px; color: var(--muted); }
+  label { display: block; font-size: 13px; margin: 10px 0 4px; color: var(--muted); }
+  input[type=text], textarea, input[type=number] {
+    width: 100%; background: #1a1a28; color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px; font-size: 14px; font-family: inherit; resize: vertical;
+  }
+  textarea { min-height: 90px; }
+  button {
+    background: var(--accent); color: #12211f; border: none; border-radius: 6px;
+    padding: 9px 14px; font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 10px;
+  }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  button:hover { opacity: 0.9; }
+  .msg { font-size: 13px; margin-top: 8px; padding: 8px; border-radius: 6px; }
+  .msg.error { background: #3a1f1f; color: #f2a6a6; border: 1px solid var(--ng); }
+  .msg.success { background: #1f3a2f; color: #a6f2d0; border: 1px solid var(--accent); }
+  .hidden { display: none !important; }
+
+  .slot-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .slot-row:last-child { border-bottom: none; }
+  .slot-label { flex: 1 1 180px; font-size: 14px; }
+  .choice-group { display: flex; gap: 6px; }
+  .choice-btn {
+    background: #1a1a28; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; margin-top: 0;
+  }
+  .choice-btn[data-v="ok"].selected { background: var(--ok); color: #12211f; border-color: var(--ok); }
+  .choice-btn[data-v="maybe"].selected { background: var(--maybe); color: #2a2410; border-color: var(--maybe); }
+  .choice-btn[data-v="ng"].selected { background: var(--ng); color: #2a1010; border-color: var(--ng); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border: 1px solid var(--border); padding: 6px 8px; text-align: center; }
+  th { background: #1a1a28; color: var(--muted); }
+  td.slotname, th.slotname { text-align: left; }
+  tr.best td { background: #1f3a2f; }
+  .table-wrap { overflow-x: auto; }
+  .mark-ok { color: var(--ok); font-weight: bold; }
+  .mark-maybe { color: var(--maybe); font-weight: bold; }
+  .mark-ng { color: var(--ng); }
+
+  @media (max-width: 480px) {
+    .layout { flex-direction: column; }
+    .slot-label { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>みんなの予定調整ボード</h1>
+  <p>候補日時から「コード」を作ってLINE等でやり取りするだけで、日程調整ができます（外部送信・サーバー保存はしません）</p>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="create">①イベント作成（主催者）</button>
+  <button class="tab-btn" data-tab="respond">②回答する（参加者）</button>
+  <button class="tab-btn" data-tab="tally">③集計する（主催者）</button>
+</div>
+
+<!-- タブ1: イベント作成 -->
+<div class="tab-content" id="tab-create">
+  <div class="layout">
+    <div class="panel">
+      <h2>イベントを作る</h2>
+      <label for="eventName">イベント名</label>
+      <input type="text" id="eventName" placeholder="例: 9月の飲み会">
+      <label for="eventSlots">候補日時（1行に1件ずつ入力）</label>
+      <textarea id="eventSlots" placeholder="9/20(土) 18:00〜&#10;9/21(日) 14:00〜&#10;9/23(火) 19:00〜"></textarea>
+      <button id="btnCreateEvent">イベントコードを作成</button>
+      <div id="createMsg"></div>
+      <div id="createResultWrap" class="hidden">
+        <h3>参加者に送るイベントコード（これをコピーしてLINE等で共有してください）</h3>
+        <textarea id="eventCode" readonly></textarea>
+        <button class="secondary" id="btnCopyEventCode">コピーする</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- タブ2: 回答する -->
+<div class="tab-content hidden" id="tab-respond">
+  <div class="layout">
+    <div class="panel">
+      <h2>イベントコードを読み込む</h2>
+      <label for="pasteEventCode">主催者から届いたイベントコードを貼り付け</label>
+      <textarea id="pasteEventCode"></textarea>
+      <button id="btnLoadEvent">読み込む</button>
+      <div id="loadMsg"></div>
+    </div>
+    <div class="panel hidden" id="respondPanel">
+      <h2 id="respondEventName">-</h2>
+      <label for="respondName">あなたの名前</label>
+      <input type="text" id="respondName" placeholder="例: たなか">
+      <h3>各候補日時に回答してください</h3>
+      <div id="slotChoices"></div>
+      <button id="btnCreateResponse">回答コードを作成</button>
+      <div id="respondMsg"></div>
+      <div id="respondResultWrap" class="hidden">
+        <h3>主催者に送る回答コード（これをコピーしてLINE等で共有してください）</h3>
+        <textarea id="responseCode" readonly></textarea>
+        <button class="secondary" id="btnCopyResponseCode">コピーする</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- タブ3: 集計する -->
+<div class="tab-content hidden" id="tab-tally">
+  <div class="layout">
+    <div class="panel">
+      <h2>回答コードをまとめて集計</h2>
+      <label for="pasteEventCode2">イベントコードを貼り付け</label>
+      <textarea id="pasteEventCode2"></textarea>
+      <label for="pasteResponses">参加者から届いた回答コードを貼り付け（1行に1人分）</label>
+      <textarea id="pasteResponses" style="min-height:140px;"></textarea>
+      <button id="btnTally">集計する</button>
+      <div id="tallyMsg"></div>
+    </div>
+    <div class="panel hidden" id="tallyResultPanel" style="flex:1 1 100%;">
+      <h2 id="tallyEventName">-</h2>
+      <div class="table-wrap">
+        <table id="tallyTable"></table>
+      </div>
+      <button class="secondary" id="btnCopyTally">結果をコピーする</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- ユーティリティ ----------
+  function esc(str) {
+    var d = document.createElement("div");
+    d.textContent = String(str);
+    return d.innerHTML;
+  }
+
+  function b64encode(obj) {
+    var json = JSON.stringify(obj);
+    return btoa(unescape(encodeURIComponent(json)));
+  }
+
+  function b64decode(str) {
+    var json = decodeURIComponent(escape(atob(str.trim())));
+    return JSON.parse(json);
+  }
+
+  function showMsg(elId, text, type) {
+    var el = document.getElementById(elId);
+    el.innerHTML = "";
+    if (!text) return;
+    var div = document.createElement("div");
+    div.className = "msg " + (type || "error");
+    div.textContent = text;
+    el.appendChild(div);
+  }
+
+  function copyText(text, btn) {
+    function done() {
+      var orig = btn.textContent;
+      btn.textContent = "コピーしました！";
+      setTimeout(function () { btn.textContent = orig; }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text, done); });
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) { /* noop */ }
+    document.body.removeChild(ta);
+  }
+
+  // ---------- タブ切り替え ----------
+  var tabBtns = document.querySelectorAll(".tab-btn");
+  var tabContents = {
+    create: document.getElementById("tab-create"),
+    respond: document.getElementById("tab-respond"),
+    tally: document.getElementById("tab-tally")
+  };
+  for (var i = 0; i < tabBtns.length; i++) {
+    tabBtns[i].addEventListener("click", function () {
+      var key = this.getAttribute("data-tab");
+      for (var k in tabContents) {
+        tabContents[k].classList.add("hidden");
+      }
+      tabContents[key].classList.remove("hidden");
+      for (var j = 0; j < tabBtns.length; j++) tabBtns[j].classList.remove("active");
+      this.classList.add("active");
+    });
+  }
+
+  // ---------- タブ1: イベント作成 ----------
+  document.getElementById("btnCreateEvent").addEventListener("click", function () {
+    var name = document.getElementById("eventName").value.trim();
+    var rawSlots = document.getElementById("eventSlots").value.split("\n");
+    var slots = [];
+    for (var i = 0; i < rawSlots.length; i++) {
+      var s = rawSlots[i].trim();
+      if (s && slots.indexOf(s) === -1) slots.push(s);
+    }
+    document.getElementById("createResultWrap").classList.add("hidden");
+    if (!name) { showMsg("createMsg", "イベント名を入力してください"); return; }
+    if (slots.length === 0) { showMsg("createMsg", "候補日時を1件以上入力してください"); return; }
+    if (slots.length > 30) { showMsg("createMsg", "候補日時は30件までにしてください"); return; }
+
+    var eventObj = { type: "yotei-event", v: 1, name: name, slots: slots };
+    var code = b64encode(eventObj);
+    document.getElementById("eventCode").value = code;
+    document.getElementById("createResultWrap").classList.remove("hidden");
+    showMsg("createMsg", "イベントコードを作成しました。下のコードをコピーして参加者に共有してください。", "success");
+  });
+
+  document.getElementById("btnCopyEventCode").addEventListener("click", function () {
+    copyText(document.getElementById("eventCode").value, this);
+  });
+
+  // ---------- タブ2: 回答する ----------
+  var currentEvent = null;
+
+  document.getElementById("btnLoadEvent").addEventListener("click", function () {
+    var raw = document.getElementById("pasteEventCode").value.trim();
+    document.getElementById("respondPanel").classList.add("hidden");
+    if (!raw) { showMsg("loadMsg", "イベントコードを貼り付けてください"); return; }
+    var obj;
+    try {
+      obj = b64decode(raw);
+    } catch (e) {
+      showMsg("loadMsg", "コードの読み込みに失敗しました。コピーが途中で切れていないか確認してください。");
+      return;
+    }
+    if (!obj || obj.type !== "yotei-event" || !Array.isArray(obj.slots) || obj.slots.length === 0) {
+      showMsg("loadMsg", "このコードはイベントコードとして認識できませんでした");
+      return;
+    }
+    currentEvent = obj;
+    document.getElementById("respondEventName").textContent = obj.name;
+    var wrap = document.getElementById("slotChoices");
+    wrap.innerHTML = "";
+    for (var i = 0; i < obj.slots.length; i++) {
+      (function (slot, idx) {
+        var row = document.createElement("div");
+        row.className = "slot-row";
+        var label = document.createElement("div");
+        label.className = "slot-label";
+        label.textContent = slot;
+        var group = document.createElement("div");
+        group.className = "choice-group";
+        group.setAttribute("data-idx", idx);
+        var choices = [["ok", "◯"], ["maybe", "△"], ["ng", "×"]];
+        choices.forEach(function (c) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "choice-btn";
+          b.setAttribute("data-v", c[0]);
+          b.textContent = c[1];
+          b.addEventListener("click", function () {
+            var siblings = group.querySelectorAll(".choice-btn");
+            for (var s = 0; s < siblings.length; s++) siblings[s].classList.remove("selected");
+            b.classList.add("selected");
+          });
+          group.appendChild(b);
+        });
+        row.appendChild(label);
+        row.appendChild(group);
+        wrap.appendChild(row);
+      })(obj.slots[i], i);
+    }
+    document.getElementById("respondPanel").classList.remove("hidden");
+    document.getElementById("respondResultWrap").classList.add("hidden");
+    showMsg("loadMsg", "候補日時を読み込みました。名前を入力し、各候補に回答してください。", "success");
+  });
+
+  document.getElementById("btnCreateResponse").addEventListener("click", function () {
+    if (!currentEvent) { showMsg("respondMsg", "先にイベントコードを読み込んでください"); return; }
+    var name = document.getElementById("respondName").value.trim();
+    if (!name) { showMsg("respondMsg", "名前を入力してください"); return; }
+
+    var groups = document.querySelectorAll("#slotChoices .choice-group");
+    var answers = [];
+    var unanswered = 0;
+    for (var i = 0; i < groups.length; i++) {
+      var selected = groups[i].querySelector(".choice-btn.selected");
+      if (!selected) { unanswered++; answers.push("maybe"); }
+      else { answers.push(selected.getAttribute("data-v")); }
+    }
+    if (unanswered > 0) {
+      showMsg("respondMsg", "未回答の候補が" + unanswered + "件あります。未回答は「△」として扱われます。", "success");
+    }
+
+    var responseObj = { type: "yotei-response", v: 1, eventName: currentEvent.name, name: name, answers: answers };
+    var code = b64encode(responseObj);
+    document.getElementById("responseCode").value = code;
+    document.getElementById("respondResultWrap").classList.remove("hidden");
+    if (unanswered === 0) {
+      showMsg("respondMsg", "回答コードを作成しました。下のコードをコピーして主催者に送ってください。", "success");
+    }
+  });
+
+  document.getElementById("btnCopyResponseCode").addEventListener("click", function () {
+    copyText(document.getElementById("responseCode").value, this);
+  });
+
+  // ---------- タブ3: 集計する ----------
+  document.getElementById("btnTally").addEventListener("click", function () {
+    document.getElementById("tallyResultPanel").classList.add("hidden");
+    var eventRaw = document.getElementById("pasteEventCode2").value.trim();
+    if (!eventRaw) { showMsg("tallyMsg", "イベントコードを貼り付けてください"); return; }
+    var eventObj;
+    try {
+      eventObj = b64decode(eventRaw);
+    } catch (e) {
+      showMsg("tallyMsg", "イベントコードの読み込みに失敗しました");
+      return;
+    }
+    if (!eventObj || eventObj.type !== "yotei-event" || !Array.isArray(eventObj.slots)) {
+      showMsg("tallyMsg", "これはイベントコードとして認識できませんでした");
+      return;
+    }
+
+    var lines = document.getElementById("pasteResponses").value.split("\n");
+    var responses = [];
+    var skipped = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      var respObj;
+      try {
+        respObj = b64decode(line);
+      } catch (e) {
+        skipped++;
+        continue;
+      }
+      if (!respObj || respObj.type !== "yotei-response" || !Array.isArray(respObj.answers) || respObj.answers.length !== eventObj.slots.length) {
+        skipped++;
+        continue;
+      }
+      responses.push(respObj);
+    }
+
+    if (responses.length === 0) {
+      showMsg("tallyMsg", "有効な回答コードが見つかりませんでした（候補日時の数が一致しているか確認してください）");
+      return;
+    }
+
+    // スコア計算: slot毎に合計
+    var scoreMap = { ok: 2, maybe: 1, ng: 0 };
+    var slotScores = eventObj.slots.map(function () { return 0; });
+    for (var r = 0; r < responses.length; r++) {
+      for (var s = 0; s < eventObj.slots.length; s++) {
+        slotScores[s] += scoreMap[responses[r].answers[s]] || 0;
+      }
+    }
+    var maxScore = Math.max.apply(null, slotScores);
+
+    // テーブル構築
+    var table = document.getElementById("tallyTable");
+    table.innerHTML = "";
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    headRow.innerHTML = "<th class='slotname'>候補日時</th>" +
+      responses.map(function (r) { return "<th>" + esc(r.name) + "</th>"; }).join("") +
+      "<th>スコア</th>";
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    var order = eventObj.slots.map(function (_, idx) { return idx; });
+    order.sort(function (a, b) { return slotScores[b] - slotScores[a]; });
+
+    var markText = { ok: "<span class='mark-ok'>◯</span>", maybe: "<span class='mark-maybe'>△</span>", ng: "<span class='mark-ng'>×</span>" };
+
+    order.forEach(function (idx) {
+      var tr = document.createElement("tr");
+      if (slotScores[idx] === maxScore && maxScore > 0) tr.className = "best";
+      var cells = "<td class='slotname'>" + esc(eventObj.slots[idx]) + "</td>";
+      responses.forEach(function (r) {
+        cells += "<td>" + (markText[r.answers[idx]] || "-") + "</td>";
+      });
+      cells += "<td><b>" + slotScores[idx] + "</b> / " + (responses.length * 2) + "</td>";
+      tr.innerHTML = cells;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    document.getElementById("tallyEventName").textContent = eventObj.name + "（回答" + responses.length + "件" + (skipped > 0 ? "、無効コード" + skipped + "件を除外" : "") + "）";
+    document.getElementById("tallyResultPanel").classList.remove("hidden");
+    showMsg("tallyMsg", "集計しました。緑色の行が最有力候補です。", "success");
+  });
+
+  document.getElementById("btnCopyTally").addEventListener("click", function () {
+    var table = document.getElementById("tallyTable");
+    var text = document.getElementById("tallyEventName").textContent + "\n";
+    var rows = table.querySelectorAll("tr");
+    for (var i = 0; i < rows.length; i++) {
+      var cells = rows[i].querySelectorAll("th,td");
+      var rowTexts = [];
+      for (var j = 0; j < cells.length; j++) rowTexts.push(cells[j].textContent.trim());
+      text += rowTexts.join(" | ") + "\n";
+    }
+    copyText(text, this);
+  });
+
+})();
+</script>
+
+</body>
+</html>
