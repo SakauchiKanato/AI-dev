@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>単位取得プランナー（卒業要件シミュレーター）</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #d9a441;
+    --accent2: #e8c27a;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --danger: #e05a5a;
+    --warn: #d9b23a;
+    --ok: #4a9e6e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 20px;
+  }
+  header h1 { font-size: 20px; margin: 0 0 4px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 20px 0; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 320px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px 0;
+    color: var(--accent2);
+  }
+  .panel h3 {
+    font-size: 13px;
+    margin: 14px 0 8px 0;
+    color: var(--muted);
+  }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input[type="text"], input[type="number"], select {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    width: 100%;
+  }
+  button {
+    background: var(--accent);
+    color: #1a1400;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  button:hover { opacity: 0.88; }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-weight: normal;
+  }
+  button.danger {
+    background: var(--danger);
+    color: #fff;
+  }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; align-items: flex-end; }
+  .row > div { flex: 1 1 100px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: normal; }
+  .progress-wrap { background: #1a1a28; border-radius: 6px; overflow: hidden; height: 16px; margin: 4px 0; border: 1px solid var(--border); }
+  .progress-bar { height: 100%; background: var(--accent); transition: width 0.3s; }
+  .progress-bar.ok { background: var(--ok); }
+  .progress-bar.warn { background: var(--warn); }
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; }
+  .badge.ok { background: rgba(74,158,110,0.2); color: var(--ok); }
+  .badge.warn { background: rgba(217,178,58,0.2); color: var(--warn); }
+  .badge.danger { background: rgba(224,90,90,0.2); color: var(--danger); }
+  .dash-grid { display: flex; gap: 16px; flex-wrap: wrap; }
+  .dash-item { flex: 1 1 130px; background: #1a1a28; border-radius: 8px; padding: 10px 12px; border: 1px solid var(--border); }
+  .dash-item .num { font-size: 22px; font-weight: bold; color: var(--accent2); }
+  .dash-item .label { font-size: 11px; color: var(--muted); }
+  .bar-chart-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+  .bar-chart-row .label { width: 90px; flex-shrink: 0; color: var(--muted); }
+  .bar-chart-row .track { flex: 1; background: #1a1a28; border-radius: 4px; overflow: hidden; height: 14px; border: 1px solid var(--border); }
+  .bar-chart-row .fill { height: 100%; background: var(--accent); }
+  .bar-chart-row .val { width: 46px; text-align: right; flex-shrink: 0; color: var(--muted); }
+  textarea {
+    width: 100%; min-height: 90px; background: #1a1a28; border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 8px; font-size: 12px; font-family: monospace;
+  }
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--ok); color: #fff; padding: 8px 16px; border-radius: 8px;
+    font-size: 13px; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .filter-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .filter-btns button { padding: 4px 10px; font-size: 12px; }
+  .del-x { color: var(--danger); cursor: pointer; font-weight: bold; padding: 0 4px; }
+  .muted-small { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  @media (max-width: 600px) {
+    .panel { flex: 1 1 100%; }
+    .row > div { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎓 単位取得プランナー（卒業要件シミュレーター）</h1>
+  <p>カテゴリ別の卒業要件・GPA・学期ペースを一目で管理する（入力データは外部送信せずブラウザ内のみで処理します）</p>
+</header>
+
+<div class="layout">
+
+  <!-- カテゴリ設定＋全体進捗 -->
+  <div class="panel" style="flex-basis: 100%;">
+    <h2>① 卒業要件カテゴリ設定 ＆ 全体進捗</h2>
+    <div class="row">
+      <div><label>カテゴリ名</label><input type="text" id="catNameInput" placeholder="例: 必修"></div>
+      <div style="flex:0 0 120px;"><label>必要単位数</label><input type="number" id="catReqInput" placeholder="例: 40" min="0"></div>
+      <div style="flex:0 0 auto;"><button onclick="addCategory()">＋カテゴリ追加</button></div>
+    </div>
+    <table id="catTable"><thead><tr><th>カテゴリ</th><th>必要単位数</th><th>取得単位数</th><th>充足率</th><th></th></tr></thead><tbody></tbody></table>
+
+    <h3>全体ダッシュボード</h3>
+    <div class="dash-grid" id="dashGrid"></div>
+  </div>
+
+  <!-- 科目登録 -->
+  <div class="panel">
+    <h2>② 履修科目を登録</h2>
+    <div class="row">
+      <div><label>科目名</label><input type="text" id="courseNameInput" placeholder="例: 線形代数"></div>
+    </div>
+    <div class="row">
+      <div style="flex:0 0 90px;"><label>単位数</label><input type="number" id="courseCreditInput" min="0" step="0.5" placeholder="2"></div>
+      <div><label>カテゴリ</label><select id="courseCatSelect"></select></div>
+    </div>
+    <div class="row">
+      <div style="flex:0 0 100px;"><label>評価</label><select id="courseGradeSelect"></select></div>
+      <div><label>学期</label><input type="text" id="courseSemesterInput" placeholder="例: 1年前期"></div>
+    </div>
+    <button onclick="addCourse()">＋科目を追加</button>
+    <button class="secondary" onclick="loadSample()">サンプルデータを読み込む</button>
+
+    <h3>評価とGPA換算値（編集可）</h3>
+    <table id="gradeTable"><thead><tr><th>評価</th><th>GPA値</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <!-- 履修一覧 -->
+  <div class="panel">
+    <h2>③ 履修科目一覧</h2>
+    <div class="filter-btns" id="filterBtns"></div>
+    <table id="courseTable"><thead><tr><th>科目</th><th>単位</th><th>カテゴリ</th><th>評価</th><th>学期</th><th></th></tr></thead><tbody></tbody></table>
+    <p class="muted-small" id="courseEmptyMsg">まだ科目が登録されていません。②のフォームから追加してください。</p>
+  </div>
+
+  <!-- 学期別グラフ -->
+  <div class="panel">
+    <h2>④ 学期別 取得単位数</h2>
+    <div id="semesterChart"></div>
+    <p class="muted-small" id="semesterEmptyMsg">科目を登録すると学期ごとの単位数がここに表示されます。</p>
+  </div>
+
+  <!-- 残り学期逆算 -->
+  <div class="panel">
+    <h2>⑤ 卒業までのペース逆算</h2>
+    <div class="row">
+      <div style="flex:0 0 140px;"><label>残り学期数</label><input type="number" id="remainSemesterInput" min="1" value="4"></div>
+      <div style="flex:0 0 auto;"><button onclick="renderRecalc()">計算する</button></div>
+    </div>
+    <div id="recalcResult"></div>
+  </div>
+
+  <!-- エクスポート/インポート -->
+  <div class="panel" style="flex-basis: 100%;">
+    <h2>⑥ データのエクスポート／インポート（このアプリはlocalStorageを使わないため、次回開く時は下のテキストを貼り付けて復元してください）</h2>
+    <div class="row">
+      <div style="flex: 2 1 300px;">
+        <label>エクスポート（コピーして保存しておく）</label>
+        <textarea id="exportArea" readonly></textarea>
+        <button onclick="doExport()">最新データをエクスポート表示</button>
+        <button class="secondary" onclick="copyExport()">コピー</button>
+      </div>
+      <div style="flex: 2 1 300px;">
+        <label>インポート（保存していたテキストを貼り付ける）</label>
+        <textarea id="importArea" placeholder="ここに以前エクスポートしたテキストを貼り付けて「読み込む」を押す"></textarea>
+        <button onclick="doImport()">読み込む</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ---------- 状態管理（localStorage不使用・JS変数で保持） ----------
+  let categories = [
+    { id: 'c1', name: '必修', required: 40 },
+    { id: 'c2', name: '選択必修', required: 20 },
+    { id: 'c3', name: '選択', required: 40 },
+    { id: 'c4', name: '自由選択', required: 24 }
+  ];
+  let courses = []; // {id, name, credits, categoryId, grade, semester}
+  let gradeWeights = { 'S': 4.0, 'A': 3.0, 'B': 2.0, 'C': 1.0, 'D': 0.0 };
+  let courseFilter = 'all';
+  let idCounter = 1;
+
+  function nextId(prefix) { idCounter += 1; return prefix + '_' + Date.now().toString(36) + '_' + idCounter; }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 1600);
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast('コピーしました');
+      }).catch(function () { fallbackCopy(text); });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('コピーしました');
+    } catch (e) {
+      showToast('コピーに失敗しました');
+    }
+    document.body.removeChild(ta);
+  }
+
+  // ---------- カテゴリ ----------
+  function addCategory() {
+    const nameEl = document.getElementById('catNameInput');
+    const reqEl = document.getElementById('catReqInput');
+    const name = nameEl.value.trim();
+    const req = parseFloat(reqEl.value);
+    if (!name) { showToast('カテゴリ名を入力してください'); return; }
+    if (isNaN(req) || req < 0) { showToast('必要単位数を正しく入力してください'); return; }
+    categories.push({ id: nextId('cat'), name: name, required: req });
+    nameEl.value = '';
+    reqEl.value = '';
+    renderAll();
+  }
+
+  function deleteCategory(id) {
+    if (courses.some(function (c) { return c.categoryId === id; })) {
+      showToast('このカテゴリに登録済みの科目があるため削除できません');
+      return;
+    }
+    categories = categories.filter(function (c) { return c.id !== id; });
+    renderAll();
+  }
+
+  function updateCategoryReq(id, val) {
+    const num = parseFloat(val);
+    const cat = categories.find(function (c) { return c.id === id; });
+    if (cat) cat.required = isNaN(num) ? 0 : num;
+    renderAll();
+  }
+
+  // ---------- 科目 ----------
+  function addCourse() {
+    const nameEl = document.getElementById('courseNameInput');
+    const creditEl = document.getElementById('courseCreditInput');
+    const catEl = document.getElementById('courseCatSelect');
+    const gradeEl = document.getElementById('courseGradeSelect');
+    const semEl = document.getElementById('courseSemesterInput');
+
+    const name = nameEl.value.trim();
+    const credit = parseFloat(creditEl.value);
+    const categoryId = catEl.value;
+    const grade = gradeEl.value;
+    const semester = semEl.value.trim() || '学期未設定';
+
+    if (!name) { showToast('科目名を入力してください'); return; }
+    if (isNaN(credit) || credit <= 0) { showToast('単位数を正しく入力してください（0より大きい数値）'); return; }
+    if (!categoryId) { showToast('カテゴリを選択してください（先にカテゴリを登録してください）'); return; }
+
+    courses.push({ id: nextId('crs'), name: name, credits: credit, categoryId: categoryId, grade: grade, semester: semester });
+    nameEl.value = '';
+    creditEl.value = '';
+    semEl.value = '';
+    renderAll();
+    showToast('科目を追加しました');
+  }
+
+  function deleteCourse(id) {
+    courses = courses.filter(function (c) { return c.id !== id; });
+    renderAll();
+  }
+
+  function loadSample() {
+    if (courses.length > 0 && !confirm('サンプルデータを読み込むと現在の科目一覧の下に追加されます。よろしいですか？')) return;
+    const sample = [
+      { name: '線形代数', credits: 2, catName: '必修', grade: 'A', semester: '1年前期' },
+      { name: '微分積分', credits: 2, catName: '必修', grade: 'B', semester: '1年前期' },
+      { name: 'プログラミング基礎', credits: 2, catName: '必修', grade: 'S', semester: '1年前期' },
+      { name: '英語コミュニケーション', credits: 1, catName: '選択必修', grade: 'A', semester: '1年前期' },
+      { name: 'データベース論', credits: 2, catName: '選択', grade: 'B', semester: '1年後期' },
+      { name: '哲学入門', credits: 2, catName: '自由選択', grade: 'C', semester: '1年後期' }
+    ];
+    sample.forEach(function (s) {
+      let cat = categories.find(function (c) { return c.name === s.catName; });
+      if (!cat) { cat = { id: nextId('cat'), name: s.catName, required: 20 }; categories.push(cat); }
+      courses.push({ id: nextId('crs'), name: s.name, credits: s.credits, categoryId: cat.id, grade: s.grade, semester: s.semester });
+    });
+    renderAll();
+    showToast('サンプルデータを読み込みました');
+  }
+
+  function setFilter(f) { courseFilter = f; renderCourseList(); renderFilterBtns(); }
+
+  // ---------- 評価テーブル ----------
+  function updateGradeWeight(grade, val) {
+    const num = parseFloat(val);
+    gradeWeights[grade] = isNaN(num) ? 0 : num;
+    renderDashboard();
+  }
+
+  // ---------- 計算ロジック ----------
+  function creditsInCategory(catId) {
+    return courses.filter(function (c) { return c.categoryId === catId; })
+      .reduce(function (sum, c) { return sum + c.credits; }, 0);
+  }
+
+  function totalRequired() {
+    return categories.reduce(function (sum, c) { return sum + (c.required || 0); }, 0);
+  }
+
+  function totalEarned() {
+    return courses.reduce(function (sum, c) { return sum + c.credits; }, 0);
+  }
+
+  function computeGPA() {
+    if (courses.length === 0) return null;
+    let weightedSum = 0, creditSum = 0;
+    courses.forEach(function (c) {
+      const w = (c.grade in gradeWeights) ? gradeWeights[c.grade] : 0;
+      weightedSum += w * c.credits;
+      creditSum += c.credits;
+    });
+    if (creditSum === 0) return null;
+    return weightedSum / creditSum;
+  }
+
+  // ---------- 描画 ----------
+  function renderAll() {
+    renderCategorySelect();
+    renderGradeSelect();
+    renderCatTable();
+    renderDashboard();
+    renderGradeTable();
+    renderFilterBtns();
+    renderCourseList();
+    renderSemesterChart();
+    renderRecalc();
+  }
+
+  function renderCategorySelect() {
+    const sel = document.getElementById('courseCatSelect');
+    const prev = sel.value;
+    sel.innerHTML = '';
+    if (categories.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = '（先にカテゴリを登録してください）';
+      sel.appendChild(opt);
+      return;
+    }
+    categories.forEach(function (c) {
+      const opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+    if (categories.some(function (c) { return c.id === prev; })) sel.value = prev;
+  }
+
+  function renderGradeSelect() {
+    const sel = document.getElementById('courseGradeSelect');
+    const prev = sel.value;
+    sel.innerHTML = '';
+    Object.keys(gradeWeights).forEach(function (g) {
+      const opt = document.createElement('option');
+      opt.value = g; opt.textContent = g;
+      sel.appendChild(opt);
+    });
+    if (prev && (prev in gradeWeights)) sel.value = prev;
+  }
+
+  function renderCatTable() {
+    const tbody = document.querySelector('#catTable tbody');
+    tbody.innerHTML = '';
+    if (categories.length === 0) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5; td.textContent = 'カテゴリが登録されていません。上のフォームから追加してください。';
+      td.style.color = 'var(--muted)';
+      tr.appendChild(td); tbody.appendChild(tr);
+      return;
+    }
+    categories.forEach(function (cat) {
+      const earned = creditsInCategory(cat.id);
+      const req = cat.required || 0;
+      const pct = req > 0 ? Math.min(100, Math.round((earned / req) * 1000) / 10) : (earned > 0 ? 100 : 0);
+      const tr = document.createElement('tr');
+
+      const tdName = document.createElement('td'); tdName.textContent = cat.name;
+      const tdReq = document.createElement('td');
+      const reqInput = document.createElement('input');
+      reqInput.type = 'number'; reqInput.min = '0'; reqInput.value = req; reqInput.style.width = '70px';
+      reqInput.addEventListener('change', function () { updateCategoryReq(cat.id, reqInput.value); });
+      tdReq.appendChild(reqInput);
+
+      const tdEarned = document.createElement('td'); tdEarned.textContent = earned + ' 単位';
+
+      const tdPct = document.createElement('td');
+      const wrap = document.createElement('div'); wrap.className = 'progress-wrap';
+      const bar = document.createElement('div');
+      bar.className = 'progress-bar' + (pct >= 100 ? ' ok' : (pct >= 70 ? ' warn' : ''));
+      bar.style.width = pct + '%';
+      wrap.appendChild(bar);
+      tdPct.appendChild(wrap);
+      const pctLabel = document.createElement('div'); pctLabel.style.fontSize = '11px'; pctLabel.style.color = 'var(--muted)';
+      pctLabel.textContent = pct + '%' + (req > earned ? '（不足 ' + roundNum(req - earned) + ' 単位）' : '');
+      tdPct.appendChild(pctLabel);
+
+      const tdDel = document.createElement('td');
+      const delBtn = document.createElement('span'); delBtn.className = 'del-x'; delBtn.textContent = '×';
+      delBtn.title = '削除';
+      delBtn.addEventListener('click', function () { deleteCategory(cat.id); });
+      tdDel.appendChild(delBtn);
+
+      tr.appendChild(tdName); tr.appendChild(tdReq); tr.appendChild(tdEarned); tr.appendChild(tdPct); tr.appendChild(tdDel);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function roundNum(n) {
+    return Math.round(n * 10) / 10;
+  }
+
+  function renderDashboard() {
+    const grid = document.getElementById('dashGrid');
+    grid.innerHTML = '';
+    const totalReq = totalRequired();
+    const totalEar = totalEarned();
+    const overallPct = totalReq > 0 ? Math.min(100, Math.round((totalEar / totalReq) * 1000) / 10) : 0;
+    const gpa = computeGPA();
+
+    const items = [
+      { label: '総取得単位', num: roundNum(totalEar) + ' / ' + roundNum(totalReq) },
+      { label: '全体充足率', num: overallPct + '%' },
+      { label: 'GPA', num: gpa === null ? '—' : gpa.toFixed(2) },
+      { label: '登録科目数', num: courses.length + ' 科目' }
+    ];
+    items.forEach(function (it) {
+      const div = document.createElement('div'); div.className = 'dash-item';
+      const numDiv = document.createElement('div'); numDiv.className = 'num'; numDiv.textContent = it.num;
+      const labelDiv = document.createElement('div'); labelDiv.className = 'label'; labelDiv.textContent = it.label;
+      div.appendChild(numDiv); div.appendChild(labelDiv);
+      grid.appendChild(div);
+    });
+  }
+
+  function renderGradeTable() {
+    const tbody = document.querySelector('#gradeTable tbody');
+    tbody.innerHTML = '';
+    Object.keys(gradeWeights).forEach(function (g) {
+      const tr = document.createElement('tr');
+      const tdG = document.createElement('td'); tdG.textContent = g;
+      const tdW = document.createElement('td');
+      const input = document.createElement('input');
+      input.type = 'number'; input.step = '0.1'; input.value = gradeWeights[g]; input.style.width = '70px';
+      input.addEventListener('change', function () { updateGradeWeight(g, input.value); });
+      tdW.appendChild(input);
+      tr.appendChild(tdG); tr.appendChild(tdW);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderFilterBtns() {
+    const wrap = document.getElementById('filterBtns');
+    wrap.innerHTML = '';
+    const allBtn = document.createElement('button');
+    allBtn.textContent = 'すべて';
+    allBtn.className = courseFilter === 'all' ? '' : 'secondary';
+    allBtn.addEventListener('click', function () { setFilter('all'); });
+    wrap.appendChild(allBtn);
+    categories.forEach(function (cat) {
+      const b = document.createElement('button');
+      b.textContent = cat.name;
+      b.className = courseFilter === cat.id ? '' : 'secondary';
+      b.addEventListener('click', function () { setFilter(cat.id); });
+      wrap.appendChild(b);
+    });
+  }
+
+  function renderCourseList() {
+    const tbody = document.querySelector('#courseTable tbody');
+    tbody.innerHTML = '';
+    const list = courses.filter(function (c) { return courseFilter === 'all' || c.categoryId === courseFilter; });
+    document.getElementById('courseEmptyMsg').style.display = courses.length === 0 ? 'block' : 'none';
+
+    list.forEach(function (c) {
+      const cat = categories.find(function (x) { return x.id === c.categoryId; });
+      const tr = document.createElement('tr');
+      const tdName = document.createElement('td'); tdName.textContent = c.name;
+      const tdCredit = document.createElement('td'); tdCredit.textContent = roundNum(c.credits);
+      const tdCat = document.createElement('td'); tdCat.textContent = cat ? cat.name : '（削除済み）';
+      const tdGrade = document.createElement('td'); tdGrade.textContent = c.grade;
+      const tdSem = document.createElement('td'); tdSem.textContent = c.semester;
+      const tdDel = document.createElement('td');
+      const delBtn = document.createElement('span'); delBtn.className = 'del-x'; delBtn.textContent = '×'; delBtn.title = '削除';
+      delBtn.addEventListener('click', function () { deleteCourse(c.id); });
+      tdDel.appendChild(delBtn);
+      tr.appendChild(tdName); tr.appendChild(tdCredit); tr.appendChild(tdCat); tr.appendChild(tdGrade); tr.appendChild(tdSem); tr.appendChild(tdDel);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderSemesterChart() {
+    const wrap = document.getElementById('semesterChart');
+    wrap.innerHTML = '';
+    document.getElementById('semesterEmptyMsg').style.display = courses.length === 0 ? 'block' : 'none';
+    if (courses.length === 0) return;
+
+    const bySem = {};
+    courses.forEach(function (c) {
+      bySem[c.semester] = (bySem[c.semester] || 0) + c.credits;
+    });
+    const entries = Object.keys(bySem).map(function (k) { return { sem: k, credits: bySem[k] }; });
+    // 学期名を大まかにソート（数字を含む場合は数値優先、それ以外は登録順）
+    entries.sort(function (a, b) { return a.sem.localeCompare(b.sem, 'ja'); });
+    const max = Math.max.apply(null, entries.map(function (e) { return e.credits; }));
+
+    entries.forEach(function (e) {
+      const row = document.createElement('div'); row.className = 'bar-chart-row';
+      const label = document.createElement('div'); label.className = 'label'; label.textContent = e.sem;
+      const track = document.createElement('div'); track.className = 'track';
+      const fill = document.createElement('div'); fill.className = 'fill';
+      fill.style.width = (max > 0 ? (e.credits / max) * 100 : 0) + '%';
+      track.appendChild(fill);
+      const val = document.createElement('div'); val.className = 'val'; val.textContent = roundNum(e.credits) + '単位';
+      row.appendChild(label); row.appendChild(track); row.appendChild(val);
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderRecalc() {
+    const remainEl = document.getElementById('remainSemesterInput');
+    const resultDiv = document.getElementById('recalcResult');
+    const remain = parseInt(remainEl.value, 10);
+    const totalReq = totalRequired();
+    const totalEar = totalEarned();
+    const remainCredits = totalReq - totalEar;
+
+    resultDiv.innerHTML = '';
+    if (isNaN(remain) || remain <= 0) {
+      const p = document.createElement('p'); p.className = 'muted-small'; p.textContent = '残り学期数は1以上の整数で入力してください。';
+      resultDiv.appendChild(p);
+      return;
+    }
+    if (remainCredits <= 0) {
+      const p = document.createElement('div'); p.innerHTML = '';
+      const badge = document.createElement('span'); badge.className = 'badge ok'; badge.textContent = '卒業要件の単位数を満たしています🎉';
+      p.appendChild(badge);
+      resultDiv.appendChild(p);
+      return;
+    }
+    const perSemester = remainCredits / remain;
+    const div = document.createElement('div');
+    const p1 = document.createElement('p');
+    p1.innerHTML = '';
+    p1.textContent = '卒業までに残り ' + roundNum(remainCredits) + ' 単位が必要です。';
+    const p2 = document.createElement('p');
+    p2.style.fontSize = '18px'; p2.style.fontWeight = 'bold'; p2.style.color = 'var(--accent2)';
+    p2.textContent = '1学期あたり目安: 約 ' + roundNum(perSemester) + ' 単位';
+    const p3 = document.createElement('p'); p3.className = 'muted-small';
+    if (perSemester > 24) {
+      p3.textContent = '⚠ 1学期あたりの必要単位数がかなり多めです。履修計画に無理がないか確認しましょう。';
+      p3.style.color = 'var(--danger)';
+    } else if (perSemester > 18) {
+      p3.textContent = 'やや多めのペースです。計画的な履修をおすすめします。';
+      p3.style.color = 'var(--warn)';
+    } else {
+      p3.textContent = '無理のないペースです。';
+    }
+    div.appendChild(p1); div.appendChild(p2); div.appendChild(p3);
+    resultDiv.appendChild(div);
+  }
+
+  // ---------- エクスポート／インポート ----------
+  function buildExportText() {
+    const lines = [];
+    lines.push('# 単位取得プランナー エクスポート');
+    lines.push('## カテゴリ');
+    categories.forEach(function (c) {
+      lines.push(['CAT', c.id, c.name, c.required].join('\t'));
+    });
+    lines.push('## 評価配点');
+    Object.keys(gradeWeights).forEach(function (g) {
+      lines.push(['GRADE', g, gradeWeights[g]].join('\t'));
+    });
+    lines.push('## 科目');
+    courses.forEach(function (c) {
+      lines.push(['CRS', c.id, c.name, c.credits, c.categoryId, c.grade, c.semester].join('\t'));
+    });
+    return lines.join('\n');
+  }
+
+  function doExport() {
+    document.getElementById('exportArea').value = buildExportText();
+    showToast('エクスポート内容を表示しました');
+  }
+
+  function copyExport() {
+    const text = document.getElementById('exportArea').value || buildExportText();
+    copyToClipboard(text);
+  }
+
+  function doImport() {
+    const text = document.getElementById('importArea').value;
+    if (!text || !text.trim()) { showToast('貼り付けるテキストがありません'); return; }
+    const lines = text.split('\n');
+    const newCats = [];
+    const newGrades = {};
+    const newCourses = [];
+    let hadError = false;
+    lines.forEach(function (line) {
+      const parts = line.split('\t');
+      if (parts[0] === 'CAT' && parts.length >= 4) {
+        const req = parseFloat(parts[3]);
+        newCats.push({ id: parts[1], name: parts[2], required: isNaN(req) ? 0 : req });
+      } else if (parts[0] === 'GRADE' && parts.length >= 3) {
+        const w = parseFloat(parts[2]);
+        newGrades[parts[1]] = isNaN(w) ? 0 : w;
+      } else if (parts[0] === 'CRS' && parts.length >= 7) {
+        const credit = parseFloat(parts[3]);
+        if (isNaN(credit)) { hadError = true; return; }
+        newCourses.push({ id: parts[1], name: parts[2], credits: credit, categoryId: parts[4], grade: parts[5], semester: parts[6] });
+      }
+    });
+    if (newCats.length === 0 && newCourses.length === 0) {
+      showToast('読み込めるデータが見つかりませんでした（書式を確認してください）');
+      return;
+    }
+    categories = newCats.length > 0 ? newCats : categories;
+    if (Object.keys(newGrades).length > 0) gradeWeights = newGrades;
+    courses = newCourses;
+    courseFilter = 'all';
+    renderAll();
+    showToast(hadError ? '一部読み込めない行がありました（残りは反映済み）' : 'データを読み込みました');
+  }
+
+  // ---------- 初期化 ----------
+  renderAll();
+</script>
+
+</body>
+</html>
