@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>バイトシフト給与プレディクター</title>
+<style>
+  :root {
+    --bg:#1e1e2e; --panel:#262638; --accent:#e0a458; --accent2:#4ac6a8;
+    --text:#e8e6f2; --muted:#9a97b5; --border:#3a3a52; --danger:#e0645a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:20px; background:var(--bg); color:var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    line-height:1.5;
+  }
+  header { margin-bottom:20px; }
+  header h1 { font-size:20px; margin:0 0 6px; }
+  header p { font-size:13px; color:var(--muted); margin:0; }
+  .layout { display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+  .panel {
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:16px; flex:1 1 340px; min-width:280px;
+  }
+  .panel h2 { font-size:15px; margin:0 0 12px; color:var(--accent); }
+  label { font-size:12px; color:var(--muted); display:block; margin:8px 0 4px; }
+  input, select {
+    width:100%; padding:7px 8px; background:#1a1a28; border:1px solid var(--border);
+    border-radius:6px; color:var(--text); font-size:13px;
+  }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .row > div { flex:1 1 120px; }
+  button {
+    margin-top:12px; padding:8px 14px; border:none; border-radius:6px;
+    background:var(--accent); color:#1e1e2e; font-weight:bold; cursor:pointer; font-size:13px;
+  }
+  button.secondary { background:var(--accent2); }
+  button.danger { background:var(--danger); color:#fff; }
+  button.ghost { background:transparent; border:1px solid var(--border); color:var(--text); }
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+  th, td { padding:6px 4px; border-bottom:1px solid var(--border); text-align:left; }
+  th { color:var(--muted); font-weight:normal; }
+  .badge {
+    display:inline-block; padding:1px 6px; border-radius:4px; font-size:11px;
+    background:#33334a; color:var(--muted);
+  }
+  .warn { color:var(--danger); font-size:12px; margin-top:6px; }
+  .dash { display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; }
+  .stat { background:#1a1a28; border-radius:8px; padding:10px 14px; flex:1 1 130px; }
+  .stat .num { font-size:20px; font-weight:bold; color:var(--accent2); }
+  .stat .lbl { font-size:11px; color:var(--muted); }
+  textarea {
+    width:100%; height:90px; background:#1a1a28; border:1px solid var(--border);
+    color:var(--text); border-radius:6px; padding:8px; font-size:12px; font-family:monospace;
+  }
+  .toast {
+    position:fixed; bottom:20px; right:20px; background:var(--accent2); color:#1e1e2e;
+    padding:10px 16px; border-radius:8px; font-size:13px; font-weight:bold;
+    opacity:0; transition:opacity .3s; pointer-events:none;
+  }
+  .toast.show { opacity:1; }
+  .empty { color:var(--muted); font-size:12px; padding:10px 0; }
+  .full-row { flex:1 1 100%; }
+  .cal-head { font-size:12px; color:var(--muted); margin:14px 0 6px; }
+  .calendar { display:grid; grid-template-columns: repeat(7, 1fr); gap:4px; }
+  .cal-weekday { font-size:11px; color:var(--muted); text-align:center; padding:2px 0; }
+  .cal-cell { background:#1a1a28; border:1px solid var(--border); border-radius:6px; padding:4px; min-height:56px; }
+  .cal-cell.blank { background:transparent; border-color:transparent; }
+  .cal-cell.today { border-color:var(--accent); }
+  .cal-daynum { font-size:11px; color:var(--muted); }
+  .cal-item { font-size:10px; background:#2a2a40; border-radius:4px; padding:1px 4px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cal-total { font-size:10px; color:var(--accent2); font-weight:bold; margin-top:2px; }
+  @media (max-width:600px) {
+    .layout { flex-direction:column; }
+    .panel { min-width:0; }
+    .cal-cell { min-height:44px; }
+    .cal-item { font-size:9px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>バイトシフト給与プレディクター</h1>
+  <p>複数のバイト先を掛け持ちしていても、今月の給料見込みとシフトの重複を一目で把握できるツール。データはこの画面を開いている間だけ保持されます（閉じる前にエクスポートしてください）。</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel" style="flex-basis:100%;">
+    <h2>① バイト先の登録</h2>
+    <div class="row">
+      <div><label>バイト先名</label><input id="jobName" placeholder="例: 居酒屋〇〇"></div>
+      <div><label>基本時給（円）</label><input id="jobWage" type="number" min="0" placeholder="1100"></div>
+    </div>
+    <div class="row">
+      <div><label>深夜割増 開始時刻</label><input id="jobLateStart" type="time" value="22:00"></div>
+      <div><label>深夜割増 終了時刻</label><input id="jobLateEnd" type="time" value="05:00"></div>
+      <div><label>深夜割増率（倍）</label><input id="jobLateRate" type="number" min="1" step="0.01" placeholder="1.25" value="1.25"></div>
+    </div>
+    <button onclick="addJob()">バイト先を追加</button>
+    <table id="jobTable" style="margin-top:14px;">
+      <thead><tr><th>バイト先</th><th>時給</th><th>深夜割増</th><th></th></tr></thead>
+      <tbody id="jobTableBody"></tbody>
+    </table>
+    <div id="jobEmpty" class="empty">まだバイト先が登録されていません。</div>
+  </div>
+
+  <div class="panel" style="flex-basis:100%;">
+    <h2>② シフトの登録</h2>
+    <div class="row">
+      <div><label>日付</label><input id="shiftDate" type="date"></div>
+      <div><label>バイト先</label><select id="shiftJob"></select></div>
+    </div>
+    <div class="row">
+      <div><label>開始時刻</label><input id="shiftStart" type="time"></div>
+      <div><label>終了時刻</label><input id="shiftEnd" type="time"></div>
+      <div><label>休憩時間（分）</label><input id="shiftBreak" type="number" min="0" value="0"></div>
+    </div>
+    <button onclick="addShift()">シフトを登録</button>
+    <div id="shiftWarn" class="warn"></div>
+    <table id="shiftTable" style="margin-top:14px;">
+      <thead><tr><th>日付</th><th>バイト先</th><th>時間</th><th>稼働</th><th>給与見込み</th><th></th></tr></thead>
+      <tbody id="shiftTableBody"></tbody>
+    </table>
+    <div id="shiftEmpty" class="empty">まだシフトが登録されていません。</div>
+  </div>
+
+  <div class="panel" style="flex-basis:100%;">
+    <h2>③ カレンダー表示</h2>
+    <p style="font-size:12px; color:var(--muted); margin:0;">今月のシフトを日別に一覧できます。</p>
+    <div class="cal-head" id="calMonthLabel"></div>
+    <div class="calendar" id="calWeekdays"></div>
+    <div class="calendar" id="calGrid" style="margin-top:4px;"></div>
+  </div>
+
+  <div class="panel" style="flex-basis:100%;">
+    <h2>④ 今月の集計ダッシュボード</h2>
+    <div class="dash" id="dashStats"></div>
+    <h2 style="margin-top:18px;">バイト先別の内訳</h2>
+    <table id="dashTable">
+      <thead><tr><th>バイト先</th><th>稼働時間</th><th>給与見込み</th></tr></thead>
+      <tbody id="dashTableBody"></tbody>
+    </table>
+    <div id="dashEmpty" class="empty">シフトを登録すると集計が表示されます。</div>
+  </div>
+
+  <div class="panel" style="flex-basis:100%;">
+    <h2>⑤ 目標収入の逆算</h2>
+    <div class="row">
+      <div><label>今月の目標収入（円）</label><input id="goalAmount" type="number" min="0" placeholder="80000"></div>
+      <div><label>今月の残り日数（日）</label><input id="goalDays" type="number" min="0" placeholder="自動計算されます"></div>
+    </div>
+    <button onclick="calcGoal()">逆算する</button>
+    <div id="goalResult" style="margin-top:10px; font-size:13px;"></div>
+  </div>
+
+  <div class="panel" style="flex-basis:100%;">
+    <h2>⑥ データの保存・復元</h2>
+    <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">このページを閉じるとデータは消えます。下のテキストをコピーして保存し、次回起動時に貼り付けて「読み込む」を押してください。</p>
+    <div class="row">
+      <div class="full-row">
+        <label>エクスポート</label>
+        <textarea id="exportArea" readonly></textarea>
+        <button class="secondary" onclick="doExport()">最新データをテキスト化</button>
+        <button class="ghost" onclick="copyExport()">クリップボードにコピー</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <div class="full-row">
+        <label>インポート（貼り付けて読み込む）</label>
+        <textarea id="importArea" placeholder="ここに以前エクスポートしたテキストを貼り付け"></textarea>
+        <button onclick="doImport()">読み込む</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <div class="full-row">
+        <button class="danger" onclick="resetAll()">全データを削除してリセット</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ---- 状態（ブラウザストレージ不使用、JS変数のみ） ----
+  let jobs = [];    // { id, name, wage, lateStart, lateEnd, lateRate }
+  let shifts = [];  // { id, date, jobId, start, end, breakMin }
+  let idSeq = 1;
+
+  function nextId() { return idSeq++; }
+
+  function esc(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str ?? '');
+    return div.innerHTML;
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  // ---- 時刻ユーティリティ ----
+  // "HH:MM" -> 分（0〜1439）
+  function toMinutes(hhmm) {
+    if (!hhmm || typeof hhmm !== 'string' || !hhmm.includes(':')) return null;
+    const [h, m] = hhmm.split(':').map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
+  }
+
+  // 深夜割増区間との重なり時間（分）を計算。日付をまたぐ深夜帯・シフト双方に対応するため
+  // 0時〜48時の仮想タイムラインで区間の重なりを積算する。
+  function overlapMinutes(shiftStartMin, shiftEndMin, lateStartMin, lateEndMin) {
+    // シフトが日をまたぐ場合、終了を+1440して延長
+    let sStart = shiftStartMin, sEnd = shiftEndMin;
+    if (sEnd <= sStart) sEnd += 1440;
+
+    let total = 0;
+    // 深夜帯は日をまたぐ可能性があるため、当日・前日・翌日の3パターンをチェック
+    for (const offset of [-1440, 0, 1440]) {
+      let lStart = lateStartMin + offset, lEnd = lateEndMin + offset;
+      if (lEnd <= lStart) lEnd += 1440;
+      const overlapStart = Math.max(sStart, lStart);
+      const overlapEnd = Math.min(sEnd, lEnd);
+      if (overlapEnd > overlapStart) total += (overlapEnd - overlapStart);
+    }
+    return Math.min(total, sEnd - sStart); // 安全のため実働時間を超えないようクランプ
+  }
+
+  function calcShiftDetail(shift) {
+    const job = jobs.find(j => j.id === shift.jobId);
+    if (!job) return { workMin: 0, pay: 0, lateMin: 0 };
+    const sStart = toMinutes(shift.start);
+    let sEnd = toMinutes(shift.end);
+    if (sStart === null || sEnd === null) return { workMin: 0, pay: 0, lateMin: 0 };
+    if (sEnd <= sStart) sEnd += 1440; // 日をまたぐシフト
+    const breakMin = Number(shift.breakMin) || 0;
+    const grossMin = Math.max(0, sEnd - sStart);
+    const workMin = Math.max(0, grossMin - breakMin);
+
+    const lStart = toMinutes(job.lateStart);
+    const lEnd = toMinutes(job.lateEnd);
+    let lateMin = 0;
+    if (lStart !== null && lEnd !== null && grossMin > 0) {
+      lateMin = overlapMinutes(sStart, sStart + grossMin, lStart, lEnd);
+      // 休憩は深夜帯かどうか区別せず均等に差し引く簡易処理（過大にならないようクランプ）
+      const breakRatio = grossMin > 0 ? breakMin / grossMin : 0;
+      lateMin = Math.max(0, lateMin - lateMin * breakRatio);
+      lateMin = Math.min(lateMin, workMin);
+    }
+    const normalMin = Math.max(0, workMin - lateMin);
+    const wage = Number(job.wage) || 0;
+    const lateRate = Number(job.lateRate) || 1;
+    const pay = (normalMin / 60) * wage + (lateMin / 60) * wage * lateRate;
+    return { workMin, pay, lateMin };
+  }
+
+  // ---- バイト先登録 ----
+  function addJob() {
+    const name = document.getElementById('jobName').value.trim();
+    const wage = Number(document.getElementById('jobWage').value);
+    const lateStart = document.getElementById('jobLateStart').value;
+    const lateEnd = document.getElementById('jobLateEnd').value;
+    const lateRate = Number(document.getElementById('jobLateRate').value);
+
+    if (!name) { showToast('バイト先名を入力してください'); return; }
+    if (!wage || wage <= 0 || Number.isNaN(wage)) { showToast('時給は0より大きい数値で入力してください'); return; }
+    const rate = (!lateRate || Number.isNaN(lateRate) || lateRate < 1) ? 1 : lateRate;
+
+    jobs.push({ id: nextId(), name, wage, lateStart: lateStart || '', lateEnd: lateEnd || '', lateRate: rate });
+    document.getElementById('jobName').value = '';
+    document.getElementById('jobWage').value = '';
+    renderJobs();
+    renderShiftJobOptions();
+    showToast('バイト先を追加しました');
+  }
+
+  function removeJob(id) {
+    jobs = jobs.filter(j => j.id !== id);
+    // このバイト先を参照しているシフトも削除（給与計算不能になるため）
+    shifts = shifts.filter(s => s.jobId !== id);
+    renderJobs();
+    renderShiftJobOptions();
+    renderShifts();
+    renderDashboard();
+  }
+
+  function renderJobs() {
+    const body = document.getElementById('jobTableBody');
+    body.innerHTML = '';
+    document.getElementById('jobEmpty').style.display = jobs.length ? 'none' : 'block';
+    jobs.forEach(j => {
+      const tr = document.createElement('tr');
+      const lateInfo = j.lateStart && j.lateEnd ? `${esc(j.lateStart)}〜${esc(j.lateEnd)}（×${esc(j.lateRate)}）` : 'なし';
+      tr.innerHTML = `
+        <td>${esc(j.name)}</td>
+        <td>${esc(j.wage)}円</td>
+        <td><span class="badge">${lateInfo}</span></td>
+        <td><button class="ghost" style="margin:0; padding:4px 8px;" onclick="removeJob(${j.id})">削除</button></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
+  function renderShiftJobOptions() {
+    const sel = document.getElementById('shiftJob');
+    const current = sel.value;
+    sel.innerHTML = jobs.map(j => `<option value="${j.id}">${esc(j.name)}</option>`).join('');
+    if (jobs.some(j => String(j.id) === current)) sel.value = current;
+  }
+
+  // ---- シフト登録 ----
+  function hasOverlap(date, jobId, start, end, excludeId) {
+    const sStart = toMinutes(start);
+    let sEnd = toMinutes(end);
+    if (sStart === null || sEnd === null) return false;
+    if (sEnd <= sStart) sEnd += 1440;
+    return shifts.some(s => {
+      if (s.date !== date) return false;
+      if (excludeId && s.id === excludeId) return false;
+      const oStart = toMinutes(s.start);
+      let oEnd = toMinutes(s.end);
+      if (oStart === null || oEnd === null) return false;
+      if (oEnd <= oStart) oEnd += 1440;
+      return sStart < oEnd && oStart < sEnd;
+    });
+  }
+
+  function addShift() {
+    const date = document.getElementById('shiftDate').value;
+    const jobId = Number(document.getElementById('shiftJob').value);
+    const start = document.getElementById('shiftStart').value;
+    const end = document.getElementById('shiftEnd').value;
+    const breakMin = Number(document.getElementById('shiftBreak').value) || 0;
+    const warnEl = document.getElementById('shiftWarn');
+    warnEl.textContent = '';
+
+    if (jobs.length === 0) { showToast('先にバイト先を登録してください'); return; }
+    if (!date) { showToast('日付を入力してください'); return; }
+    if (!jobId || Number.isNaN(jobId)) { showToast('バイト先を選択してください'); return; }
+    if (!start || !end) { showToast('開始・終了時刻を入力してください'); return; }
+    if (breakMin < 0) { showToast('休憩時間は0以上で入力してください'); return; }
+
+    if (hasOverlap(date, jobId, start, end, null)) {
+      warnEl.textContent = '⚠ 同じ日に時間の重なるシフトが既に登録されています（登録は可能ですが確認してください）';
+    }
+
+    shifts.push({ id: nextId(), date, jobId, start, end, breakMin });
+    renderShifts();
+    renderDashboard();
+    showToast('シフトを登録しました');
+  }
+
+  function removeShift(id) {
+    shifts = shifts.filter(s => s.id !== id);
+    renderShifts();
+    renderDashboard();
+  }
+
+  function renderShifts() {
+    const body = document.getElementById('shiftTableBody');
+    body.innerHTML = '';
+    const sorted = [...shifts].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    document.getElementById('shiftEmpty').style.display = sorted.length ? 'none' : 'block';
+    sorted.forEach(s => {
+      const job = jobs.find(j => j.id === s.jobId);
+      const detail = calcShiftDetail(s);
+      const dup = hasOverlap(s.date, s.jobId, s.start, s.end, s.id) ||
+                  shifts.some(o => o.id !== s.id && o.date === s.date &&
+                    (() => {
+                      const aS = toMinutes(s.start); let aE = toMinutes(s.end); if (aE <= aS) aE += 1440;
+                      const bS = toMinutes(o.start); let bE = toMinutes(o.end); if (bE <= bS) bE += 1440;
+                      return aS < bE && bS < aE;
+                    })());
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${esc(s.date)}${dup ? ' <span class="badge" style="color:var(--danger)">重複</span>' : ''}</td>
+        <td>${job ? esc(job.name) : '<span class="muted">削除済み</span>'}</td>
+        <td>${esc(s.start)}〜${esc(s.end)}（休憩${esc(s.breakMin)}分）</td>
+        <td>${(detail.workMin / 60).toFixed(1)}時間</td>
+        <td>${Math.round(detail.pay).toLocaleString()}円</td>
+        <td><button class="ghost" style="margin:0; padding:4px 8px;" onclick="removeShift(${s.id})">削除</button></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
+  // ---- ダッシュボード ----
+  function currentMonthKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  function renderDashboard() {
+    const monthKey = currentMonthKey();
+    const monthShifts = shifts.filter(s => (s.date || '').startsWith(monthKey));
+    const statsEl = document.getElementById('dashStats');
+    const bodyEl = document.getElementById('dashTableBody');
+    document.getElementById('dashEmpty').style.display = monthShifts.length ? 'none' : 'block';
+
+    let totalMin = 0, totalPay = 0;
+    const byJob = {};
+    monthShifts.forEach(s => {
+      const d = calcShiftDetail(s);
+      totalMin += d.workMin;
+      totalPay += d.pay;
+      const job = jobs.find(j => j.id === s.jobId);
+      const key = job ? job.name : '(削除済み)';
+      if (!byJob[key]) byJob[key] = { min: 0, pay: 0 };
+      byJob[key].min += d.workMin;
+      byJob[key].pay += d.pay;
+    });
+
+    statsEl.innerHTML = `
+      <div class="stat"><div class="num">${monthShifts.length}</div><div class="lbl">今月のシフト数</div></div>
+      <div class="stat"><div class="num">${(totalMin / 60).toFixed(1)}h</div><div class="lbl">今月の稼働時間</div></div>
+      <div class="stat"><div class="num">${Math.round(totalPay).toLocaleString()}円</div><div class="lbl">今月の給与見込み</div></div>
+    `;
+
+    bodyEl.innerHTML = Object.entries(byJob).map(([name, v]) => `
+      <tr><td>${esc(name)}</td><td>${(v.min / 60).toFixed(1)}時間</td><td>${Math.round(v.pay).toLocaleString()}円</td></tr>
+    `).join('');
+
+    // 目標収入の欄にも自動反映用に保持
+    window.__currentMonthPay = totalPay;
+
+    renderCalendar();
+  }
+
+  // ---- カレンダー表示 ----
+  function renderCalendar() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = d.getMonth(); // 0-11
+    const monthKey = currentMonthKey();
+    const todayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    document.getElementById('calMonthLabel').textContent = `${year}年${month + 1}月`;
+
+    const weekdaysEl = document.getElementById('calWeekdays');
+    weekdaysEl.innerHTML = ['日', '月', '火', '水', '木', '金', '土']
+      .map(w => `<div class="cal-weekday">${w}</div>`).join('');
+
+    const firstDay = new Date(year, month, 1);
+    const startOffset = firstDay.getDay(); // 0=日
+    const lastDate = new Date(year, month + 1, 0).getDate();
+
+    // 日別集計
+    const byDate = {};
+    shifts.filter(s => (s.date || '').startsWith(monthKey)).forEach(s => {
+      const detail = calcShiftDetail(s);
+      const job = jobs.find(j => j.id === s.jobId);
+      if (!byDate[s.date]) byDate[s.date] = { pay: 0, items: [] };
+      byDate[s.date].pay += detail.pay;
+      byDate[s.date].items.push(job ? job.name : '(削除済み)');
+    });
+
+    let html = '';
+    for (let i = 0; i < startOffset; i++) {
+      html += '<div class="cal-cell blank"></div>';
+    }
+    for (let day = 1; day <= lastDate; day++) {
+      const dateStr = `${monthKey}-${String(day).padStart(2, '0')}`;
+      const info = byDate[dateStr];
+      const isToday = dateStr === todayStr;
+      let inner = `<div class="cal-daynum">${day}</div>`;
+      if (info) {
+        const shownItems = info.items.slice(0, 2);
+        inner += shownItems.map(name => `<div class="cal-item">${esc(name)}</div>`).join('');
+        if (info.items.length > 2) inner += `<div class="cal-item">他${info.items.length - 2}件</div>`;
+        inner += `<div class="cal-total">${Math.round(info.pay).toLocaleString()}円</div>`;
+      }
+      html += `<div class="cal-cell${isToday ? ' today' : ''}">${inner}</div>`;
+    }
+    document.getElementById('calGrid').innerHTML = html;
+  }
+
+  // ---- 目標収入の逆算 ----
+  function daysLeftInMonth() {
+    const d = new Date();
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    return Math.max(0, lastDay - d.getDate() + 1);
+  }
+
+  function calcGoal() {
+    const goalInput = document.getElementById('goalAmount');
+    const daysInput = document.getElementById('goalDays');
+    const resultEl = document.getElementById('goalResult');
+    const goal = Number(goalInput.value);
+
+    if (!goal || goal <= 0 || Number.isNaN(goal)) {
+      resultEl.innerHTML = '<span class="warn">目標収入を正しく入力してください</span>';
+      return;
+    }
+    const days = daysInput.value ? Number(daysInput.value) : daysLeftInMonth();
+    if (Number.isNaN(days) || days < 0) {
+      resultEl.innerHTML = '<span class="warn">残り日数は0以上で入力してください</span>';
+      return;
+    }
+    if (!daysInput.value) daysInput.value = days;
+
+    const current = window.__currentMonthPay || 0;
+    const diff = goal - current;
+
+    if (diff <= 0) {
+      resultEl.innerHTML = `すでに目標収入 <b>${goal.toLocaleString()}円</b> に対して見込み <b>${Math.round(current).toLocaleString()}円</b> で達成しています🎉`;
+      return;
+    }
+    if (days === 0) {
+      resultEl.innerHTML = `<span class="warn">残り日数が0日のため、あと${Math.round(diff).toLocaleString()}円分は今月中に達成できません</span>`;
+      return;
+    }
+    // 平均時給をシフト実績から推定（実績がなければ登録済みバイト先の平均時給で代用）
+    let avgWage = 0;
+    if (shifts.length > 0) {
+      let min = 0, pay = 0;
+      shifts.forEach(s => { const d = calcShiftDetail(s); min += d.workMin; pay += d.pay; });
+      avgWage = min > 0 ? pay / (min / 60) : 0;
+    }
+    if (!avgWage && jobs.length > 0) {
+      avgWage = jobs.reduce((sum, j) => sum + (Number(j.wage) || 0), 0) / jobs.length;
+    }
+    if (!avgWage) {
+      resultEl.innerHTML = '<span class="warn">給与を見積もるための時給データがありません（バイト先を登録してください）</span>';
+      return;
+    }
+    const neededHours = diff / avgWage;
+    const perDayHours = neededHours / days;
+    resultEl.innerHTML = `
+      目標 <b>${goal.toLocaleString()}円</b> まであと <b>${Math.round(diff).toLocaleString()}円</b>。<br>
+      残り${days}日で達成するには、推定時給${Math.round(avgWage)}円換算で
+      合計 <b>${neededHours.toFixed(1)}時間</b>（1日あたり約${perDayHours.toFixed(1)}時間）の勤務が必要です。
+    `;
+  }
+
+  // ---- エクスポート / インポート ----
+  function doExport() {
+    const data = { jobs, shifts, idSeq };
+    document.getElementById('exportArea').value = JSON.stringify(data);
+    showToast('テキスト化しました');
+  }
+
+  function copyExport() {
+    const text = document.getElementById('exportArea').value;
+    if (!text) { showToast('先に「最新データをテキスト化」を押してください'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => showToast('コピーしました'),
+        () => fallbackCopy(text)
+      );
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('コピーしました');
+    } catch (e) {
+      showToast('コピーに失敗しました。手動で選択してコピーしてください');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function doImport() {
+    const raw = document.getElementById('importArea').value.trim();
+    if (!raw) { showToast('貼り付けるテキストがありません'); return; }
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      showToast('読み込みに失敗しました（テキストが不正です）');
+      return;
+    }
+    if (!data || !Array.isArray(data.jobs) || !Array.isArray(data.shifts)) {
+      showToast('読み込みに失敗しました（データ形式が不正です）');
+      return;
+    }
+    jobs = data.jobs.filter(j => j && typeof j.id !== 'undefined' && j.name);
+    shifts = data.shifts.filter(s => s && typeof s.id !== 'undefined' && s.date);
+    idSeq = Number(data.idSeq) || (Math.max(0, ...jobs.map(j => j.id), ...shifts.map(s => s.id)) + 1);
+    renderJobs();
+    renderShiftJobOptions();
+    renderShifts();
+    renderDashboard();
+    showToast('データを読み込みました');
+  }
+
+  function resetAll() {
+    if (!confirm('全データを削除します。よろしいですか？')) return;
+    jobs = [];
+    shifts = [];
+    idSeq = 1;
+    renderJobs();
+    renderShiftJobOptions();
+    renderShifts();
+    renderDashboard();
+    document.getElementById('exportArea').value = '';
+    document.getElementById('importArea').value = '';
+    showToast('リセットしました');
+  }
+
+  // ---- 初期化 ----
+  (function init() {
+    const d = new Date();
+    document.getElementById('shiftDate').valueAsDate = d;
+    renderJobs();
+    renderShiftJobOptions();
+    renderShifts();
+    renderDashboard();
+  })();
+</script>
+
+</body>
+</html>
