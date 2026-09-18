@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>エコ生活CO2セーブトラッカー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #3fa66a;
+    --accent2: #6ec98f;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --warn: #d4537e;
+    --yellow: #d4a53e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 4px 0; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 320px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px 0;
+    color: var(--accent2);
+  }
+  .full { flex-basis: 100%; }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input[type="text"], input[type="number"], input[type="date"], select, textarea {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #1a1a28;
+    color: var(--text);
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+  button {
+    background: var(--accent);
+    color: #0d1a12;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  button:hover { background: var(--accent2); }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  button.secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+  .cat-block { margin-bottom: 14px; }
+  .cat-title { font-size: 13px; color: var(--accent2); margin-bottom: 6px; font-weight: bold; }
+  .action-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    background: #1a1a28;
+  }
+  .action-row:hover { background: #20202f; }
+  .action-row label { margin: 0; color: var(--text); font-size: 13px; flex: 1; cursor: pointer; }
+  .action-row .co2 { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .action-row .del { color: var(--warn); cursor: pointer; font-size: 12px; padding: 2px 6px; }
+  .dash {
+    text-align: center;
+    padding: 16px 0;
+  }
+  .dash .big {
+    font-size: 36px;
+    font-weight: bold;
+    color: var(--accent2);
+  }
+  .dash .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .conv-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .conv-card {
+    flex: 1 1 100px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+  }
+  .conv-card .val { font-size: 18px; font-weight: bold; color: var(--accent2); }
+  .conv-card .lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .streak-badge {
+    display: inline-block;
+    background: #1a1a28;
+    border: 1px solid var(--accent);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 13px;
+    margin-top: 10px;
+  }
+  .streak-badge b { color: var(--yellow); }
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 140px;
+    margin-top: 10px;
+    padding: 0 4px;
+  }
+  .bar-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+  }
+  .bar {
+    width: 100%;
+    max-width: 30px;
+    background: var(--accent);
+    border-radius: 3px 3px 0 0;
+    min-height: 2px;
+  }
+  .bar-col .amt { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+  .bar-col .lbl { font-size: 10px; color: var(--muted); margin-top: 4px; text-align: center; }
+  .toggle-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .toggle-row button { flex: 1; background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .toggle-row button.active { background: var(--accent); color: #0d1a12; border-color: var(--accent); }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #0d1a12;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; }
+  .empty-msg { color: var(--muted); font-size: 12px; padding: 10px 0; }
+  .row-inline { display: flex; gap: 8px; }
+  .row-inline > * { flex: 1; }
+  .io-area textarea { font-family: monospace; font-size: 11px; }
+  .today-total {
+    font-size: 13px;
+    color: var(--accent2);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌱 エコ生活CO2セーブトラッカー</h1>
+  <p>日々のエコ行動を記録して、積み重ねたCO2削減量を可視化する（入力データは外部送信せずブラウザ内のみで処理します）</p>
+</header>
+
+<div class="layout">
+
+  <!-- 今日のチェックリスト -->
+  <div class="panel" style="flex-basis: 100%;">
+    <h2>今日のエコ行動チェックリスト</h2>
+    <label for="logDate">記録する日付</label>
+    <input type="date" id="logDate">
+    <div id="categoryList"></div>
+    <div class="today-total" id="todayTotal">この日の削減量: 0.00 kg-CO2</div>
+  </div>
+
+  <!-- 累計ダッシュボード -->
+  <div class="panel">
+    <h2>累計CO2削減ダッシュボード</h2>
+    <div class="dash">
+      <div class="big" id="totalCo2">0.00</div>
+      <div class="sub">kg-CO2 削減（累計）</div>
+    </div>
+    <div class="conv-grid">
+      <div class="conv-card">
+        <div class="val" id="convTree">0.0</div>
+        <div class="lbl">本の杉の年間吸収量分</div>
+      </div>
+      <div class="conv-card">
+        <div class="val" id="convGas">0.0</div>
+        <div class="lbl">Lのガソリン消費分</div>
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <div class="streak-badge">現在の継続日数: <b id="streakCount">0</b> 日</div>
+    </div>
+    <button class="secondary" onclick="copySummary()" style="width:100%; margin-top:12px;">結果をコピー</button>
+  </div>
+
+  <!-- 週間/月間グラフ -->
+  <div class="panel">
+    <h2>削減量の推移</h2>
+    <div class="toggle-row">
+      <button id="btnWeek" class="active" onclick="setGraphMode('week')">週間</button>
+      <button id="btnMonth" onclick="setGraphMode('month')">月間</button>
+    </div>
+    <div class="bar-chart" id="barChart"></div>
+  </div>
+
+  <!-- カスタム行動編集 -->
+  <div class="panel full">
+    <h2>カスタム行動の追加・編集</h2>
+    <div class="row-inline">
+      <div>
+        <label for="newActCat">カテゴリ</label>
+        <select id="newActCat">
+          <option value="交通">交通</option>
+          <option value="食事">食事</option>
+          <option value="買い物">買い物</option>
+          <option value="エネルギー">エネルギー</option>
+          <option value="ゴミ・リサイクル">ゴミ・リサイクル</option>
+        </select>
+      </div>
+      <div>
+        <label for="newActName">行動名</label>
+        <input type="text" id="newActName" placeholder="例: マイボトル持参">
+      </div>
+      <div>
+        <label for="newActCo2">推定削減量(kg-CO2)</label>
+        <input type="number" id="newActCo2" step="0.01" placeholder="例: 0.05">
+      </div>
+    </div>
+    <button onclick="addCustomAction()">この行動を追加</button>
+    <p class="empty-msg">追加した行動は上のチェックリストに反映されます。既存行動の右の「削除」でも編集できます（再追加してください）。</p>
+  </div>
+
+  <!-- エクスポート/インポート -->
+  <div class="panel full io-area">
+    <h2>データのエクスポート / インポート</h2>
+    <p class="empty-msg">このアプリはブラウザの保存機能を使わないため、次回もデータを使う場合は下のテキストをコピーして保管し、次回起動時に貼り付けて「読み込む」を押してください。</p>
+    <textarea id="ioText" placeholder="ここにエクスポートしたテキストが表示されます / インポートするテキストを貼り付けてください"></textarea>
+    <div class="row-inline">
+      <button onclick="exportData()">エクスポート</button>
+      <button class="secondary" onclick="importData()">読み込む</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== デフォルトのエコ行動プリセット =====
+var defaultActions = [
+  { id: "a1", cat: "交通", name: "自転車・徒歩で移動（車の代わりに5km）", co2: 1.1 },
+  { id: "a2", cat: "交通", name: "公共交通機関を利用（車の代わりに5km）", co2: 0.8 },
+  { id: "a3", cat: "食事", name: "食べ残しゼロ（1食分）", co2: 0.3 },
+  { id: "a4", cat: "食事", name: "肉を使わない食事にした（1食）", co2: 1.5 },
+  { id: "a5", cat: "買い物", name: "マイバッグを使用（レジ袋を断った）", co2: 0.06 },
+  { id: "a6", cat: "買い物", name: "詰め替え用・簡易包装の商品を選んだ", co2: 0.1 },
+  { id: "a7", cat: "エネルギー", name: "エアコン設定温度を1度調整した", co2: 0.4 },
+  { id: "a8", cat: "エネルギー", name: "使っていない部屋の電気を消した", co2: 0.1 },
+  { id: "a9", cat: "エネルギー", name: "主電源を切って待機電力をカットした", co2: 0.2 },
+  { id: "a10", cat: "ゴミ・リサイクル", name: "資源ごみをきちんと分別した", co2: 0.15 },
+  { id: "a11", cat: "ゴミ・リサイクル", name: "詰め替え容器・リユース品を使った", co2: 0.12 }
+];
+
+var categories = ["交通", "食事", "買い物", "エネルギー", "ゴミ・リサイクル"];
+
+// ===== アプリの状態（JS変数のみで保持。localStorage不使用） =====
+var state = {
+  actions: JSON.parse(JSON.stringify(defaultActions)), // {id, cat, name, co2}
+  logs: {} // { "YYYY-MM-DD": ["a1","a3", ...] }
+};
+
+var graphMode = "week";
+
+// ===== ユーティリティ =====
+function escapeHtml(str) {
+  var div = document.createElement("div");
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+
+function todayStr() {
+  var d = new Date();
+  return formatDate(d);
+}
+
+function formatDate(d) {
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, "0");
+  var day = String(d.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
+}
+
+function showToast(msg) {
+  var t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(function () { t.classList.remove("show"); }, 1800);
+}
+
+function round2(n) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+// ===== チェックリスト描画 =====
+function getActionsByCat(cat) {
+  return state.actions.filter(function (a) { return a.cat === cat; });
+}
+
+function renderCategoryList() {
+  var container = document.getElementById("categoryList");
+  container.innerHTML = "";
+  var dateInput = document.getElementById("logDate");
+  var date = dateInput.value || todayStr();
+  var checkedList = state.logs[date] || [];
+
+  categories.forEach(function (cat) {
+    var acts = getActionsByCat(cat);
+    var block = document.createElement("div");
+    block.className = "cat-block";
+
+    var title = document.createElement("div");
+    title.className = "cat-title";
+    title.textContent = cat;
+    block.appendChild(title);
+
+    if (acts.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "empty-msg";
+      empty.textContent = "このカテゴリの行動はまだありません";
+      block.appendChild(empty);
+    }
+
+    acts.forEach(function (act) {
+      var row = document.createElement("div");
+      row.className = "action-row";
+
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.id = "chk_" + act.id;
+      cb.checked = checkedList.indexOf(act.id) !== -1;
+      cb.addEventListener("change", function () { toggleAction(act.id, cb.checked); });
+
+      var lbl = document.createElement("label");
+      lbl.setAttribute("for", cb.id);
+      lbl.textContent = act.name;
+
+      var co2span = document.createElement("span");
+      co2span.className = "co2";
+      co2span.textContent = "-" + round2(act.co2).toFixed(2) + "kg";
+
+      var del = document.createElement("span");
+      del.className = "del";
+      del.textContent = "削除";
+      del.addEventListener("click", function () { deleteAction(act.id); });
+
+      row.appendChild(cb);
+      row.appendChild(lbl);
+      row.appendChild(co2span);
+      row.appendChild(del);
+      block.appendChild(row);
+    });
+
+    container.appendChild(block);
+  });
+
+  updateTodayTotal();
+}
+
+function toggleAction(actionId, isChecked) {
+  var dateInput = document.getElementById("logDate");
+  var date = dateInput.value || todayStr();
+  if (!state.logs[date]) state.logs[date] = [];
+  var list = state.logs[date];
+  var idx = list.indexOf(actionId);
+  if (isChecked && idx === -1) {
+    list.push(actionId);
+  } else if (!isChecked && idx !== -1) {
+    list.splice(idx, 1);
+  }
+  updateTodayTotal();
+  updateDashboard();
+  renderChart();
+}
+
+function deleteAction(actionId) {
+  state.actions = state.actions.filter(function (a) { return a.id !== actionId; });
+  // ログからも除去
+  Object.keys(state.logs).forEach(function (date) {
+    state.logs[date] = state.logs[date].filter(function (id) { return id !== actionId; });
+  });
+  renderCategoryList();
+  updateDashboard();
+  renderChart();
+  showToast("行動を削除しました");
+}
+
+function addCustomAction() {
+  var catEl = document.getElementById("newActCat");
+  var nameEl = document.getElementById("newActName");
+  var co2El = document.getElementById("newActCo2");
+
+  var name = nameEl.value.trim();
+  var co2Raw = co2El.value.trim();
+  var co2 = parseFloat(co2Raw);
+
+  if (!name) {
+    showToast("行動名を入力してください");
+    return;
+  }
+  if (co2Raw === "" || isNaN(co2) || co2 < 0) {
+    showToast("削減量は0以上の数値で入力してください");
+    return;
+  }
+  if (name.length > 60) {
+    showToast("行動名は60文字以内で入力してください");
+    return;
+  }
+
+  var id = "custom_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+  state.actions.push({ id: id, cat: catEl.value, name: name, co2: round2(co2) });
+
+  nameEl.value = "";
+  co2El.value = "";
+  renderCategoryList();
+  showToast("新しい行動を追加しました");
+}
+
+function updateTodayTotal() {
+  var dateInput = document.getElementById("logDate");
+  var date = dateInput.value || todayStr();
+  var list = state.logs[date] || [];
+  var total = 0;
+  list.forEach(function (id) {
+    var act = state.actions.find(function (a) { return a.id === id; });
+    if (act) total += act.co2;
+  });
+  document.getElementById("todayTotal").textContent =
+    "この日の削減量: " + round2(total).toFixed(2) + " kg-CO2";
+}
+
+// ===== 累計ダッシュボード =====
+function getAllLogDates() {
+  return Object.keys(state.logs).sort();
+}
+
+function calcTotalCo2() {
+  var total = 0;
+  Object.keys(state.logs).forEach(function (date) {
+    state.logs[date].forEach(function (id) {
+      var act = state.actions.find(function (a) { return a.id === id; });
+      if (act) total += act.co2;
+    });
+  });
+  return total;
+}
+
+function calcStreak() {
+  // 今日から遡って、削減量が1件以上ある日が連続している日数
+  var streak = 0;
+  var d = new Date();
+  while (true) {
+    var key = formatDate(d);
+    var list = state.logs[key];
+    if (list && list.length > 0) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+function updateDashboard() {
+  var total = calcTotalCo2();
+  document.getElementById("totalCo2").textContent = round2(total).toFixed(2);
+
+  // 換算: 杉の木1本の年間CO2吸収量は約14kg-CO2とされる目安値
+  var treeVal = total / 14;
+  // 換算: ガソリン1Lの燃焼で約2.3kg-CO2排出とされる目安値
+  var gasVal = total / 2.3;
+
+  document.getElementById("convTree").textContent = round2(treeVal).toFixed(1);
+  document.getElementById("convGas").textContent = round2(gasVal).toFixed(1);
+
+  document.getElementById("streakCount").textContent = calcStreak();
+}
+
+// ===== グラフ =====
+function setGraphMode(mode) {
+  graphMode = mode;
+  document.getElementById("btnWeek").classList.toggle("active", mode === "week");
+  document.getElementById("btnMonth").classList.toggle("active", mode === "month");
+  renderChart();
+}
+
+function dailyTotal(dateKey) {
+  var list = state.logs[dateKey] || [];
+  var total = 0;
+  list.forEach(function (id) {
+    var act = state.actions.find(function (a) { return a.id === id; });
+    if (act) total += act.co2;
+  });
+  return total;
+}
+
+function renderChart() {
+  var container = document.getElementById("barChart");
+  container.innerHTML = "";
+
+  var points = []; // {label, value}
+  var today = new Date();
+
+  if (graphMode === "week") {
+    for (var i = 6; i >= 0; i--) {
+      var d = new Date(today);
+      d.setDate(d.getDate() - i);
+      var key = formatDate(d);
+      var label = (d.getMonth() + 1) + "/" + d.getDate();
+      points.push({ label: label, value: dailyTotal(key) });
+    }
+  } else {
+    // 月間: 直近4週（週合計）
+    for (var w = 3; w >= 0; w--) {
+      var weekTotal = 0;
+      for (var j = 0; j < 7; j++) {
+        var d2 = new Date(today);
+        d2.setDate(d2.getDate() - (w * 7 + j));
+        weekTotal += dailyTotal(formatDate(d2));
+      }
+      points.push({ label: (4 - w) + "週前".replace("0週前", "今週"), value: weekTotal });
+    }
+    // ラベルを分かりやすく並び替え（古い→新しい）
+    points = points.map(function (p, idx) {
+      var weeksAgo = points.length - 1 - idx;
+      return { label: weeksAgo === 0 ? "今週" : weeksAgo + "週前", value: p.value };
+    });
+  }
+
+  var maxVal = Math.max.apply(null, points.map(function (p) { return p.value; }).concat([0.01]));
+
+  points.forEach(function (p) {
+    var col = document.createElement("div");
+    col.className = "bar-col";
+
+    var amt = document.createElement("div");
+    amt.className = "amt";
+    amt.textContent = round2(p.value).toFixed(1);
+
+    var bar = document.createElement("div");
+    bar.className = "bar";
+    var heightPct = maxVal > 0 ? (p.value / maxVal) * 100 : 0;
+    bar.style.height = Math.max(heightPct, p.value > 0 ? 3 : 1) + "%";
+
+    var lbl = document.createElement("div");
+    lbl.className = "lbl";
+    lbl.textContent = p.label;
+
+    col.appendChild(amt);
+    col.appendChild(bar);
+    col.appendChild(lbl);
+    container.appendChild(col);
+  });
+}
+
+// ===== コピー機能（フォールバック付き） =====
+function copySummary() {
+  var total = calcTotalCo2();
+  var streak = calcStreak();
+  var treeVal = total / 14;
+  var gasVal = total / 2.3;
+  var text =
+    "【エコ生活CO2セーブトラッカー】\n" +
+    "累計削減量: " + round2(total).toFixed(2) + " kg-CO2\n" +
+    "杉の木換算: 約" + round2(treeVal).toFixed(1) + "本の年間吸収量分\n" +
+    "ガソリン換算: 約" + round2(gasVal).toFixed(1) + "L分\n" +
+    "現在の継続日数: " + streak + "日";
+
+  copyToClipboard(text, "結果をコピーしました");
+}
+
+function copyToClipboard(text, successMsg) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () {
+      showToast(successMsg);
+    }).catch(function () {
+      fallbackCopy(text, successMsg);
+    });
+  } else {
+    fallbackCopy(text, successMsg);
+  }
+}
+
+function fallbackCopy(text, successMsg) {
+  var ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand("copy");
+    showToast(successMsg);
+  } catch (e) {
+    showToast("コピーに失敗しました。手動で選択してください");
+  }
+  document.body.removeChild(ta);
+}
+
+// ===== エクスポート / インポート =====
+function exportData() {
+  var payload = {
+    version: 1,
+    actions: state.actions,
+    logs: state.logs
+  };
+  var text = JSON.stringify(payload);
+  document.getElementById("ioText").value = text;
+  copyToClipboard(text, "エクスポートしテキストをコピーしました");
+}
+
+function importData() {
+  var raw = document.getElementById("ioText").value.trim();
+  if (!raw) {
+    showToast("貼り付けるテキストがありません");
+    return;
+  }
+  var parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    showToast("読み込みに失敗しました（不正な形式です）");
+    return;
+  }
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.actions) || typeof parsed.logs !== "object" || parsed.logs === null) {
+    showToast("読み込みに失敗しました（データ形式が不正です）");
+    return;
+  }
+  try {
+    // 行動データの簡易バリデーション
+    var validActions = parsed.actions.filter(function (a) {
+      return a && typeof a.id === "string" && typeof a.cat === "string" &&
+        typeof a.name === "string" && typeof a.co2 === "number" && !isNaN(a.co2);
+    });
+    state.actions = validActions.length > 0 ? validActions : state.actions;
+
+    var validLogs = {};
+    Object.keys(parsed.logs).forEach(function (date) {
+      if (Array.isArray(parsed.logs[date])) {
+        validLogs[date] = parsed.logs[date].filter(function (id) { return typeof id === "string"; });
+      }
+    });
+    state.logs = validLogs;
+
+    renderCategoryList();
+    updateDashboard();
+    renderChart();
+    showToast("データを読み込みました");
+  } catch (e) {
+    showToast("読み込み中にエラーが発生しました");
+  }
+}
+
+// ===== 初期化 =====
+function init() {
+  var dateInput = document.getElementById("logDate");
+  dateInput.value = todayStr();
+  dateInput.addEventListener("change", renderCategoryList);
+
+  renderCategoryList();
+  updateDashboard();
+  renderChart();
+}
+
+init();
+</script>
+</body>
+</html>
