@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>履修シミュレーター｜時間割コンフリクト＆コマ数バランスチェッカー</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #3e8ed4;
+    --accent2: #d4633e;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --danger: #e2555a;
+    --warn: #d4a83e;
+    --ok: #3ed48a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 20px;
+  }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+  .layout { display: flex; flex-wrap: wrap; gap: 20px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+  .panel h3 { font-size: 13px; margin: 14px 0 8px; color: var(--muted); }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input, select {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    width: 100%;
+  }
+  .field { margin-bottom: 10px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > .field { flex: 1; min-width: 100px; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button.secondary { background: #3a3a52; }
+  button.danger { background: var(--danger); }
+  button:hover { opacity: 0.88; }
+  .error { color: var(--danger); font-size: 12px; margin-top: 6px; min-height: 14px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tab {
+    padding: 6px 12px;
+    border-radius: 6px 6px 0 0;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .tab.active { background: var(--panel); border-bottom: 2px solid var(--accent); color: var(--accent); font-weight: bold; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 4px;
+    text-align: center;
+    vertical-align: top;
+    min-width: 60px;
+  }
+  th { background: #1a1a28; color: var(--muted); }
+  .cell-subject {
+    background: #2c3550;
+    border-radius: 4px;
+    padding: 3px 4px;
+    margin-bottom: 2px;
+    font-size: 11px;
+    word-break: break-all;
+  }
+  .cell-conflict {
+    background: #4a2530 !important;
+    border: 2px solid var(--danger) !important;
+  }
+  .cell-conflict .cell-subject { background: #5a2a35; }
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    background: var(--border);
+    color: var(--muted);
+    margin-left: 3px;
+  }
+  .subj-list { max-height: 220px; overflow-y: auto; }
+  .subj-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .subj-item button { padding: 3px 8px; font-size: 11px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+  .bar-label { width: 28px; color: var(--muted); }
+  .bar-track { flex: 1; background: #1a1a28; border-radius: 4px; height: 14px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--accent); }
+  .bar-fill.warn { background: var(--warn); }
+  .bar-fill.danger { background: var(--danger); }
+  .bar-count { width: 50px; font-size: 11px; color: var(--muted); }
+  .warn-msg { font-size: 12px; color: var(--warn); margin: 4px 0; }
+  .cat-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; border-bottom: 1px dashed var(--border); }
+  textarea {
+    width: 100%;
+    min-height: 70px;
+    background: #1a1a28;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    padding: 6px;
+    resize: vertical;
+  }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ok);
+    color: #12251c;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.25s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .compare-table td, .compare-table th { font-size: 11px; }
+  @media (max-width: 700px) {
+    .layout { flex-direction: column; }
+    table { font-size: 10px; }
+    th, td { min-width: 44px; padding: 2px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>履修シミュレーター</h1>
+  <p>履修登録前に候補科目を仮の時間割に置いて、コマ重複・詰め込みすぎ・単位バランスを事前チェックできるツール。データは外部送信せずブラウザ内のみで扱います。</p>
+</header>
+
+<div class="tabs" id="planTabs"></div>
+
+<div class="layout">
+
+  <div class="panel" style="flex: 1; min-width: 280px;">
+    <h2>候補科目を登録</h2>
+    <div class="row">
+      <div class="field">
+        <label>科目名</label>
+        <input type="text" id="inName" placeholder="例: データ構造とアルゴリズム" maxlength="60">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>曜日</label>
+        <select id="inDay">
+          <option value="月">月</option>
+          <option value="火">火</option>
+          <option value="水">水</option>
+          <option value="木">木</option>
+          <option value="金">金</option>
+          <option value="土">土</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>時限</label>
+        <select id="inPeriod">
+          <option value="1">1限</option>
+          <option value="2">2限</option>
+          <option value="3">3限</option>
+          <option value="4">4限</option>
+          <option value="5">5限</option>
+          <option value="6">6限</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>単位数</label>
+        <input type="number" id="inCredits" placeholder="例: 2" min="0" step="0.5">
+      </div>
+      <div class="field">
+        <label>区分</label>
+        <select id="inCategory">
+          <option value="必修">必修</option>
+          <option value="選択必修">選択必修</option>
+          <option value="選択">選択</option>
+          <option value="自由選択">自由選択</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>担当教員（任意）</label>
+      <input type="text" id="inTeacher" placeholder="例: 山田先生" maxlength="40">
+    </div>
+    <button onclick="addSubject()">科目を追加</button>
+    <div class="error" id="addError"></div>
+
+    <h3>登録済み科目一覧（この案）</h3>
+    <div class="subj-list" id="subjList"></div>
+  </div>
+
+  <div class="panel" style="flex: 2; min-width: 340px;">
+    <h2>時間割グリッド（<span id="gridPlanName"></span>）</h2>
+    <div id="conflictWarn"></div>
+    <div style="overflow-x:auto;">
+      <table id="grid"></table>
+    </div>
+
+    <h3>曜日別コマ数</h3>
+    <div id="dayCounts"></div>
+    <div id="dayWarn"></div>
+
+    <h3>区分別単位数集計</h3>
+    <div class="field" style="max-width:300px;">
+      <label>前学期までの取得単位数（合計）</label>
+      <input type="number" id="priorCredits" min="0" step="0.5" value="0" oninput="onPriorCreditsChange()">
+    </div>
+    <div id="catSummary"></div>
+    <div style="margin-top:8px; font-size:13px;">合計進捗: <span id="totalProgress">-</span></div>
+
+    <div class="row" style="margin-top:14px;">
+      <button onclick="copyResult()">結果をコピー</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="layout" style="margin-top:20px;">
+  <div class="panel" style="flex:1; min-width:280px;">
+    <h2>案の比較</h2>
+    <div style="overflow-x:auto;">
+      <table class="compare-table" id="compareTable"></table>
+    </div>
+  </div>
+
+  <div class="panel" style="flex:1; min-width:280px;">
+    <h2>エクスポート／インポート</h2>
+    <p style="font-size:12px; color:var(--muted); margin-top:0;">全案のデータをテキストコードとして書き出し・読み込みできます（ブラウザを閉じると消えるため、必要ならコピーして保存してください）。</p>
+    <button onclick="exportData()">エクスポート</button>
+    <button class="secondary" onclick="importData()">インポート</button>
+    <div class="field" style="margin-top:10px;">
+      <textarea id="ioBox" placeholder="ここにエクスポートしたコードが表示されます。インポート時はここに貼り付けてから「インポート」を押してください。"></textarea>
+    </div>
+    <div class="error" id="ioError"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  var DAYS = ["月", "火", "水", "木", "金", "土"];
+  var PERIODS = [1, 2, 3, 4, 5, 6];
+  var CATEGORIES = ["必修", "選択必修", "選択", "自由選択"];
+
+  var state = {
+    plans: {
+      "案A": { subjects: [], priorCredits: 0 }
+    },
+    currentPlan: "案A",
+    nextId: 1
+  };
+
+  function escapeHtml(str) {
+    if (typeof str !== "string") return "";
+    return str.replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(function () { t.classList.remove("show"); }, 1600);
+  }
+
+  function currentPlanData() {
+    return state.plans[state.currentPlan];
+  }
+
+  function renderTabs() {
+    var wrap = document.getElementById("planTabs");
+    wrap.innerHTML = "";
+    Object.keys(state.plans).forEach(function (name) {
+      var tab = document.createElement("div");
+      tab.className = "tab" + (name === state.currentPlan ? " active" : "");
+      tab.textContent = name;
+      tab.onclick = function () { state.currentPlan = name; renderAll(); };
+      wrap.appendChild(tab);
+    });
+    var addTab = document.createElement("div");
+    addTab.className = "tab";
+    addTab.textContent = "＋ 新しい案";
+    addTab.onclick = addPlan;
+    wrap.appendChild(addTab);
+
+    if (Object.keys(state.plans).length > 1) {
+      var delTab = document.createElement("div");
+      delTab.className = "tab";
+      delTab.style.color = "var(--danger)";
+      delTab.textContent = "この案を削除";
+      delTab.onclick = deletePlan;
+      wrap.appendChild(delTab);
+    }
+  }
+
+  function addPlan() {
+    var name = prompt("新しい案の名前を入力してください（例: 案B）", "案" + String.fromCharCode(65 + Object.keys(state.plans).length));
+    if (name === null) return;
+    name = name.trim();
+    if (!name) { showToast("案名を入力してください"); return; }
+    if (name.length > 20) { showToast("案名は20文字以内にしてください"); return; }
+    if (state.plans[name]) { showToast("同じ名前の案が既にあります"); return; }
+    state.plans[name] = { subjects: [], priorCredits: 0 };
+    state.currentPlan = name;
+    renderAll();
+  }
+
+  function deletePlan() {
+    if (Object.keys(state.plans).length <= 1) { showToast("最後の案は削除できません"); return; }
+    if (!confirm('「' + state.currentPlan + '」を削除しますか？')) return;
+    delete state.plans[state.currentPlan];
+    state.currentPlan = Object.keys(state.plans)[0];
+    renderAll();
+  }
+
+  function addSubject() {
+    var errEl = document.getElementById("addError");
+    errEl.textContent = "";
+
+    var name = document.getElementById("inName").value.trim();
+    var day = document.getElementById("inDay").value;
+    var period = parseInt(document.getElementById("inPeriod").value, 10);
+    var creditsRaw = document.getElementById("inCredits").value;
+    var credits = parseFloat(creditsRaw);
+    var category = document.getElementById("inCategory").value;
+    var teacher = document.getElementById("inTeacher").value.trim();
+
+    if (!name) { errEl.textContent = "科目名を入力してください。"; return; }
+    if (name.length > 60) { errEl.textContent = "科目名は60文字以内にしてください。"; return; }
+    if (creditsRaw === "" || isNaN(credits) || credits < 0) { errEl.textContent = "単位数は0以上の数値で入力してください。"; return; }
+    if (credits > 20) { errEl.textContent = "単位数が大きすぎます（20以下にしてください）。"; return; }
+    if (teacher.length > 40) { errEl.textContent = "担当教員名は40文字以内にしてください。"; return; }
+
+    currentPlanData().subjects.push({
+      id: state.nextId++,
+      name: name,
+      day: day,
+      period: period,
+      credits: credits,
+      category: category,
+      teacher: teacher
+    });
+
+    document.getElementById("inName").value = "";
+    document.getElementById("inCredits").value = "";
+    document.getElementById("inTeacher").value = "";
+
+    renderAll();
+    showToast("科目を追加しました");
+  }
+
+  function deleteSubject(id) {
+    var plan = currentPlanData();
+    plan.subjects = plan.subjects.filter(function (s) { return s.id !== id; });
+    renderAll();
+  }
+
+  function renderSubjList() {
+    var wrap = document.getElementById("subjList");
+    var plan = currentPlanData();
+    wrap.innerHTML = "";
+    if (plan.subjects.length === 0) {
+      wrap.innerHTML = '<div style="font-size:12px; color:var(--muted); padding:8px 0;">まだ科目が登録されていません。</div>';
+      return;
+    }
+    plan.subjects.forEach(function (s) {
+      var item = document.createElement("div");
+      item.className = "subj-item";
+      var label = document.createElement("span");
+      label.textContent = s.day + s.period + "限｜" + s.name + "（" + s.credits + "単位・" + s.category + "）" + (s.teacher ? "｜" + s.teacher : "");
+      var btn = document.createElement("button");
+      btn.className = "danger";
+      btn.textContent = "削除";
+      btn.onclick = function () { deleteSubject(s.id); };
+      item.appendChild(label);
+      item.appendChild(btn);
+      wrap.appendChild(item);
+    });
+  }
+
+  function findConflicts(subjects) {
+    var map = {};
+    subjects.forEach(function (s) {
+      var key = s.day + "-" + s.period;
+      if (!map[key]) map[key] = [];
+      map[key].push(s);
+    });
+    var conflictKeys = {};
+    Object.keys(map).forEach(function (key) {
+      if (map[key].length > 1) conflictKeys[key] = map[key];
+    });
+    return { map: map, conflictKeys: conflictKeys };
+  }
+
+  function renderGrid() {
+    document.getElementById("gridPlanName").textContent = state.currentPlan;
+    var plan = currentPlanData();
+    var result = findConflicts(plan.subjects);
+    var map = result.map;
+    var conflictKeys = result.conflictKeys;
+
+    var table = document.getElementById("grid");
+    var html = "<tr><th></th>";
+    DAYS.forEach(function (d) { html += "<th>" + d + "</th>"; });
+    html += "</tr>";
+
+    PERIODS.forEach(function (p) {
+      html += "<tr><th>" + p + "限</th>";
+      DAYS.forEach(function (d) {
+        var key = d + "-" + p;
+        var cellSubjects = map[key] || [];
+        var isConflict = !!conflictKeys[key];
+        html += '<td class="' + (isConflict ? "cell-conflict" : "") + '">';
+        cellSubjects.forEach(function (s) {
+          html += '<div class="cell-subject">' + escapeHtml(s.name) + '</div>';
+        });
+        html += "</td>";
+      });
+      html += "</tr>";
+    });
+    table.innerHTML = html;
+
+    var warnWrap = document.getElementById("conflictWarn");
+    var conflictCount = Object.keys(conflictKeys).length;
+    if (conflictCount > 0) {
+      var msgs = Object.keys(conflictKeys).map(function (key) {
+        var names = conflictKeys[key].map(function (s) { return s.name; }).join(" / ");
+        var parts = key.split("-");
+        return parts[0] + parts[1] + "限: " + names;
+      });
+      warnWrap.innerHTML = '<div class="warn-msg" style="color:var(--danger);">⚠ コマの重複が' + conflictCount + '件あります（' + msgs.map(escapeHtml).join("、") + '）</div>';
+    } else {
+      warnWrap.innerHTML = plan.subjects.length > 0 ? '<div class="warn-msg" style="color:var(--ok);">重複はありません</div>' : "";
+    }
+  }
+
+  function renderDayCounts() {
+    var plan = currentPlanData();
+    var counts = {};
+    DAYS.forEach(function (d) { counts[d] = 0; });
+    plan.subjects.forEach(function (s) { counts[s.day] = (counts[s.day] || 0) + 1; });
+
+    var wrap = document.getElementById("dayCounts");
+    wrap.innerHTML = "";
+    var max = Math.max(6, Math.max.apply(null, DAYS.map(function (d) { return counts[d]; })));
+    DAYS.forEach(function (d) {
+      var c = counts[d];
+      var pct = Math.min(100, (c / max) * 100);
+      var cls = c >= 5 ? "danger" : (c >= 4 ? "warn" : "");
+      var row = document.createElement("div");
+      row.className = "bar-row";
+      row.innerHTML =
+        '<span class="bar-label">' + d + '</span>' +
+        '<span class="bar-track"><span class="bar-fill ' + cls + '" style="width:' + pct + '%;"></span></span>' +
+        '<span class="bar-count">' + c + 'コマ</span>';
+      wrap.appendChild(row);
+    });
+
+    var warnEl = document.getElementById("dayWarn");
+    var msgs = [];
+    var hasAny = plan.subjects.length > 0;
+    DAYS.forEach(function (d) {
+      if (counts[d] >= 5) msgs.push(d + "曜日にコマが詰め込まれています（" + counts[d] + "コマ）");
+    });
+    if (hasAny) {
+      DAYS.forEach(function (d) {
+        if (counts[d] === 0) msgs.push(d + "曜日は空きコマです");
+      });
+    }
+    warnEl.innerHTML = msgs.length > 0
+      ? msgs.map(function (m) { return '<div class="warn-msg">・' + escapeHtml(m) + '</div>'; }).join("")
+      : "";
+  }
+
+  function categoryTotals(plan) {
+    var totals = {};
+    CATEGORIES.forEach(function (c) { totals[c] = 0; });
+    plan.subjects.forEach(function (s) {
+      if (totals[s.category] === undefined) totals[s.category] = 0;
+      totals[s.category] += s.credits;
+    });
+    return totals;
+  }
+
+  function renderCatSummary() {
+    var plan = currentPlanData();
+    var totals = categoryTotals(plan);
+    var wrap = document.getElementById("catSummary");
+    wrap.innerHTML = "";
+    var sum = 0;
+    CATEGORIES.forEach(function (c) {
+      sum += totals[c];
+      var row = document.createElement("div");
+      row.className = "cat-row";
+      row.innerHTML = "<span>" + c + "</span><span>" + round1(totals[c]) + " 単位</span>";
+      wrap.appendChild(row);
+    });
+
+    var prior = parseFloat(document.getElementById("priorCredits").value);
+    if (isNaN(prior) || prior < 0) prior = 0;
+    plan.priorCredits = prior;
+
+    document.getElementById("totalProgress").textContent =
+      "今回の登録 " + round1(sum) + " 単位 ＋ 既取得 " + round1(prior) + " 単位 ＝ " + round1(sum + prior) + " 単位";
+  }
+
+  function onPriorCreditsChange() {
+    var v = parseFloat(document.getElementById("priorCredits").value);
+    currentPlanData().priorCredits = isNaN(v) || v < 0 ? 0 : v;
+    renderCatSummary();
+  }
+
+  function round1(n) {
+    return Math.round(n * 10) / 10;
+  }
+
+  function renderPriorInput() {
+    document.getElementById("priorCredits").value = currentPlanData().priorCredits || 0;
+  }
+
+  function renderCompareTable() {
+    var table = document.getElementById("compareTable");
+    var names = Object.keys(state.plans);
+    var html = "<tr><th>案</th><th>科目数</th><th>合計単位</th><th>重複コマ数</th>";
+    CATEGORIES.forEach(function (c) { html += "<th>" + c + "</th>"; });
+    html += "</tr>";
+    names.forEach(function (name) {
+      var plan = state.plans[name];
+      var totals = categoryTotals(plan);
+      var sum = CATEGORIES.reduce(function (acc, c) { return acc + totals[c]; }, 0);
+      var conflicts = Object.keys(findConflicts(plan.subjects).conflictKeys).length;
+      html += "<tr" + (name === state.currentPlan ? ' style="color:var(--accent);"' : "") + ">";
+      html += "<td>" + escapeHtml(name) + "</td>";
+      html += "<td>" + plan.subjects.length + "</td>";
+      html += "<td>" + round1(sum) + "</td>";
+      html += "<td>" + (conflicts > 0 ? ("⚠" + conflicts) : "0") + "</td>";
+      CATEGORIES.forEach(function (c) { html += "<td>" + round1(totals[c]) + "</td>"; });
+      html += "</tr>";
+    });
+    table.innerHTML = html;
+  }
+
+  function renderAll() {
+    renderTabs();
+    renderSubjList();
+    renderGrid();
+    renderDayCounts();
+    renderPriorInput();
+    renderCatSummary();
+    renderCompareTable();
+  }
+
+  // --- コピー機能 ---
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast("コピーしました");
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showToast("コピーしました");
+    } catch (e) {
+      showToast("コピーに失敗しました");
+    }
+    document.body.removeChild(ta);
+  }
+
+  function copyResult() {
+    var plan = currentPlanData();
+    var totals = categoryTotals(plan);
+    var lines = [];
+    lines.push("【" + state.currentPlan + "】履修シミュレーション結果");
+    lines.push("");
+    plan.subjects.forEach(function (s) {
+      lines.push(s.day + s.period + "限｜" + s.name + "｜" + s.credits + "単位｜" + s.category + (s.teacher ? "｜" + s.teacher : ""));
+    });
+    lines.push("");
+    var conflicts = Object.keys(findConflicts(plan.subjects).conflictKeys).length;
+    lines.push("重複コマ数: " + conflicts);
+    CATEGORIES.forEach(function (c) {
+      lines.push(c + ": " + round1(totals[c]) + "単位");
+    });
+    var sum = CATEGORIES.reduce(function (acc, c) { return acc + totals[c]; }, 0);
+    lines.push("合計: " + round1(sum) + "単位（既取得 " + round1(plan.priorCredits || 0) + "単位を含めると " + round1(sum + (plan.priorCredits || 0)) + "単位）");
+    copyToClipboard(lines.join("\n"));
+  }
+
+  // --- エクスポート／インポート ---
+  function exportData() {
+    var payload = {
+      plans: state.plans,
+      currentPlan: state.currentPlan,
+      nextId: state.nextId,
+      exportedAt: new Date().toISOString()
+    };
+    var json = JSON.stringify(payload);
+    var code;
+    try {
+      code = btoa(unescape(encodeURIComponent(json)));
+    } catch (e) {
+      code = "";
+    }
+    document.getElementById("ioBox").value = code;
+    document.getElementById("ioError").textContent = "";
+    showToast("エクスポートしました（下のコードをコピーして保存してください）");
+  }
+
+  function importData() {
+    var errEl = document.getElementById("ioError");
+    errEl.textContent = "";
+    var raw = document.getElementById("ioBox").value.trim();
+    if (!raw) { errEl.textContent = "インポートするコードを貼り付けてください。"; return; }
+
+    var json;
+    try {
+      json = decodeURIComponent(escape(atob(raw)));
+    } catch (e) {
+      errEl.textContent = "コードの形式が正しくありません。エクスポートしたコードをそのまま貼り付けてください。";
+      return;
+    }
+
+    var data;
+    try {
+      data = JSON.parse(json);
+    } catch (e) {
+      errEl.textContent = "データの読み込みに失敗しました（壊れているか、対応していない形式です）。";
+      return;
+    }
+
+    if (!data || typeof data !== "object" || !data.plans || typeof data.plans !== "object" || Object.keys(data.plans).length === 0) {
+      errEl.textContent = "有効な履修データが見つかりませんでした。";
+      return;
+    }
+
+    var newPlans = {};
+    var maxId = 0;
+    try {
+      Object.keys(data.plans).forEach(function (name) {
+        var p = data.plans[name];
+        var subjects = Array.isArray(p.subjects) ? p.subjects : [];
+        var cleanSubjects = subjects.map(function (s) {
+          var id = typeof s.id === "number" ? s.id : (maxId + 1);
+          if (id > maxId) maxId = id;
+          return {
+            id: id,
+            name: typeof s.name === "string" ? s.name.slice(0, 60) : "無題",
+            day: DAYS.indexOf(s.day) >= 0 ? s.day : "月",
+            period: PERIODS.indexOf(s.period) >= 0 ? s.period : 1,
+            credits: typeof s.credits === "number" && s.credits >= 0 ? s.credits : 0,
+            category: CATEGORIES.indexOf(s.category) >= 0 ? s.category : "選択",
+            teacher: typeof s.teacher === "string" ? s.teacher.slice(0, 40) : ""
+          };
+        });
+        newPlans[String(name).slice(0, 20)] = {
+          subjects: cleanSubjects,
+          priorCredits: typeof p.priorCredits === "number" && p.priorCredits >= 0 ? p.priorCredits : 0
+        };
+      });
+    } catch (e) {
+      errEl.textContent = "データの一部を読み込めませんでした。";
+      return;
+    }
+
+    if (Object.keys(newPlans).length === 0) {
+      errEl.textContent = "有効な履修データが見つかりませんでした。";
+      return;
+    }
+
+    state.plans = newPlans;
+    state.currentPlan = (data.currentPlan && newPlans[data.currentPlan]) ? data.currentPlan : Object.keys(newPlans)[0];
+    state.nextId = maxId + 1;
+
+    renderAll();
+    showToast("インポートしました");
+  }
+
+  renderAll();
+</script>
+
+</body>
+</html>
