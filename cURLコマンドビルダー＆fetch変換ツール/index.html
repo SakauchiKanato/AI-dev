@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cURLコマンドビルダー＆fetch変換ツール</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #4a86e8;
+    --accent2: #43d692;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --danger: #f16d6d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 20px;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 420px;
+    min-width: 300px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; color: var(--text); }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], input[type=url], textarea, select {
+    width: 100%;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 70px; font-family: "SFMono-Regular", Consolas, monospace; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 120px; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary { background: var(--border); color: var(--text); }
+  button.small { padding: 4px 8px; font-size: 12px; }
+  button.danger { background: var(--danger); }
+  .header-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .header-row input { flex: 1; }
+  .preset-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tab-btn {
+    background: #1a1a28;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  pre {
+    background: #14141f;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 12.5px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 320px;
+    overflow: auto;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    margin: 0;
+  }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent2);
+    color: #14141f;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .error-text { color: var(--danger); font-size: 12px; margin-top: 4px; min-height: 14px; }
+  .note {
+    font-size: 11.5px;
+    color: var(--muted);
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 10px;
+  }
+  .auth-value { margin-top: 6px; display: none; }
+  @media (max-width: 480px) {
+    .layout { flex-direction: column; }
+    .panel { flex: 1 1 auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>cURLコマンドビルダー＆fetch変換ツール</h1>
+  <p>フォームからcURLコマンドとJavaScript fetch()コードを組み立て、既存のcURLコマンドの解析もできます。入力内容は一切外部送信せずブラウザ内のみで処理します。</p>
+</header>
+
+<div class="preset-bar">
+  <button class="secondary small" onclick="loadPreset('claude')">プリセット: Claude API</button>
+  <button class="secondary small" onclick="loadPreset('github')">プリセット: GitHub API</button>
+  <button class="secondary small" onclick="loadPreset('simple')">プリセット: シンプルGET</button>
+  <button class="secondary small" onclick="resetForm()">フォームをリセット</button>
+</div>
+
+<div class="layout">
+
+  <div class="panel" id="formPanel">
+    <h2>① リクエストを組み立てる</h2>
+
+    <label>URL</label>
+    <input type="url" id="urlInput" placeholder="https://api.example.com/v1/resource" oninput="render()">
+
+    <div class="row">
+      <div>
+        <label>メソッド</label>
+        <select id="methodInput" onchange="render()">
+          <option>GET</option>
+          <option>POST</option>
+          <option>PUT</option>
+          <option>PATCH</option>
+          <option>DELETE</option>
+        </select>
+      </div>
+      <div>
+        <label>認証</label>
+        <select id="authType" onchange="onAuthTypeChange()">
+          <option value="none">なし</option>
+          <option value="bearer">Bearer Token</option>
+          <option value="basic">Basic認証（user:pass）</option>
+          <option value="apikey">カスタムAPIキーヘッダー</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="auth-value" id="authValueWrap">
+      <label id="authValueLabel">値</label>
+      <input type="text" id="authValue" placeholder="" oninput="render()">
+      <input type="text" id="authKeyName" placeholder="ヘッダー名（例: X-API-Key）" style="margin-top:6px; display:none;" oninput="render()">
+    </div>
+
+    <label>ヘッダー</label>
+    <div id="headersList"></div>
+    <button class="secondary small" onclick="addHeaderRow('', '')">＋ ヘッダーを追加</button>
+
+    <label>リクエストボディ（JSON）</label>
+    <textarea id="bodyInput" placeholder='{"key": "value"}' oninput="render()"></textarea>
+    <div class="error-text" id="bodyError"></div>
+
+    <label>② cURLコマンドを貼り付けて解析</label>
+    <textarea id="curlParseInput" placeholder="curl -X POST https://... -H 'Content-Type: application/json' -d '{...}'"></textarea>
+    <div class="row" style="margin-top:8px;">
+      <button onclick="parseCurl()">解析してフォームに反映</button>
+    </div>
+    <div class="error-text" id="parseError"></div>
+
+    <div class="note">実際のAPIトークン・パスワード等を入力する際は取り扱いにご注意ください（このツールは外部送信しませんが、画面共有時などは表示にご注意を）。</div>
+  </div>
+
+  <div class="panel" id="outputPanel">
+    <h2>③ 生成結果</h2>
+    <div class="tabs">
+      <button class="tab-btn active" id="tabCurlBtn" onclick="switchTab('curl')">cURL</button>
+      <button class="tab-btn" id="tabFetchBtn" onclick="switchTab('fetch')">fetch()</button>
+    </div>
+    <pre id="curlOutput"></pre>
+    <pre id="fetchOutput" style="display:none;"></pre>
+    <div class="row" style="margin-top:10px;">
+      <button onclick="copyOutput()">結果をコピー</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">コピーしました</div>
+
+<script>
+let headers = []; // {key, value}
+let currentTab = 'curl';
+
+function addHeaderRow(key, value) {
+  headers.push({ key: key || '', value: value || '' });
+  renderHeaders();
+  render();
+}
+
+function removeHeaderRow(idx) {
+  headers.splice(idx, 1);
+  renderHeaders();
+  render();
+}
+
+function renderHeaders() {
+  const list = document.getElementById('headersList');
+  list.innerHTML = '';
+  headers.forEach((h, idx) => {
+    const row = document.createElement('div');
+    row.className = 'header-row';
+
+    const keyInput = document.createElement('input');
+    keyInput.type = 'text';
+    keyInput.placeholder = 'ヘッダー名';
+    keyInput.value = h.key;
+    keyInput.oninput = (e) => { headers[idx].key = e.target.value; render(); };
+
+    const valInput = document.createElement('input');
+    valInput.type = 'text';
+    valInput.placeholder = '値';
+    valInput.value = h.value;
+    valInput.oninput = (e) => { headers[idx].value = e.target.value; render(); };
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'danger small';
+    delBtn.textContent = '削除';
+    delBtn.onclick = () => removeHeaderRow(idx);
+
+    row.appendChild(keyInput);
+    row.appendChild(valInput);
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+
+function onAuthTypeChange() {
+  const type = document.getElementById('authType').value;
+  const wrap = document.getElementById('authValueWrap');
+  const label = document.getElementById('authValueLabel');
+  const valueInput = document.getElementById('authValue');
+  const keyNameInput = document.getElementById('authKeyName');
+
+  if (type === 'none') {
+    wrap.style.display = 'none';
+  } else {
+    wrap.style.display = 'block';
+  }
+
+  if (type === 'bearer') {
+    label.textContent = 'トークン';
+    valueInput.placeholder = 'あなたのトークン';
+    keyNameInput.style.display = 'none';
+  } else if (type === 'basic') {
+    label.textContent = 'user:pass（Base64化前）';
+    valueInput.placeholder = 'user:pass';
+    keyNameInput.style.display = 'none';
+  } else if (type === 'apikey') {
+    label.textContent = 'APIキーの値';
+    valueInput.placeholder = 'あなたのAPIキー';
+    keyNameInput.style.display = 'block';
+  }
+  render();
+}
+
+// シェル用に安全にシングルクォートでエスケープする
+function shellQuote(str) {
+  if (str === undefined || str === null) str = '';
+  return "'" + String(str).replace(/'/g, "'\\''") + "'";
+}
+
+function b64(str) {
+  try {
+    return btoa(unescape(encodeURIComponent(str)));
+  } catch (e) {
+    return '';
+  }
+}
+
+function getEffectiveHeaders() {
+  // ユーザー入力ヘッダー + 認証ヘッダーをまとめて返す（キーが空のものは除外）
+  const list = headers.filter(h => h.key.trim() !== '');
+  const authType = document.getElementById('authType').value;
+  const authValue = document.getElementById('authValue').value;
+  const authKeyName = document.getElementById('authKeyName').value;
+
+  if (authType === 'bearer' && authValue.trim() !== '') {
+    list.push({ key: 'Authorization', value: 'Bearer ' + authValue.trim() });
+  } else if (authType === 'basic' && authValue.trim() !== '') {
+    list.push({ key: 'Authorization', value: 'Basic ' + b64(authValue.trim()) });
+  } else if (authType === 'apikey' && authValue.trim() !== '' && authKeyName.trim() !== '') {
+    list.push({ key: authKeyName.trim(), value: authValue.trim() });
+  }
+  return list;
+}
+
+function validateBody() {
+  const bodyRaw = document.getElementById('bodyInput').value;
+  const errEl = document.getElementById('bodyError');
+  if (bodyRaw.trim() === '') {
+    errEl.textContent = '';
+    return { ok: true, text: '' };
+  }
+  try {
+    JSON.parse(bodyRaw);
+    errEl.textContent = '';
+    return { ok: true, text: bodyRaw };
+  } catch (e) {
+    errEl.textContent = 'JSONとして解析できません: ' + e.message;
+    return { ok: false, text: bodyRaw };
+  }
+}
+
+function buildCurl() {
+  const url = document.getElementById('urlInput').value.trim();
+  const method = document.getElementById('methodInput').value;
+  const effHeaders = getEffectiveHeaders();
+  const bodyResult = validateBody();
+  const hasBody = bodyResult.text.trim() !== '';
+
+  let parts = ['curl'];
+  if (method !== 'GET') {
+    parts.push('-X ' + method);
+  }
+  parts.push(shellQuote(url || 'https://'));
+
+  effHeaders.forEach(h => {
+    parts.push('-H ' + shellQuote(h.key + ': ' + h.value));
+  });
+
+  if (hasBody) {
+    if (!effHeaders.some(h => h.key.toLowerCase() === 'content-type')) {
+      parts.push('-H ' + shellQuote('Content-Type: application/json'));
+    }
+    parts.push('-d ' + shellQuote(bodyResult.text));
+  }
+
+  return parts.join(' \\\n  ');
+}
+
+function buildFetch() {
+  const url = document.getElementById('urlInput').value.trim() || 'https://';
+  const method = document.getElementById('methodInput').value;
+  const effHeaders = getEffectiveHeaders();
+  const bodyResult = validateBody();
+  const hasBody = bodyResult.text.trim() !== '';
+
+  const headerObjLines = effHeaders.map(h => `    ${JSON.stringify(h.key)}: ${JSON.stringify(h.value)}`);
+  if (hasBody && !effHeaders.some(h => h.key.toLowerCase() === 'content-type')) {
+    headerObjLines.push(`    "Content-Type": "application/json"`);
+  }
+
+  let optionsLines = [`  method: ${JSON.stringify(method)}`];
+  if (headerObjLines.length > 0) {
+    optionsLines.push(`  headers: {\n${headerObjLines.join(',\n')}\n  }`);
+  }
+  if (hasBody) {
+    let bodyExpr;
+    try {
+      const parsed = JSON.parse(bodyResult.text);
+      bodyExpr = `JSON.stringify(${JSON.stringify(parsed)})`;
+    } catch (e) {
+      bodyExpr = `JSON.stringify(${JSON.stringify(bodyResult.text)}) /* 元のJSONを解析できませんでした。手動で確認してください */`;
+    }
+    optionsLines.push(`  body: ${bodyExpr}`);
+  }
+
+  return `const response = await fetch(${JSON.stringify(url)}, {\n${optionsLines.join(',\n')}\n});\nconst data = await response.json();\nconsole.log(data);`;
+}
+
+function render() {
+  document.getElementById('curlOutput').textContent = buildCurl();
+  document.getElementById('fetchOutput').textContent = buildFetch();
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabCurlBtn').classList.toggle('active', tab === 'curl');
+  document.getElementById('tabFetchBtn').classList.toggle('active', tab === 'fetch');
+  document.getElementById('curlOutput').style.display = tab === 'curl' ? 'block' : 'none';
+  document.getElementById('fetchOutput').style.display = tab === 'fetch' ? 'block' : 'none';
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1600);
+}
+
+function copyOutput() {
+  const text = currentTab === 'curl'
+    ? document.getElementById('curlOutput').textContent
+    : document.getElementById('fetchOutput').textContent;
+  copyText(text);
+}
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('コピーしました');
+    }).catch(() => {
+      fallbackCopy(text);
+    });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('コピーしました');
+  } catch (e) {
+    showToast('コピーに失敗しました');
+  }
+  document.body.removeChild(ta);
+}
+
+// --- cURL解析（貼り付けたcURLコマンドをトークン化してフォームに反映） ---
+function tokenizeShell(str) {
+  const tokens = [];
+  let i = 0;
+  const n = str.length;
+  while (i < n) {
+    while (i < n && /\s/.test(str[i])) i++;
+    if (i >= n) break;
+    let token = '';
+    while (i < n && !/\s/.test(str[i])) {
+      const c = str[i];
+      if (c === "'") {
+        i++;
+        while (i < n && str[i] !== "'") { token += str[i]; i++; }
+        i++; // 閉じクォートをスキップ
+      } else if (c === '"') {
+        i++;
+        while (i < n && str[i] !== '"') {
+          if (str[i] === '\\' && i + 1 < n) { token += str[i + 1]; i += 2; }
+          else { token += str[i]; i++; }
+        }
+        i++;
+      } else if (c === '\\' && i + 1 < n) {
+        token += str[i + 1];
+        i += 2;
+      } else {
+        token += c;
+        i++;
+      }
+    }
+    tokens.push(token);
+  }
+  return tokens;
+}
+
+function parseCurl() {
+  const raw = document.getElementById('curlParseInput').value.trim();
+  const errEl = document.getElementById('parseError');
+  errEl.textContent = '';
+
+  if (raw === '') {
+    errEl.textContent = '貼り付け欄が空です';
+    return;
+  }
+
+  // 行継続（末尾の \）を1行にまとめる
+  const joined = raw.replace(/\\\s*\n/g, ' ').replace(/\n/g, ' ');
+  let tokens;
+  try {
+    tokens = tokenizeShell(joined);
+  } catch (e) {
+    errEl.textContent = '解析中にエラーが発生しました: ' + e.message;
+    return;
+  }
+
+  if (tokens.length === 0 || tokens[0] !== 'curl') {
+    errEl.textContent = '"curl"で始まるコマンドではないようです（そのまま解析を試みます）';
+  }
+
+  let method = 'GET';
+  let url = '';
+  const newHeaders = [];
+  let body = '';
+  let basicAuth = '';
+  const unsupported = [];
+
+  for (let i = (tokens[0] === 'curl' ? 1 : 0); i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t === '-X' || t === '--request') {
+      method = (tokens[++i] || 'GET').toUpperCase();
+    } else if (t === '-H' || t === '--header') {
+      const h = tokens[++i] || '';
+      const sep = h.indexOf(':');
+      if (sep > -1) {
+        newHeaders.push({ key: h.slice(0, sep).trim(), value: h.slice(sep + 1).trim() });
+      }
+    } else if (t === '-d' || t === '--data' || t === '--data-raw' || t === '--data-binary') {
+      body = tokens[++i] || '';
+      if (method === 'GET') method = 'POST';
+    } else if (t === '-u' || t === '--user') {
+      basicAuth = tokens[++i] || '';
+    } else if (t.startsWith('-')) {
+      // 未対応オプション（値を取る可能性があるものはスキップしない。単純化のため無視のみ記録）
+      unsupported.push(t);
+    } else if (t.startsWith('http://') || t.startsWith('https://')) {
+      url = t;
+    } else if (url === '') {
+      url = t;
+    }
+  }
+
+  document.getElementById('urlInput').value = url;
+  document.getElementById('methodInput').value = ['GET','POST','PUT','PATCH','DELETE'].includes(method) ? method : 'GET';
+
+  headers = newHeaders.filter(h => h.key.toLowerCase() !== 'authorization');
+  renderHeaders();
+
+  const authHeader = newHeaders.find(h => h.key.toLowerCase() === 'authorization');
+  if (basicAuth) {
+    document.getElementById('authType').value = 'basic';
+    document.getElementById('authValue').value = basicAuth;
+    onAuthTypeChange();
+  } else if (authHeader && /^bearer\s+/i.test(authHeader.value)) {
+    document.getElementById('authType').value = 'bearer';
+    document.getElementById('authValue').value = authHeader.value.replace(/^bearer\s+/i, '');
+    onAuthTypeChange();
+  } else if (authHeader) {
+    document.getElementById('authType').value = 'apikey';
+    document.getElementById('authKeyName').value = 'Authorization';
+    document.getElementById('authValue').value = authHeader.value;
+    onAuthTypeChange();
+  } else {
+    document.getElementById('authType').value = 'none';
+    onAuthTypeChange();
+  }
+
+  document.getElementById('bodyInput').value = body;
+
+  if (unsupported.length > 0) {
+    errEl.textContent = '一部の未対応オプションは無視しました: ' + unsupported.join(' ');
+  } else if (tokens[0] === 'curl') {
+    errEl.textContent = '';
+    showToast('解析してフォームに反映しました');
+  }
+
+  render();
+}
+
+// --- プリセット ---
+function resetForm() {
+  document.getElementById('urlInput').value = '';
+  document.getElementById('methodInput').value = 'GET';
+  document.getElementById('authType').value = 'none';
+  document.getElementById('authValue').value = '';
+  document.getElementById('authKeyName').value = '';
+  headers = [];
+  document.getElementById('bodyInput').value = '';
+  document.getElementById('curlParseInput').value = '';
+  document.getElementById('bodyError').textContent = '';
+  document.getElementById('parseError').textContent = '';
+  onAuthTypeChange();
+  addHeaderRow('Content-Type', 'application/json');
+}
+
+function loadPreset(name) {
+  resetForm();
+  if (name === 'claude') {
+    document.getElementById('urlInput').value = 'https://api.anthropic.com/v1/messages';
+    document.getElementById('methodInput').value = 'POST';
+    addHeaderRow('anthropic-version', '2023-06-01');
+    document.getElementById('authType').value = 'apikey';
+    document.getElementById('authKeyName').value = 'x-api-key';
+    document.getElementById('authValue').value = 'YOUR_API_KEY';
+    onAuthTypeChange();
+    document.getElementById('bodyInput').value = JSON.stringify({
+      model: 'claude-sonnet-5',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: 'こんにちは' }]
+    }, null, 2);
+  } else if (name === 'github') {
+    document.getElementById('urlInput').value = 'https://api.github.com/repos/OWNER/REPO/issues';
+    document.getElementById('methodInput').value = 'GET';
+    addHeaderRow('Accept', 'application/vnd.github+json');
+    document.getElementById('authType').value = 'bearer';
+    document.getElementById('authValue').value = 'YOUR_TOKEN';
+    onAuthTypeChange();
+  } else if (name === 'simple') {
+    document.getElementById('urlInput').value = 'https://example.com/api/items';
+    document.getElementById('methodInput').value = 'GET';
+  }
+  render();
+}
+
+// 初期化
+renderHeaders();
+onAuthTypeChange();
+addHeaderRow('Content-Type', 'application/json');
+render();
+</script>
+
+</body>
+</html>
