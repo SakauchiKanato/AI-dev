@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>定期券損益分岐点シミュレーター</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #3aa1c9;
+    --accent2: #4fd19a;
+    --warn: #e0955a;
+    --danger: #e0607a;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 380px;
+    min-width: 300px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin: 10px 0 4px;
+  }
+  input[type="text"], input[type="number"], select {
+    width: 100%;
+    padding: 8px 10px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  input:focus, select:focus { outline: 1px solid var(--accent); }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1 1 100px; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-family: inherit;
+    background: var(--accent);
+    color: #0f1420;
+    font-weight: bold;
+    margin-top: 12px;
+  }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-weight: normal;
+  }
+  button.small {
+    padding: 4px 10px;
+    font-size: 12px;
+    margin-top: 0;
+  }
+  button:hover { filter: brightness(1.1); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 10px;
+  }
+  th, td {
+    text-align: left;
+    padding: 7px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--muted); font-weight: normal; font-size: 12px; }
+  tr.selected { background: rgba(58,161,201,0.12); }
+  tr.selectable { cursor: pointer; }
+  .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+  .dashboard {
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-top: 12px;
+  }
+  .big {
+    font-size: 22px;
+    font-weight: bold;
+    margin: 4px 0;
+  }
+  .verdict {
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .verdict.good { background: rgba(79,209,154,0.15); color: var(--accent2); border: 1px solid rgba(79,209,154,0.4); }
+  .verdict.bad { background: rgba(224,96,122,0.15); color: var(--danger); border: 1px solid rgba(224,96,122,0.4); }
+  .verdict.neutral { background: rgba(154,151,181,0.12); color: var(--muted); border: 1px solid var(--border); }
+  .planrow { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px dashed var(--border); font-size:13px; }
+  .planrow:last-child { border-bottom:none; }
+  .planrow .name { color: var(--muted); }
+  .planrow .best { color: var(--accent2); font-weight: bold; }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent2);
+    color: #0f1420;
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .toast.show { opacity: 1; }
+  .del-btn { color: var(--danger); background: transparent; border: none; cursor: pointer; font-size: 12px; padding: 2px 6px; margin: 0; }
+  .compare-wrap { overflow-x: auto; }
+  @media (max-width: 480px) {
+    body { padding: 12px; }
+    .panel { min-width: 100%; }
+    .big { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>定期券損益分岐点シミュレーター</h1>
+  <p>通学定期を買うべきか、ICカード都度払いのままにすべきか。区間ごとの運賃と利用回数から自動で比較します。</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel">
+    <h2>区間を登録</h2>
+    <label for="secName">区間名</label>
+    <input type="text" id="secName" placeholder="例: 自宅〜大学">
+
+    <label for="secFare">片道運賃（円）</label>
+    <input type="number" id="secFare" min="0" step="1" placeholder="例: 220">
+
+    <div class="row2">
+      <div>
+        <label for="sec1m">1ヶ月定期代（円）</label>
+        <input type="number" id="sec1m" min="0" step="1" placeholder="例: 8000">
+      </div>
+      <div>
+        <label for="sec3m">3ヶ月定期代（円）</label>
+        <input type="number" id="sec3m" min="0" step="1" placeholder="例: 22800">
+      </div>
+      <div>
+        <label for="sec6m">6ヶ月定期代（円）</label>
+        <input type="number" id="sec6m" min="0" step="1" placeholder="例: 43200">
+      </div>
+    </div>
+
+    <button id="addSecBtn" onclick="addSection()">区間を登録</button>
+
+    <h2 style="margin-top:20px;">登録済み区間</h2>
+    <div id="secListWrap"><p class="empty">まだ区間が登録されていません。</p></div>
+  </div>
+
+  <div class="panel">
+    <h2>比較ダッシュボード</h2>
+    <div id="dashEmpty" class="empty">左で区間を登録し、一覧から選択してください。</div>
+
+    <div id="dashBody" style="display:none;">
+      <label for="usageType">利用回数の数え方</label>
+      <select id="usageType" onchange="renderDashboard()">
+        <option value="round">往復（1日2回）</option>
+        <option value="single">片道のみ</option>
+      </select>
+
+      <div class="row2">
+        <div>
+          <label for="usageDays">月の想定利用日数</label>
+          <input type="number" id="usageDays" min="0" step="1" value="20" oninput="renderDashboard()">
+        </div>
+        <div>
+          <label for="offDays">うち乗らない日数（休講・長期休暇等）</label>
+          <input type="number" id="offDays" min="0" step="1" value="0" oninput="renderDashboard()">
+        </div>
+      </div>
+
+      <div class="dashboard" id="dashResult"></div>
+
+      <h2 style="margin-top:18px;">プラン別 月換算コスト</h2>
+      <div id="planRows"></div>
+
+      <button class="secondary" onclick="copyResult()">結果をコピー</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="panel" style="margin-top:20px;">
+  <h2>複数区間の比較</h2>
+  <div class="compare-wrap">
+    <div id="compareWrap"><p class="empty">2つ以上の区間を登録すると、ここに一覧比較が表示されます。</p></div>
+  </div>
+</div>
+
+<div class="toast" id="toast">コピーしました</div>
+
+<script>
+  var sections = [];
+  var selectedIndex = -1;
+  var nextId = 1;
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
+  function yen(n) {
+    if (isNaN(n) || n === null || n === undefined) return '¥0';
+    return '¥' + Math.round(n).toLocaleString('ja-JP');
+  }
+
+  function addSection() {
+    var name = document.getElementById('secName').value.trim();
+    var fare = parseFloat(document.getElementById('secFare').value);
+    var m1 = parseFloat(document.getElementById('sec1m').value);
+    var m3 = parseFloat(document.getElementById('sec3m').value);
+    var m6 = parseFloat(document.getElementById('sec6m').value);
+
+    if (!name) { alert('区間名を入力してください'); return; }
+    if (isNaN(fare) || fare <= 0) { alert('片道運賃を正しく入力してください'); return; }
+    if (isNaN(m1) && isNaN(m3) && isNaN(m6)) { alert('定期代を少なくとも1つ入力してください'); return; }
+
+    sections.push({
+      id: nextId++,
+      name: name,
+      fare: fare,
+      m1: isNaN(m1) ? null : m1,
+      m3: isNaN(m3) ? null : m3,
+      m6: isNaN(m6) ? null : m6
+    });
+
+    document.getElementById('secName').value = '';
+    document.getElementById('secFare').value = '';
+    document.getElementById('sec1m').value = '';
+    document.getElementById('sec3m').value = '';
+    document.getElementById('sec6m').value = '';
+
+    selectedIndex = sections.length - 1;
+    renderAll();
+  }
+
+  function deleteSection(id) {
+    var idx = sections.findIndex(function(s) { return s.id === id; });
+    if (idx === -1) return;
+    sections.splice(idx, 1);
+    if (selectedIndex >= sections.length) selectedIndex = sections.length - 1;
+    renderAll();
+  }
+
+  function selectSection(id) {
+    var idx = sections.findIndex(function(s) { return s.id === id; });
+    if (idx === -1) return;
+    selectedIndex = idx;
+    renderAll();
+  }
+
+  function renderSectionList() {
+    var wrap = document.getElementById('secListWrap');
+    if (sections.length === 0) {
+      wrap.innerHTML = '<p class="empty">まだ区間が登録されていません。</p>';
+      return;
+    }
+    var html = '<table><tr><th>区間名</th><th>片道</th><th>1ヶ月</th><th></th></tr>';
+    for (var i = 0; i < sections.length; i++) {
+      var s = sections[i];
+      var cls = 'selectable' + (i === selectedIndex ? ' selected' : '');
+      html += '<tr class="' + cls + '" data-id="' + s.id + '">' +
+        '<td>' + escapeHtml(s.name) + '</td>' +
+        '<td>' + yen(s.fare) + '</td>' +
+        '<td>' + (s.m1 !== null ? yen(s.m1) : '-') + '</td>' +
+        '<td><button class="del-btn" data-delid="' + s.id + '">削除</button></td>' +
+        '</tr>';
+    }
+    html += '</table>';
+    wrap.innerHTML = html;
+
+    var rows = wrap.querySelectorAll('tr.selectable');
+    for (var r = 0; r < rows.length; r++) {
+      rows[r].addEventListener('click', function(e) {
+        if (e.target && e.target.classList.contains('del-btn')) return;
+        selectSection(parseInt(this.getAttribute('data-id'), 10));
+      });
+    }
+    var delBtns = wrap.querySelectorAll('.del-btn');
+    for (var d = 0; d < delBtns.length; d++) {
+      delBtns[d].addEventListener('click', function(e) {
+        e.stopPropagation();
+        deleteSection(parseInt(this.getAttribute('data-delid'), 10));
+      });
+    }
+  }
+
+  function calcPlan(section, usagePerMonth) {
+    // usagePerMonth: 月あたりの片道換算回数
+    var ticketCost = usagePerMonth * section.fare;
+    var plans = [];
+    if (section.m1 !== null) plans.push({ label: '1ヶ月定期', monthlyCost: section.m1, months: 1 });
+    if (section.m3 !== null) plans.push({ label: '3ヶ月定期', monthlyCost: section.m3 / 3, months: 3 });
+    if (section.m6 !== null) plans.push({ label: '6ヶ月定期', monthlyCost: section.m6 / 6, months: 6 });
+    return { ticketCost: ticketCost, plans: plans };
+  }
+
+  function renderDashboard() {
+    var dashEmpty = document.getElementById('dashEmpty');
+    var dashBody = document.getElementById('dashBody');
+
+    if (selectedIndex === -1 || !sections[selectedIndex]) {
+      dashEmpty.style.display = 'block';
+      dashBody.style.display = 'none';
+      renderCompareTable();
+      return;
+    }
+    dashEmpty.style.display = 'none';
+    dashBody.style.display = 'block';
+
+    var section = sections[selectedIndex];
+    var usageType = document.getElementById('usageType').value;
+    var days = parseFloat(document.getElementById('usageDays').value);
+    var offDays = parseFloat(document.getElementById('offDays').value);
+    if (isNaN(days) || days < 0) days = 0;
+    if (isNaN(offDays) || offDays < 0) offDays = 0;
+
+    var effectiveDays = Math.max(0, days - offDays);
+    var tripsPerDay = usageType === 'round' ? 2 : 1;
+    var usagePerMonth = effectiveDays * tripsPerDay;
+
+    var result = calcPlan(section, usagePerMonth);
+    var ticketCost = result.ticketCost;
+    var plans = result.plans;
+
+    var bestPlan = null;
+    for (var i = 0; i < plans.length; i++) {
+      if (!bestPlan || plans[i].monthlyCost < bestPlan.monthlyCost) bestPlan = plans[i];
+    }
+
+    var dashHtml = '';
+    dashHtml += '<div>区間: <strong>' + escapeHtml(section.name) + '</strong></div>';
+    dashHtml += '<div class="big">都度払い: ' + yen(ticketCost) + ' / 月</div>';
+    dashHtml += '<div style="color:var(--muted); font-size:13px;">実質利用日数 ' + effectiveDays + '日 × ' + (usageType === 'round' ? '往復2回' : '片道1回') + ' = ' + usagePerMonth + '回換算</div>';
+
+    if (bestPlan) {
+      var diff = ticketCost - bestPlan.monthlyCost;
+      var breakEven = section.fare > 0 ? Math.ceil(bestPlan.monthlyCost / section.fare) : 0;
+
+      dashHtml += '<div style="margin-top:10px;">最もお得な定期: <strong>' + bestPlan.label + '</strong>（月換算 ' + yen(bestPlan.monthlyCost) + '）</div>';
+
+      if (diff > 0) {
+        dashHtml += '<div class="verdict good">定期を買うと月 <strong>' + yen(diff) + '</strong> お得です。損益分岐点は月 <strong>' + breakEven + '回</strong>（片道換算）の利用です。今月の想定利用回数（' + usagePerMonth + '回）はこれを' + (usagePerMonth >= breakEven ? '上回っています。' : '下回っています。定期のメリットは薄いかもしれません。') + '</div>';
+      } else if (diff < 0) {
+        dashHtml += '<div class="verdict bad">都度払いのほうが月 <strong>' + yen(-diff) + '</strong> 安く済みます。損益分岐点は月 <strong>' + breakEven + '回</strong>です。想定利用回数（' + usagePerMonth + '回）ではまだ定期の元が取れません。</div>';
+      } else {
+        dashHtml += '<div class="verdict neutral">定期代と都度払いがほぼ同額です。利用予定に変動がありそうなら都度払いが無難です。</div>';
+      }
+    } else {
+      dashHtml += '<div class="verdict neutral">定期代が未入力のため比較できません。1ヶ月〜6ヶ月のいずれかの定期代を登録してください。</div>';
+    }
+
+    document.getElementById('dashResult').innerHTML = dashHtml;
+
+    var planHtml = '';
+    if (plans.length === 0) {
+      planHtml = '<p class="empty">定期代が登録されていません。</p>';
+    } else {
+      for (var p = 0; p < plans.length; p++) {
+        var isBest = bestPlan && plans[p].label === bestPlan.label;
+        planHtml += '<div class="planrow"><span class="name">' + plans[p].label + '</span><span class="' + (isBest ? 'best' : '') + '">' + yen(plans[p].monthlyCost) + ' / 月' + (isBest ? '（最安）' : '') + '</span></div>';
+      }
+      planHtml += '<div class="planrow"><span class="name">都度払い（想定利用）</span><span>' + yen(ticketCost) + ' / 月</span></div>';
+    }
+    document.getElementById('planRows').innerHTML = planHtml;
+
+    renderCompareTable();
+  }
+
+  function renderCompareTable() {
+    var wrap = document.getElementById('compareWrap');
+    if (sections.length < 2) {
+      wrap.innerHTML = '<p class="empty">2つ以上の区間を登録すると、ここに一覧比較が表示されます。</p>';
+      return;
+    }
+    var usageType = document.getElementById('usageType') ? document.getElementById('usageType').value : 'round';
+    var days = document.getElementById('usageDays') ? parseFloat(document.getElementById('usageDays').value) : 20;
+    var offDays = document.getElementById('offDays') ? parseFloat(document.getElementById('offDays').value) : 0;
+    if (isNaN(days) || days < 0) days = 0;
+    if (isNaN(offDays) || offDays < 0) offDays = 0;
+    var effectiveDays = Math.max(0, days - offDays);
+    var tripsPerDay = usageType === 'round' ? 2 : 1;
+    var usagePerMonth = effectiveDays * tripsPerDay;
+
+    var html = '<table><tr><th>区間名</th><th>都度払い/月</th><th>最安定期/月</th><th>判定</th></tr>';
+    for (var i = 0; i < sections.length; i++) {
+      var s = sections[i];
+      var r = calcPlan(s, usagePerMonth);
+      var best = null;
+      for (var j = 0; j < r.plans.length; j++) {
+        if (!best || r.plans[j].monthlyCost < best.monthlyCost) best = r.plans[j];
+      }
+      var verdictText = '-';
+      if (best) {
+        var diff = r.ticketCost - best.monthlyCost;
+        if (diff > 0) verdictText = '定期がお得（+' + yen(diff) + '）';
+        else if (diff < 0) verdictText = '都度払いがお得（+' + yen(-diff) + '）';
+        else verdictText = '同額';
+      }
+      html += '<tr' + (i === selectedIndex ? ' class="selected"' : '') + '><td>' + escapeHtml(s.name) + '</td><td>' + yen(r.ticketCost) + '</td><td>' + (best ? yen(best.monthlyCost) : '-') + '</td><td>' + verdictText + '</td></tr>';
+    }
+    html += '</table>';
+    wrap.innerHTML = html;
+  }
+
+  function renderAll() {
+    renderSectionList();
+    renderDashboard();
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  function showToast() {
+    var t = document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 1500);
+  }
+
+  function copyResult() {
+    if (selectedIndex === -1 || !sections[selectedIndex]) return;
+    var section = sections[selectedIndex];
+    var usageType = document.getElementById('usageType').value;
+    var days = parseFloat(document.getElementById('usageDays').value) || 0;
+    var offDays = parseFloat(document.getElementById('offDays').value) || 0;
+    var effectiveDays = Math.max(0, days - offDays);
+    var tripsPerDay = usageType === 'round' ? 2 : 1;
+    var usagePerMonth = effectiveDays * tripsPerDay;
+    var result = calcPlan(section, usagePerMonth);
+    var best = null;
+    for (var j = 0; j < result.plans.length; j++) {
+      if (!best || result.plans[j].monthlyCost < best.monthlyCost) best = result.plans[j];
+    }
+
+    var text = '【' + section.name + '】\n';
+    text += '想定利用: 月' + usagePerMonth + '回（片道換算）\n';
+    text += '都度払い: ' + yen(result.ticketCost) + ' / 月\n';
+    if (best) {
+      var diff = result.ticketCost - best.monthlyCost;
+      text += best.label + '（月換算 ' + yen(best.monthlyCost) + '）\n';
+      text += diff > 0 ? ('→ 定期がお得: +' + yen(diff) + ' / 月\n') : diff < 0 ? ('→ 都度払いがお得: +' + yen(-diff) + ' / 月\n') : '→ ほぼ同額\n';
+      var breakEven = section.fare > 0 ? Math.ceil(best.monthlyCost / section.fare) : 0;
+      text += '損益分岐点: 月' + breakEven + '回（片道換算）\n';
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showToast).catch(function() {
+        fallbackCopy(text);
+        showToast();
+      });
+    } else {
+      fallbackCopy(text);
+      showToast();
+    }
+  }
+
+  renderAll();
+</script>
+
+</body>
+</html>
