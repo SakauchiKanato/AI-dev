@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>混同行列＆評価指標カリキュレーター</title>
+<style>
+  :root {
+    --bg:#1e1e2e; --panel:#262638; --panel2:#2e2e44; --accent:#7c9cff; --accent2:#5ad1a8;
+    --warn:#f2b35b; --bad:#ef6f7a; --text:#e8e6f2; --muted:#9a97b5; --border:#3a3a52;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; font-size:14px; line-height:1.6; }
+  header { padding:18px 20px 8px; }
+  header h1 { font-size:20px; margin:0 0 4px; }
+  header p { font-size:13px; color:var(--muted); margin:0; }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; padding:10px 20px 0; }
+  .tab { background:var(--panel); color:var(--muted); border:1px solid var(--border); border-bottom:none;
+    border-radius:8px 8px 0 0; padding:8px 14px; cursor:pointer; font-size:13px; font-family:inherit; }
+  .tab.active { color:var(--text); background:var(--panel2); border-color:var(--accent); }
+  main { padding:0 20px 30px; }
+  .page { display:none; }
+  .page.active { display:block; }
+  .layout { display:flex; gap:20px; flex-wrap:wrap; margin-top:14px; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; flex:1 1 320px; min-width:0; }
+  .panel h2 { font-size:15px; margin:0 0 10px; color:var(--accent); }
+  label { display:block; font-size:12px; color:var(--muted); margin:8px 0 3px; }
+  input[type=number], input[type=text], textarea, select {
+    width:100%; background:var(--bg); color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:7px 8px; font-size:14px; font-family:inherit; }
+  textarea { min-height:90px; resize:vertical; font-family:Menlo,Consolas,monospace; font-size:13px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .cm-input td { padding:4px; }
+  .cm-input .tp input { border-color:var(--accent2); }
+  .cm-input .tn input { border-color:var(--accent2); }
+  .cm-input .fp input, .cm-input .fn input { border-color:var(--bad); }
+  button { background:var(--accent); color:#10101a; border:none; border-radius:6px; padding:8px 14px;
+    font-size:13px; font-weight:bold; cursor:pointer; font-family:inherit; margin:8px 6px 0 0; }
+  button.sub { background:var(--panel2); color:var(--text); border:1px solid var(--border); font-weight:normal; }
+  button:hover { filter:brightness(1.1); }
+  .msg { font-size:13px; margin-top:8px; min-height:1em; }
+  .msg.err { color:var(--bad); }
+  .msg.info { color:var(--muted); }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .card { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px; }
+  .card .name { font-size:12px; color:var(--muted); }
+  .card .val { font-size:22px; font-weight:bold; color:var(--accent2); }
+  .card .val.undef { font-size:14px; color:var(--warn); }
+  .card .formula { font-size:11px; color:var(--muted); font-family:Menlo,Consolas,monospace; word-break:break-all; }
+  .card .desc { font-size:11px; color:var(--text); opacity:.8; margin-top:4px; }
+  table.tbl { border-collapse:collapse; width:100%; font-size:13px; }
+  table.tbl th, table.tbl td { border:1px solid var(--border); padding:5px 7px; text-align:center; }
+  table.tbl th { background:var(--panel2); color:var(--muted); font-weight:normal; }
+  table.tbl td.diag { color:var(--accent2); font-weight:bold; }
+  table.tbl tr.hl td { background:rgba(124,156,255,.18); }
+  .scroll { overflow-x:auto; }
+  .matrix { margin-bottom:12px; }
+  .note { font-size:12px; color:var(--muted); margin-top:10px; }
+  .slider-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .slider-row input[type=range] { flex:1 1 200px; accent-color:var(--accent); }
+  .thval { font-size:20px; font-weight:bold; color:var(--accent); min-width:60px; }
+  .warnbox { background:rgba(242,179,91,.12); border:1px solid var(--warn); color:var(--warn);
+    border-radius:6px; padding:8px 10px; font-size:12px; margin-top:10px; }
+  #toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--accent2);
+    color:#10101a; padding:8px 16px; border-radius:6px; font-weight:bold; opacity:0; transition:opacity .3s;
+    pointer-events:none; font-size:13px; }
+  #toast.show { opacity:1; }
+  footer { color:var(--muted); font-size:12px; padding:0 20px 20px; }
+  @media (max-width:480px) {
+    header, main, footer { padding-left:12px; padding-right:12px; }
+    .tabs { padding-left:12px; padding-right:12px; }
+    .tab { flex:1 1 45%; padding:7px 6px; }
+    .panel { padding:12px; }
+    .cards { grid-template-columns:1fr 1fr; }
+    .card .val { font-size:18px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 混同行列＆評価指標カリキュレーター</h1>
+  <p>分類モデルの結果から Accuracy / Precision / Recall / F1 / MCC などを計算。入力データは外部に送信されず、ブラウザ内だけで処理されます。</p>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="binary">① 2値（TP/FP/FN/TN）</button>
+  <button class="tab" data-tab="labels">② ラベル列から集計</button>
+  <button class="tab" data-tab="threshold">③ 閾値シミュレーション</button>
+  <button class="tab" data-tab="multi">④ 多クラス</button>
+</nav>
+
+<main>
+  <!-- ① 2値 -->
+  <section class="page active" id="page-binary">
+    <div class="layout">
+      <div class="panel" style="flex:0 1 340px">
+        <h2>混同行列を入力</h2>
+        <table class="cm-input">
+          <tr><td></td><td style="font-size:12px;color:var(--muted)">予測: 陽性</td><td style="font-size:12px;color:var(--muted)">予測: 陰性</td></tr>
+          <tr><td style="font-size:12px;color:var(--muted)">実際: 陽性</td>
+            <td class="tp"><input type="number" id="bTP" min="0" step="1" placeholder="TP"></td>
+            <td class="fn"><input type="number" id="bFN" min="0" step="1" placeholder="FN"></td></tr>
+          <tr><td style="font-size:12px;color:var(--muted)">実際: 陰性</td>
+            <td class="fp"><input type="number" id="bFP" min="0" step="1" placeholder="FP"></td>
+            <td class="tn"><input type="number" id="bTN" min="0" step="1" placeholder="TN"></td></tr>
+        </table>
+        <label for="bBeta">Fβ の β（Recall重視なら 2、Precision重視なら 0.5）</label>
+        <input type="number" id="bBeta" value="2" min="0.01" step="0.1">
+        <div>
+          <button id="bCalc">計算する</button>
+          <button class="sub" id="bSample">例: 不均衡データ</button>
+          <button class="sub" id="bClear">クリア</button>
+        </div>
+        <div class="msg" id="bMsg"></div>
+      </div>
+      <div class="panel">
+        <h2>評価指標</h2>
+        <div class="cards" id="bCards"></div>
+        <div id="bWarn"></div>
+        <button class="sub" id="bCopy">Markdown表でコピー</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② ラベル列 -->
+  <section class="page" id="page-labels">
+    <div class="layout">
+      <div class="panel" style="flex:0 1 380px">
+        <h2>ラベル列を貼り付け</h2>
+        <label for="lTrue">正解ラベル（0/1、カンマ・空白・改行区切り）</label>
+        <textarea id="lTrue" placeholder="1,0,1,1,0,0,1"></textarea>
+        <label for="lPred">予測ラベル（同じ順番・同じ個数）</label>
+        <textarea id="lPred" placeholder="1,0,0,1,0,1,1"></textarea>
+        <div>
+          <button id="lCalc">集計する</button>
+          <button class="sub" id="lSample">サンプル</button>
+          <button class="sub" id="lClear">クリア</button>
+        </div>
+        <div class="msg" id="lMsg"></div>
+      </div>
+      <div class="panel">
+        <h2>集計結果</h2>
+        <div class="scroll matrix" id="lMatrix"></div>
+        <div class="cards" id="lCards"></div>
+        <div id="lWarn"></div>
+        <button class="sub" id="lCopy">Markdown表でコピー</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ 閾値 -->
+  <section class="page" id="page-threshold">
+    <div class="layout">
+      <div class="panel" style="flex:0 1 380px">
+        <h2>予測スコアと正解ラベル</h2>
+        <label for="tScore">予測スコア（0〜1、カンマ・空白・改行区切り）</label>
+        <textarea id="tScore" placeholder="0.92,0.15,0.66,0.40"></textarea>
+        <label for="tTrue">正解ラベル（0/1、同じ順番）</label>
+        <textarea id="tTrue" placeholder="1,0,1,0"></textarea>
+        <div>
+          <button id="tLoad">読み込む</button>
+          <button class="sub" id="tSample">サンプル</button>
+          <button class="sub" id="tClear">クリア</button>
+        </div>
+        <div class="msg" id="tMsg"></div>
+      </div>
+      <div class="panel">
+        <h2>閾値を動かす</h2>
+        <div class="slider-row">
+          <input type="range" id="tRange" min="0" max="1" step="0.01" value="0.5" disabled>
+          <span class="thval" id="tVal">0.50</span>
+        </div>
+        <p class="note">スコア ≧ 閾値 のとき「陽性」と予測します。</p>
+        <div class="scroll matrix" id="tMatrix"></div>
+        <div class="cards" id="tCards"></div>
+        <h2 style="margin-top:16px">閾値ごとの Precision / Recall</h2>
+        <div class="scroll" id="tTable"></div>
+        <button class="sub" id="tCopy">Markdown表でコピー</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ④ 多クラス -->
+  <section class="page" id="page-multi">
+    <div class="layout">
+      <div class="panel" style="flex:1 1 380px">
+        <h2>多クラス混同行列</h2>
+        <label for="mN">クラス数</label>
+        <select id="mN">
+          <option value="3" selected>3</option><option value="4">4</option>
+          <option value="5">5</option><option value="6">6</option>
+        </select>
+        <p class="note">行 = 実際のクラス、列 = 予測したクラス。クラス名は編集できます。</p>
+        <div class="scroll" id="mGrid"></div>
+        <div>
+          <button id="mCalc">計算する</button>
+          <button class="sub" id="mSample">サンプル</button>
+          <button class="sub" id="mClear">クリア</button>
+        </div>
+        <div class="msg" id="mMsg"></div>
+      </div>
+      <div class="panel">
+        <h2>クラス別の指標</h2>
+        <div class="scroll" id="mResult"></div>
+        <div class="cards" id="mCards" style="margin-top:12px"></div>
+        <button class="sub" id="mCopy">Markdown表でコピー</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>0除算になる指標は「定義不能」と表示します。数値は小数第4位で四捨五入しています。</footer>
+<div id="toast"></div>
+
+<script>
+// ===== 共通ユーティリティ =====
+function $(id) { return document.getElementById(id); }
+var MAX_COUNT = 1e12;
+
+function round4(v) { return Math.round(v * 10000) / 10000; }
+function fmt(v) { return (v === null || !isFinite(v)) ? '定義不能' : round4(v).toFixed(4); }
+function ratio(a, b) { return b === 0 ? null : a / b; }
+
+function showToast(text) {
+  var t = $('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+}
+
+function copyText(text) {
+  if (!text) { showToast('コピーする結果がありません'); return; }
+  function fallback() {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.top = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    showToast(ok ? 'コピーしました' : 'コピーに失敗しました');
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { showToast('コピーしました'); }, fallback);
+  } else {
+    fallback();
+  }
+}
+
+function setMsg(id, text, type) {
+  var el = $(id);
+  el.textContent = text || '';
+  el.className = 'msg' + (type ? ' ' + type : '');
+}
+
+// 非負整数の読み取り。空欄は0扱い。不正ならnull
+function readCount(el) {
+  var s = String(el.value).trim();
+  if (s === '') return 0;
+  var n = Number(s);
+  if (!isFinite(n) || n < 0 || Math.floor(n) !== n || n > MAX_COUNT) return null;
+  return n;
+}
+
+// 区切り文字で分割（カンマ・読点・空白・改行・タブ）
+function tokenize(text) {
+  return String(text).split(/[\s,、，;]+/).filter(function (t) { return t !== ''; });
+}
+
+function parseLabels(text, name) {
+  var tokens = tokenize(text);
+  var out = [];
+  for (var i = 0; i < tokens.length; i++) {
+    var t = tokens[i].toLowerCase();
+    if (t === '1' || t === 'true') out.push(1);
+    else if (t === '0' || t === 'false') out.push(0);
+    else return { error: name + 'の ' + (i + 1) + ' 番目「' + tokens[i].slice(0, 20) + '」は0か1ではありません' };
+  }
+  return { values: out };
+}
+
+// ===== 指標計算 =====
+function binaryMetrics(tp, fp, fn, tn, beta) {
+  var total = tp + fp + fn + tn;
+  var precision = ratio(tp, tp + fp);
+  var recall = ratio(tp, tp + fn);
+  var spec = ratio(tn, tn + fp);
+  var b2 = beta * beta;
+  var f1 = ratio(2 * tp, 2 * tp + fp + fn);
+  var fb = ratio((1 + b2) * tp, (1 + b2) * tp + b2 * fn + fp);
+  var denom = Math.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn));
+  var mcc = denom === 0 ? null : (tp * tn - fp * fn) / denom;
+  var bal = (recall === null || spec === null) ? null : (recall + spec) / 2;
+  return {
+    total: total,
+    list: [
+      { key: 'Accuracy', name: 'Accuracy（正解率）', v: ratio(tp + tn, total), f: '(TP+TN)/全体', d: '全体のうち当たった割合。不均衡データでは過大評価しやすい' },
+      { key: 'Precision', name: 'Precision（適合率）', v: precision, f: 'TP/(TP+FP)', d: '陽性と予測したもののうち本当に陽性だった割合' },
+      { key: 'Recall', name: 'Recall（再現率）', v: recall, f: 'TP/(TP+FN)', d: '本当の陽性のうち見つけられた割合（感度）' },
+      { key: 'Specificity', name: 'Specificity（特異度）', v: spec, f: 'TN/(TN+FP)', d: '本当の陰性を陰性と判定できた割合' },
+      { key: 'F1', name: 'F1スコア', v: f1, f: '2TP/(2TP+FP+FN)', d: 'Precision と Recall の調和平均' },
+      { key: 'Fbeta', name: 'Fβ（β=' + round4(beta) + '）', v: fb, f: '(1+β²)TP/((1+β²)TP+β²FN+FP)', d: 'β>1 で Recall 重視、β<1 で Precision 重視' },
+      { key: 'MCC', name: 'MCC', v: mcc, f: '(TP·TN−FP·FN)/√(…)', d: '−1〜1。不均衡データでも偏りにくい総合指標' },
+      { key: 'BalancedAcc', name: 'Balanced Accuracy', v: bal, f: '(Recall+Specificity)/2', d: '陽性・陰性それぞれの正解率の平均' }
+    ]
+  };
+}
+
+function renderCards(containerId, list) {
+  var box = $(containerId);
+  box.innerHTML = '';
+  list.forEach(function (m) {
+    var card = document.createElement('div'); card.className = 'card';
+    var n = document.createElement('div'); n.className = 'name'; n.textContent = m.name;
+    var v = document.createElement('div');
+    var undef = (m.v === null || !isFinite(m.v));
+    v.className = 'val' + (undef ? ' undef' : '');
+    v.textContent = fmt(m.v);
+    card.appendChild(n); card.appendChild(v);
+    if (m.f) { var f = document.createElement('div'); f.className = 'formula'; f.textContent = m.f; card.appendChild(f); }
+    if (m.d) { var d = document.createElement('div'); d.className = 'desc'; d.textContent = m.d; card.appendChild(d); }
+    box.appendChild(card);
+  });
+}
+
+function renderBinaryMatrix(containerId, tp, fp, fn, tn) {
+  var box = $(containerId);
+  box.innerHTML = '';
+  var t = document.createElement('table'); t.className = 'tbl';
+  var rows = [
+    ['', '予測: 陽性(1)', '予測: 陰性(0)'],
+    ['実際: 陽性(1)', 'TP = ' + tp, 'FN = ' + fn],
+    ['実際: 陰性(0)', 'FP = ' + fp, 'TN = ' + tn]
+  ];
+  rows.forEach(function (r, i) {
+    var tr = document.createElement('tr');
+    r.forEach(function (c, j) {
+      var cell = document.createElement(i === 0 || j === 0 ? 'th' : 'td');
+      cell.textContent = c;
+      if ((i === 1 && j === 1) || (i === 2 && j === 2)) cell.className = 'diag';
+      tr.appendChild(cell);
+    });
+    t.appendChild(tr);
+  });
+  box.appendChild(t);
+}
+
+// 不均衡・注意点の表示
+function renderWarn(containerId, tp, fp, fn, tn) {
+  var box = $(containerId);
+  box.innerHTML = '';
+  var total = tp + fp + fn + tn;
+  if (total === 0) return;
+  var pos = tp + fn, neg = fp + tn;
+  var msgs = [];
+  var minor = Math.min(pos, neg) / total;
+  if (minor < 0.2) {
+    msgs.push('クラスが不均衡です（陽性 ' + pos + ' 件 / 陰性 ' + neg + ' 件）。Accuracy だけで判断せず、Recall・F1・MCC も確認しましょう。');
+    var base = Math.max(pos, neg) / total;
+    msgs.push('参考: 全部を多数派クラスと予測するだけで Accuracy は ' + (base * 100).toFixed(1) + '% になります。');
+  }
+  if (pos === 0) msgs.push('実際の陽性が0件のため、Recall・MCC などは定義できません。');
+  if (msgs.length === 0) return;
+  var w = document.createElement('div'); w.className = 'warnbox';
+  msgs.forEach(function (m, i) {
+    if (i > 0) w.appendChild(document.createElement('br'));
+    w.appendChild(document.createTextNode('⚠️ ' + m));
+  });
+  box.appendChild(w);
+}
+
+function metricsMarkdown(title, tp, fp, fn, tn, list) {
+  var md = '### ' + title + '\n\n';
+  md += '| | 予測: 陽性 | 予測: 陰性 |\n|---|---|---|\n';
+  md += '| 実際: 陽性 | TP=' + tp + ' | FN=' + fn + ' |\n';
+  md += '| 実際: 陰性 | FP=' + fp + ' | TN=' + tn + ' |\n\n';
+  md += '| 指標 | 値 |\n|---|---|\n';
+  list.forEach(function (m) { md += '| ' + m.name + ' | ' + fmt(m.v) + ' |\n'; });
+  return md;
+}
+
+// ===== タブ切り替え =====
+Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (btn) {
+  btn.addEventListener('click', function () {
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) { b.classList.remove('active'); });
+    Array.prototype.forEach.call(document.querySelectorAll('.page'), function (p) { p.classList.remove('active'); });
+    btn.classList.add('active');
+    $('page-' + btn.getAttribute('data-tab')).classList.add('active');
+  });
+});
+
+// ===== ① 2値 =====
+var binaryState = null;
+
+function readBeta(id, msgId) {
+  var s = String($(id).value).trim();
+  if (s === '') return 1;
+  var b = Number(s);
+  if (!isFinite(b) || b <= 0 || b > 100) { setMsg(msgId, 'β は 0 より大きく 100 以下の数値にしてください（今回は β=1 で計算）', 'err'); return 1; }
+  return b;
+}
+
+function calcBinary() {
+  var tp = readCount($('bTP')), fp = readCount($('bFP')), fn = readCount($('bFN')), tn = readCount($('bTN'));
+  if (tp === null || fp === null || fn === null || tn === null) {
+    setMsg('bMsg', 'TP/FP/FN/TN は 0 以上の整数（1兆以下）で入力してください', 'err');
+    return;
+  }
+  setMsg('bMsg', '');
+  if (tp + fp + fn + tn === 0) {
+    setMsg('bMsg', '4つのマスに件数を入力してください', 'info');
+    $('bCards').innerHTML = ''; $('bWarn').innerHTML = ''; binaryState = null;
+    return;
+  }
+  var beta = readBeta('bBeta', 'bMsg');
+  var r = binaryMetrics(tp, fp, fn, tn, beta);
+  renderCards('bCards', r.list);
+  renderWarn('bWarn', tp, fp, fn, tn);
+  binaryState = metricsMarkdown('2値分類の評価指標（全' + r.total + '件）', tp, fp, fn, tn, r.list);
+}
+
+$('bCalc').addEventListener('click', calcBinary);
+['bTP', 'bFP', 'bFN', 'bTN', 'bBeta'].forEach(function (id) {
+  $(id).addEventListener('input', function () { if (binaryState !== null) calcBinary(); });
+});
+$('bSample').addEventListener('click', function () {
+  // 1000件中 陽性50件の不均衡データ
+  $('bTP').value = 20; $('bFN').value = 30; $('bFP').value = 10; $('bTN').value = 940;
+  calcBinary();
+});
+$('bClear').addEventListener('click', function () {
+  ['bTP', 'bFP', 'bFN', 'bTN'].forEach(function (id) { $(id).value = ''; });
+  $('bBeta').value = 2;
+  $('bCards').innerHTML = ''; $('bWarn').innerHTML = ''; binaryState = null; setMsg('bMsg', '');
+});
+$('bCopy').addEventListener('click', function () { copyText(binaryState); });
+
+// ===== ② ラベル列 =====
+var labelState = null;
+
+function calcLabels() {
+  labelState = null;
+  $('lMatrix').innerHTML = ''; $('lCards').innerHTML = ''; $('lWarn').innerHTML = '';
+  var a = parseLabels($('lTrue').value, '正解ラベル');
+  if (a.error) { setMsg('lMsg', a.error, 'err'); return; }
+  var b = parseLabels($('lPred').value, '予測ラベル');
+  if (b.error) { setMsg('lMsg', b.error, 'err'); return; }
+  if (a.values.length === 0 || b.values.length === 0) { setMsg('lMsg', '正解ラベルと予測ラベルの両方を入力してください', 'info'); return; }
+  if (a.values.length !== b.values.length) {
+    setMsg('lMsg', '個数が一致しません（正解 ' + a.values.length + ' 件 / 予測 ' + b.values.length + ' 件）', 'err'); return;
+  }
+  var tp = 0, fp = 0, fn = 0, tn = 0;
+  for (var i = 0; i < a.values.length; i++) {
+    var y = a.values[i], p = b.values[i];
+    if (y === 1 && p === 1) tp++; else if (y === 0 && p === 1) fp++;
+    else if (y === 1 && p === 0) fn++; else tn++;
+  }
+  setMsg('lMsg', a.values.length + ' 件を集計しました', 'info');
+  renderBinaryMatrix('lMatrix', tp, fp, fn, tn);
+  var r = binaryMetrics(tp, fp, fn, tn, 1);
+  var list = r.list.filter(function (m) { return m.key !== 'Fbeta'; });
+  renderCards('lCards', list);
+  renderWarn('lWarn', tp, fp, fn, tn);
+  labelState = metricsMarkdown('ラベル列から集計した評価指標（全' + r.total + '件）', tp, fp, fn, tn, list);
+}
+
+$('lCalc').addEventListener('click', calcLabels);
+$('lSample').addEventListener('click', function () {
+  $('lTrue').value = '1,0,1,1,0,0,1,0,1,0,0,1,0,0,1,0,0,0,1,0';
+  $('lPred').value = '1,0,0,1,0,1,1,0,1,0,0,0,0,1,1,0,0,0,1,0';
+  calcLabels();
+});
+$('lClear').addEventListener('click', function () {
+  $('lTrue').value = ''; $('lPred').value = '';
+  $('lMatrix').innerHTML = ''; $('lCards').innerHTML = ''; $('lWarn').innerHTML = '';
+  labelState = null; setMsg('lMsg', '');
+});
+$('lCopy').addEventListener('click', function () { copyText(labelState); });
+
+// ===== ③ 閾値 =====
+var thData = null; // { scores:[], labels:[] }
+var thState = null;
+
+function countAt(th) {
+  var tp = 0, fp = 0, fn = 0, tn = 0;
+  for (var i = 0; i < thData.scores.length; i++) {
+    var p = thData.scores[i] >= th ? 1 : 0, y = thData.labels[i];
+    if (y === 1 && p === 1) tp++; else if (y === 0 && p === 1) fp++;
+    else if (y === 1 && p === 0) fn++; else tn++;
+  }
+  return { tp: tp, fp: fp, fn: fn, tn: tn };
+}
+
+function loadThreshold() {
+  thData = null; thState = null;
+  $('tRange').disabled = true;
+  $('tMatrix').innerHTML = ''; $('tCards').innerHTML = ''; $('tTable').innerHTML = '';
+  var tokens = tokenize($('tScore').value);
+  var scores = [];
+  for (var i = 0; i < tokens.length; i++) {
+    var s = Number(tokens[i]);
+    if (!isFinite(s) || s < 0 || s > 1) {
+      setMsg('tMsg', '予測スコアの ' + (i + 1) + ' 番目「' + tokens[i].slice(0, 20) + '」は 0〜1 の数値ではありません', 'err'); return;
+    }
+    scores.push(s);
+  }
+  var lab = parseLabels($('tTrue').value, '正解ラベル');
+  if (lab.error) { setMsg('tMsg', lab.error, 'err'); return; }
+  if (scores.length === 0 || lab.values.length === 0) { setMsg('tMsg', '予測スコアと正解ラベルの両方を入力してください', 'info'); return; }
+  if (scores.length !== lab.values.length) {
+    setMsg('tMsg', '個数が一致しません（スコア ' + scores.length + ' 件 / ラベル ' + lab.values.length + ' 件）', 'err'); return;
+  }
+  thData = { scores: scores, labels: lab.values };
+  setMsg('tMsg', scores.length + ' 件を読み込みました。スライダーで閾値を動かせます', 'info');
+  $('tRange').disabled = false;
+  renderThresholdTable();
+  updateThreshold();
+}
+
+function updateThreshold() {
+  var th = Number($('tRange').value);
+  $('tVal').textContent = th.toFixed(2);
+  if (!thData) return;
+  var c = countAt(th);
+  renderBinaryMatrix('tMatrix', c.tp, c.fp, c.fn, c.tn);
+  var r = binaryMetrics(c.tp, c.fp, c.fn, c.tn, 1);
+  var keys = ['Accuracy', 'Precision', 'Recall', 'F1', 'Specificity', 'MCC'];
+  var list = r.list.filter(function (m) { return keys.indexOf(m.key) >= 0; })
+    .map(function (m) { return { key: m.key, name: m.name, v: m.v }; });
+  renderCards('tCards', list);
+  // 表のハイライト
+  Array.prototype.forEach.call(document.querySelectorAll('#tTable tr[data-th]'), function (tr) {
+    tr.className = Math.abs(Number(tr.getAttribute('data-th')) - th) < 1e-9 ? 'hl' : '';
+  });
+  thState = metricsMarkdown('閾値 ' + th.toFixed(2) + ' での評価指標（全' + r.total + '件）', c.tp, c.fp, c.fn, c.tn, list);
+}
+
+function thresholdRows() {
+  var rows = [];
+  for (var k = 1; k <= 9; k++) {
+    var th = k / 10;
+    var c = countAt(th);
+    var r = binaryMetrics(c.tp, c.fp, c.fn, c.tn, 1);
+    var get = function (key) { for (var j = 0; j < r.list.length; j++) if (r.list[j].key === key) return r.list[j].v; return null; };
+    rows.push({ th: th, c: c, p: get('Precision'), r: get('Recall'), f1: get('F1') });
+  }
+  return rows;
+}
+
+function renderThresholdTable() {
+  var box = $('tTable');
+  box.innerHTML = '';
+  var t = document.createElement('table'); t.className = 'tbl';
+  var head = document.createElement('tr');
+  ['閾値', 'TP', 'FP', 'FN', 'TN', 'Precision', 'Recall', 'F1'].forEach(function (h) {
+    var th = document.createElement('th'); th.textContent = h; head.appendChild(th);
+  });
+  t.appendChild(head);
+  thresholdRows().forEach(function (row) {
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-th', row.th.toFixed(2));
+    [row.th.toFixed(1), row.c.tp, row.c.fp, row.c.fn, row.c.tn, fmt(row.p), fmt(row.r), fmt(row.f1)].forEach(function (v) {
+      var td = document.createElement('td'); td.textContent = v; tr.appendChild(td);
+    });
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', function () { $('tRange').value = row.th; updateThreshold(); });
+    t.appendChild(tr);
+  });
+  box.appendChild(t);
+}
+
+$('tLoad').addEventListener('click', loadThreshold);
+$('tRange').addEventListener('input', updateThreshold);
+$('tSample').addEventListener('click', function () {
+  $('tScore').value = '0.95,0.88,0.81,0.77,0.70,0.64,0.58,0.52,0.47,0.43,0.38,0.33,0.29,0.24,0.18,0.12,0.09,0.05';
+  $('tTrue').value = '1,1,1,0,1,1,0,1,0,1,0,0,1,0,0,0,0,0';
+  loadThreshold();
+});
+$('tClear').addEventListener('click', function () {
+  $('tScore').value = ''; $('tTrue').value = '';
+  thData = null; thState = null;
+  $('tRange').disabled = true; $('tRange').value = 0.5; $('tVal').textContent = '0.50';
+  $('tMatrix').innerHTML = ''; $('tCards').innerHTML = ''; $('tTable').innerHTML = '';
+  setMsg('tMsg', '');
+});
+$('tCopy').addEventListener('click', function () {
+  if (!thState) { copyText(null); return; }
+  var md = thState + '\n### 閾値ごとの Precision / Recall\n\n| 閾値 | TP | FP | FN | TN | Precision | Recall | F1 |\n|---|---|---|---|---|---|---|---|\n';
+  thresholdRows().forEach(function (r) {
+    md += '| ' + r.th.toFixed(1) + ' | ' + r.c.tp + ' | ' + r.c.fp + ' | ' + r.c.fn + ' | ' + r.c.tn + ' | ' + fmt(r.p) + ' | ' + fmt(r.r) + ' | ' + fmt(r.f1) + ' |\n';
+  });
+  copyText(md);
+});
+
+// ===== ④ 多クラス =====
+var multiState = null;
+var DEFAULT_NAMES = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+function buildMultiGrid() {
+  var n = Number($('mN').value);
+  // 既存の値を保持
+  var oldNames = [], oldVals = {};
+  Array.prototype.forEach.call(document.querySelectorAll('#mGrid input[data-name]'), function (el) { oldNames[Number(el.getAttribute('data-name'))] = el.value; });
+  Array.prototype.forEach.call(document.querySelectorAll('#mGrid input[data-r]'), function (el) { oldVals[el.getAttribute('data-r') + '_' + el.getAttribute('data-c')] = el.value; });
+  var box = $('mGrid');
+  box.innerHTML = '';
+  var t = document.createElement('table'); t.className = 'tbl';
+  var head = document.createElement('tr');
+  var corner = document.createElement('th'); corner.textContent = '実際＼予測'; head.appendChild(corner);
+  for (var c = 0; c < n; c++) {
+    var th = document.createElement('th');
+    var inp = document.createElement('input');
+    inp.type = 'text'; inp.maxLength = 20; inp.setAttribute('data-name', c);
+    inp.value = oldNames[c] !== undefined ? oldNames[c] : DEFAULT_NAMES[c];
+    inp.style.minWidth = '60px'; inp.style.textAlign = 'center';
+    inp.addEventListener('input', syncRowNames);
+    th.appendChild(inp); head.appendChild(th);
+  }
+  t.appendChild(head);
+  for (var r = 0; r < n; r++) {
+    var tr = document.createElement('tr');
+    var rh = document.createElement('th'); rh.setAttribute('data-rowname', r); tr.appendChild(rh);
+    for (var c2 = 0; c2 < n; c2++) {
+      var td = document.createElement('td');
+      var ci = document.createElement('input');
+      ci.type = 'number'; ci.min = '0'; ci.step = '1';
+      ci.setAttribute('data-r', r); ci.setAttribute('data-c', c2);
+      ci.style.minWidth = '60px';
+      var key = r + '_' + c2;
+      ci.value = oldVals[key] !== undefined ? oldVals[key] : '';
+      if (r === c2) ci.style.borderColor = 'var(--accent2)';
+      td.appendChild(ci); tr.appendChild(td);
+    }
+    t.appendChild(tr);
+  }
+  box.appendChild(t);
+  syncRowNames();
+}
+
+function className(i) {
+  var el = document.querySelector('#mGrid input[data-name="' + i + '"]');
+  var v = el ? el.value.trim() : '';
+  return v === '' ? 'クラス' + (i + 1) : v;
+}
+
+function syncRowNames() {
+  Array.prototype.forEach.call(document.querySelectorAll('#mGrid th[data-rowname]'), function (th) {
+    th.textContent = className(Number(th.getAttribute('data-rowname')));
+  });
+}
+
+function calcMulti() {
+  multiState = null;
+  $('mResult').innerHTML = ''; $('mCards').innerHTML = '';
+  var n = Number($('mN').value);
+  var M = [];
+  var total = 0;
+  for (var r = 0; r < n; r++) {
+    M.push([]);
+    for (var c = 0; c < n; c++) {
+      var el = document.querySelector('#mGrid input[data-r="' + r + '"][data-c="' + c + '"]');
+      var v = readCount(el);
+      if (v === null) { setMsg('mMsg', '「' + className(r) + '」行・「' + className(c) + '」列が不正です。0以上の整数を入力してください', 'err'); return; }
+      M[r].push(v); total += v;
+    }
+  }
+  if (total === 0) { setMsg('mMsg', '混同行列に件数を入力してください', 'info'); return; }
+  setMsg('mMsg', '全 ' + total + ' 件で計算しました', 'info');
+
+  var rows = [], sumTP = 0;
+  var macroP = 0, macroR = 0, macroF = 0, cntP = 0, cntR = 0, cntF = 0, weightedF = 0, wCnt = 0;
+  for (var k = 0; k < n; k++) {
+    var tp = M[k][k], colSum = 0, rowSum = 0;
+    for (var j = 0; j < n; j++) { colSum += M[j][k]; rowSum += M[k][j]; }
+    var fp = colSum - tp, fn = rowSum - tp;
+    var p = ratio(tp, tp + fp), rc = ratio(tp, tp + fn), f = ratio(2 * tp, 2 * tp + fp + fn);
+    sumTP += tp;
+    if (p !== null) { macroP += p; cntP++; }
+    if (rc !== null) { macroR += rc; cntR++; }
+    if (f !== null) { macroF += f; cntF++; weightedF += f * rowSum; wCnt += rowSum; }
+    rows.push({ name: className(k), p: p, r: rc, f: f, support: rowSum });
+  }
+  var acc = sumTP / total;
+  var summary = [
+    { name: 'Accuracy（= マイクロ平均F1）', v: acc, f: '対角の合計/全体', d: '多クラス単一ラベルでは micro P = micro R = micro F1 = Accuracy' },
+    { name: 'マクロ平均 Precision', v: cntP ? macroP / cntP : null, f: 'クラス別Pの単純平均', d: '定義不能なクラスは平均から除外' },
+    { name: 'マクロ平均 Recall', v: cntR ? macroR / cntR : null, f: 'クラス別Rの単純平均', d: '少数クラスも同じ重みで評価' },
+    { name: 'マクロ平均 F1', v: cntF ? macroF / cntF : null, f: 'クラス別F1の単純平均', d: 'クラスの偏りに敏感な指標' },
+    { name: '重み付き平均 F1', v: wCnt ? weightedF / wCnt : null, f: 'Σ(F1×件数)/Σ件数', d: '各クラスの実際の件数で重み付け' }
+  ];
+
+  var t = document.createElement('table'); t.className = 'tbl';
+  var head = document.createElement('tr');
+  ['クラス', 'Precision', 'Recall', 'F1', '件数'].forEach(function (h) { var th = document.createElement('th'); th.textContent = h; head.appendChild(th); });
+  t.appendChild(head);
+  rows.forEach(function (row) {
+    var tr = document.createElement('tr');
+    [row.name, fmt(row.p), fmt(row.r), fmt(row.f), row.support].forEach(function (v) { var td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+    t.appendChild(tr);
+  });
+  $('mResult').appendChild(t);
+  renderCards('mCards', summary);
+
+  var esc = function (s) { return String(s).replace(/\|/g, '\\|'); };
+  var md = '### 多クラス分類の評価指標（全' + total + '件）\n\n| 実際＼予測 |';
+  for (var a = 0; a < n; a++) md += ' ' + esc(className(a)) + ' |';
+  md += '\n|---|' + new Array(n + 1).join('---|') + '\n';
+  for (var b = 0; b < n; b++) { md += '| ' + esc(className(b)) + ' | ' + M[b].join(' | ') + ' |\n'; }
+  md += '\n| クラス | Precision | Recall | F1 | 件数 |\n|---|---|---|---|---|\n';
+  rows.forEach(function (row) { md += '| ' + esc(row.name) + ' | ' + fmt(row.p) + ' | ' + fmt(row.r) + ' | ' + fmt(row.f) + ' | ' + row.support + ' |\n'; });
+  md += '\n| 平均 | 値 |\n|---|---|\n';
+  summary.forEach(function (s) { md += '| ' + s.name + ' | ' + fmt(s.v) + ' |\n'; });
+  multiState = md;
+}
+
+$('mN').addEventListener('change', function () { buildMultiGrid(); $('mResult').innerHTML = ''; $('mCards').innerHTML = ''; multiState = null; setMsg('mMsg', ''); });
+$('mCalc').addEventListener('click', calcMulti);
+$('mSample').addEventListener('click', function () {
+  $('mN').value = '3';
+  buildMultiGrid();
+  var names = ['犬', '猫', 'うさぎ'];
+  var vals = [[45, 4, 1], [6, 38, 6], [2, 3, 15]];
+  names.forEach(function (nm, i) { document.querySelector('#mGrid input[data-name="' + i + '"]').value = nm; });
+  for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) {
+    document.querySelector('#mGrid input[data-r="' + r + '"][data-c="' + c + '"]').value = vals[r][c];
+  }
+  syncRowNames();
+  calcMulti();
+});
+$('mClear').addEventListener('click', function () {
+  Array.prototype.forEach.call(document.querySelectorAll('#mGrid input[data-r]'), function (el) { el.value = ''; });
+  $('mResult').innerHTML = ''; $('mCards').innerHTML = ''; multiState = null; setMsg('mMsg', '');
+});
+$('mCopy').addEventListener('click', function () { copyText(multiState); });
+
+buildMultiGrid();
+</script>
+</body>
+</html>
