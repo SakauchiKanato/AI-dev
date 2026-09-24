@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>奨学金返済シミュレーター</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #5b8dd9;
+    --accent2: #4a9e6e;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --safe: #4a9e6e;
+    --normal: #5b8dd9;
+    --warn: #d9a441;
+    --danger: #d85a5a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 16px;
+  }
+  header { margin-bottom: 16px; }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 380px;
+    min-width: 280px;
+  }
+  .panel.full { flex-basis: 100%; margin-bottom: 20px; }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; margin-top: 10px; }
+  input, select {
+    width: 100%;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > div { flex: 1 1 100px; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 12px;
+    margin-right: 6px;
+  }
+  button.secondary { background: #3a3a52; }
+  button.danger-btn { background: var(--danger); }
+  button:hover { opacity: 0.9; }
+  .error { color: var(--danger); font-size: 12px; margin-top: 6px; min-height: 14px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  th, td { border-bottom: 1px solid var(--border); padding: 6px 4px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .loan-row-actions { text-align: center; }
+  .loan-row-actions button { margin: 0; padding: 4px 8px; font-size: 12px; }
+  .burden-card {
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+  .burden-ratio { font-size: 32px; font-weight: bold; }
+  .burden-tier { font-size: 16px; margin: 4px 0 8px; }
+  .tier-safe { background: rgba(74,158,110,0.15); }
+  .tier-safe .burden-tier { color: var(--safe); }
+  .tier-normal { background: rgba(91,141,217,0.15); }
+  .tier-normal .burden-tier { color: var(--normal); }
+  .tier-warn { background: rgba(217,164,65,0.15); }
+  .tier-warn .burden-tier { color: var(--warn); }
+  .tier-danger { background: rgba(216,90,90,0.15); }
+  .tier-danger .burden-tier { color: var(--danger); }
+  textarea {
+    width: 100%;
+    min-height: 90px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 12px;
+    font-family: monospace;
+    resize: vertical;
+  }
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent2);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .note { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  @media (max-width: 480px) {
+    header h1 { font-size: 18px; }
+    .burden-ratio { font-size: 26px; }
+    table { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>奨学金返済シミュレーター</h1>
+  <p>複数の奨学金の月々返済額・総利息を計算し、卒業後の手取り収入に対する負担度を確認できます</p>
+</header>
+
+<div class="layout">
+  <div class="panel" id="loanPanel">
+    <h2>奨学金の登録</h2>
+    <label>名称</label>
+    <input type="text" id="loanName" placeholder="例: 第一種奨学金">
+    <div class="row">
+      <div>
+        <label>貸与総額（円）</label>
+        <input type="number" id="loanPrincipal" placeholder="例: 2400000">
+      </div>
+      <div>
+        <label>年利（%）</label>
+        <input type="number" id="loanRate" placeholder="例: 0 または 1.0" step="0.01">
+      </div>
+      <div>
+        <label>返済年数</label>
+        <input type="number" id="loanYears" placeholder="例: 15" step="1">
+      </div>
+    </div>
+    <button onclick="presetLoan(0)" class="secondary">第一種（無利子）で入力</button>
+    <button onclick="presetLoan(1)" class="secondary">第二種（有利子・目安1.0%）で入力</button>
+    <br>
+    <button onclick="addLoan()">＋ 奨学金を追加</button>
+    <div class="error" id="loanError"></div>
+    <p class="note">※ 第二種の利率は実際には貸与年度・返還方式により変動します。実際の利率はご自身の貸与奨学金の通知書・返還誓約書等でご確認のうえ、正確な値に編集してください。</p>
+
+    <div id="loanListWrap"></div>
+  </div>
+
+  <div class="panel" id="burdenPanel">
+    <h2>返済負担度チェック</h2>
+    <label>卒業後の想定手取り月収（円）</label>
+    <input type="number" id="incomeInput" placeholder="例: 200000" oninput="render()">
+    <div style="margin-top:14px;">
+      <span class="muted">合計月々返済額: </span><span id="totalMonthlyDisplay">---</span>
+    </div>
+    <div id="burdenResult" style="margin-top:12px;"></div>
+    <p class="note">目安の区分: 手取り月収に対する返済額の割合が10%以内＝余裕／10〜15%＝標準的／15〜20%＝やや重い／20%超＝重い（一般的な家計負担の考え方を参考にした本アプリ独自の目安であり、公的な基準ではありません）</p>
+  </div>
+</div>
+
+<div class="panel full" id="comparePanel">
+  <h2>返済年数を変えた場合の比較</h2>
+  <label>比較する奨学金</label>
+  <select id="compareSelect" onchange="renderCompare()"></select>
+  <div id="compareResult"></div>
+  <button onclick="copyResult()">結果をMarkdown表としてコピー</button>
+</div>
+
+<div class="panel full" id="exportPanel">
+  <h2>データのエクスポート／インポート</h2>
+  <p class="muted">このアプリはブラウザに保存を行いません。閉じる前に下のボタンでテキストを書き出し、次回開いた時に貼り付けて「読み込む」を押すと復元できます。</p>
+  <textarea id="exportArea" placeholder="ここにエクスポートしたテキストが表示されます。次回は貼り付けて「読み込む」を押してください。"></textarea>
+  <button onclick="exportData()">書き出す</button>
+  <button onclick="importData()" class="secondary">読み込む</button>
+  <div class="error" id="importError"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  let loans = [];
+  let nextId = 1;
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function yen(n) {
+    if (!isFinite(n)) return '---';
+    return Math.round(n).toLocaleString('ja-JP') + '円';
+  }
+
+  function pct(n) {
+    if (!isFinite(n)) return '---';
+    return n.toFixed(1) + '%';
+  }
+
+  function calcMonthly(principal, ratePercent, years) {
+    const n = years * 12;
+    if (n <= 0) return NaN;
+    if (!ratePercent || ratePercent <= 0) {
+      return principal / n;
+    }
+    const r = ratePercent / 100 / 12;
+    const denom = 1 - Math.pow(1 + r, -n);
+    if (denom === 0) return principal / n;
+    return (principal * r) / denom;
+  }
+
+  function presetLoan(kind) {
+    document.getElementById('loanRate').value = kind === 0 ? 0 : 1.0;
+    if (!document.getElementById('loanName').value) {
+      document.getElementById('loanName').value = kind === 0 ? '第一種奨学金（無利子）' : '第二種奨学金（有利子）';
+    }
+    if (!document.getElementById('loanYears').value) {
+      document.getElementById('loanYears').value = 15;
+    }
+  }
+
+  function addLoan() {
+    const nameInput = document.getElementById('loanName');
+    const principal = parseFloat(document.getElementById('loanPrincipal').value);
+    const rate = parseFloat(document.getElementById('loanRate').value);
+    const years = parseInt(document.getElementById('loanYears').value, 10);
+    const errEl = document.getElementById('loanError');
+    errEl.textContent = '';
+
+    if (!isFinite(principal) || principal <= 0) {
+      errEl.textContent = '貸与総額は0より大きい数値を入力してください';
+      return;
+    }
+    if (!isFinite(rate) || rate < 0 || rate > 100) {
+      errEl.textContent = '年利は0〜100の範囲で入力してください';
+      return;
+    }
+    if (!Number.isInteger(years) || years <= 0 || years > 50) {
+      errEl.textContent = '返済年数は1〜50の整数で入力してください';
+      return;
+    }
+
+    const name = nameInput.value.trim() || ('奨学金' + (loans.length + 1));
+    loans.push({ id: nextId++, name: name, principal: principal, rate: rate, years: years });
+
+    nameInput.value = '';
+    document.getElementById('loanPrincipal').value = '';
+    document.getElementById('loanRate').value = '';
+    document.getElementById('loanYears').value = '';
+
+    render();
+  }
+
+  function removeLoan(id) {
+    loans = loans.filter(function (l) { return l.id !== id; });
+    render();
+  }
+
+  function renderLoanList() {
+    const wrap = document.getElementById('loanListWrap');
+    if (!loans.length) {
+      wrap.innerHTML = '<p class="muted" style="margin-top:14px;">まだ奨学金が登録されていません</p>';
+      return;
+    }
+    let rows = loans.map(function (l) {
+      const monthly = calcMonthly(l.principal, l.rate, l.years);
+      const total = monthly * l.years * 12;
+      const interest = total - l.principal;
+      return '<tr>' +
+        '<td>' + escapeHtml(l.name) + '</td>' +
+        '<td>' + yen(l.principal) + '</td>' +
+        '<td>' + l.rate + '%</td>' +
+        '<td>' + l.years + '年</td>' +
+        '<td>' + yen(monthly) + '</td>' +
+        '<td>' + yen(interest) + '</td>' +
+        '<td class="loan-row-actions"><button class="danger-btn" onclick="removeLoan(' + l.id + ')">削除</button></td>' +
+        '</tr>';
+    }).join('');
+    wrap.innerHTML = '<table><thead><tr><th>名称</th><th>貸与総額</th><th>年利</th><th>年数</th><th>月々返済額</th><th>総利息</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function renderBurden() {
+    const totalMonthly = loans.reduce(function (s, l) { return s + calcMonthly(l.principal, l.rate, l.years); }, 0);
+    document.getElementById('totalMonthlyDisplay').textContent = loans.length ? yen(totalMonthly) : '---';
+
+    const burdenBox = document.getElementById('burdenResult');
+    if (!loans.length) {
+      burdenBox.innerHTML = '<p class="muted">奨学金を登録すると負担度が表示されます</p>';
+      return;
+    }
+    const incomeVal = parseFloat(document.getElementById('incomeInput').value);
+    if (!isFinite(incomeVal) || incomeVal <= 0) {
+      burdenBox.innerHTML = '<p class="muted">想定手取り月収を入力すると負担度を判定します</p>';
+      return;
+    }
+    const ratio = (totalMonthly / incomeVal) * 100;
+    let tier, tierClass;
+    if (ratio <= 10) { tier = '余裕'; tierClass = 'tier-safe'; }
+    else if (ratio <= 15) { tier = '標準的'; tierClass = 'tier-normal'; }
+    else if (ratio <= 20) { tier = 'やや重い'; tierClass = 'tier-warn'; }
+    else { tier = '重い'; tierClass = 'tier-danger'; }
+
+    burdenBox.innerHTML = '<div class="burden-card ' + tierClass + '">' +
+      '<div class="burden-ratio">' + pct(ratio) + '</div>' +
+      '<div class="burden-tier">' + tier + '</div>' +
+      '<div class="muted">月々合計返済額 ' + yen(totalMonthly) + ' ／ 想定手取り ' + yen(incomeVal) + '</div>' +
+      '</div>';
+  }
+
+  function populateCompareSelect() {
+    const sel = document.getElementById('compareSelect');
+    const prevValue = sel.value;
+    sel.innerHTML = '';
+    if (!loans.length) {
+      const opt = document.createElement('option');
+      opt.textContent = '(奨学金を登録してください)';
+      opt.value = '';
+      sel.appendChild(opt);
+      return;
+    }
+    loans.forEach(function (l) {
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      opt.textContent = l.name;
+      sel.appendChild(opt);
+    });
+    if (loans.some(function (l) { return String(l.id) === prevValue; })) {
+      sel.value = prevValue;
+    }
+  }
+
+  function renderCompare() {
+    const compareResult = document.getElementById('compareResult');
+    if (!loans.length) {
+      compareResult.innerHTML = '<p class="muted">奨学金を登録すると年数別の比較ができます</p>';
+      return;
+    }
+    const sel = document.getElementById('compareSelect');
+    const id = parseInt(sel.value, 10);
+    const loan = loans.find(function (l) { return l.id === id; }) || loans[0];
+    const yearsList = [10, 15, 20, 25];
+    const rows = yearsList.map(function (y) {
+      const m = calcMonthly(loan.principal, loan.rate, y);
+      const total = m * y * 12;
+      const interest = total - loan.principal;
+      return '<tr><td>' + y + '年</td><td>' + yen(m) + '</td><td>' + yen(total) + '</td><td>' + yen(interest) + '</td></tr>';
+    }).join('');
+    compareResult.innerHTML = '<p class="muted" style="margin-top:10px;">' + escapeHtml(loan.name) + '（貸与総額 ' + yen(loan.principal) + '・年利' + loan.rate + '%）で返済年数を変えた場合</p>' +
+      '<table><thead><tr><th>返済年数</th><th>月々返済額</th><th>総返済額</th><th>総利息</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function render() {
+    renderLoanList();
+    renderBurden();
+    populateCompareSelect();
+    renderCompare();
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('コピーしました');
+    } catch (e) {
+      showToast('コピーに失敗しました');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast('コピーしました');
+      }).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function copyResult() {
+    if (!loans.length) {
+      showToast('奨学金が登録されていません');
+      return;
+    }
+    let md = '| 名称 | 貸与総額 | 年利 | 年数 | 月々返済額 | 総利息 |\n';
+    md += '|---|---|---|---|---|---|\n';
+    loans.forEach(function (l) {
+      const monthly = calcMonthly(l.principal, l.rate, l.years);
+      const total = monthly * l.years * 12;
+      const interest = total - l.principal;
+      md += '| ' + l.name + ' | ' + yen(l.principal) + ' | ' + l.rate + '% | ' + l.years + '年 | ' + yen(monthly) + ' | ' + yen(interest) + ' |\n';
+    });
+    const totalMonthly = loans.reduce(function (s, l) { return s + calcMonthly(l.principal, l.rate, l.years); }, 0);
+    md += '\n合計月々返済額: ' + yen(totalMonthly) + '\n';
+    copyText(md);
+  }
+
+  function exportData() {
+    const data = {
+      loans: loans.map(function (l) { return { name: l.name, principal: l.principal, rate: l.rate, years: l.years }; }),
+      income: document.getElementById('incomeInput').value
+    };
+    const json = JSON.stringify(data);
+    document.getElementById('exportArea').value = json;
+    copyText(json);
+  }
+
+  function importData() {
+    const raw = document.getElementById('exportArea').value.trim();
+    const errEl = document.getElementById('importError');
+    errEl.textContent = '';
+    if (!raw) {
+      errEl.textContent = '貼り付けるデータがありません';
+      return;
+    }
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      errEl.textContent = 'データの形式が正しくありません（JSON解析エラー）';
+      return;
+    }
+    if (!data || !Array.isArray(data.loans)) {
+      errEl.textContent = 'データの形式が正しくありません';
+      return;
+    }
+    const validLoans = [];
+    data.loans.forEach(function (l) {
+      const principal = Number(l && l.principal);
+      const rate = Number(l && l.rate);
+      const years = Number(l && l.years);
+      if (!isFinite(principal) || principal <= 0) return;
+      if (!isFinite(rate) || rate < 0) return;
+      if (!Number.isInteger(years) || years <= 0) return;
+      validLoans.push({ id: nextId++, name: String((l && l.name) || '奨学金'), principal: principal, rate: rate, years: years });
+    });
+    loans = validLoans;
+    if (data.income !== undefined) {
+      document.getElementById('incomeInput').value = data.income;
+    }
+    showToast('読み込みました');
+    render();
+  }
+
+  render();
+</script>
+</body>
+</html>
