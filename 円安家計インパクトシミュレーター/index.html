@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>円安家計インパクトシミュレーター</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #e0a72e;
+    --accent2: #4a86e8;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --danger: #e2554f;
+    --ok: #43d692;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    flex: 1 1 320px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input[type="number"], input[type="text"] {
+    width: 100%;
+    padding: 8px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > div { flex: 1 1 120px; }
+  button {
+    background: var(--accent2);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-right: 6px;
+    margin-bottom: 6px;
+  }
+  button:hover { opacity: 0.85; }
+  button.secondary { background: #454564; }
+  button.danger { background: var(--danger); }
+  .cat-item {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #20202f;
+  }
+  .cat-item .cat-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .cat-item .cat-head strong { font-size: 13px; }
+  .cat-item input[type="range"] { width: 100%; }
+  .muted { color: var(--muted); font-size: 12px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 8px;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 6px 8px;
+    text-align: right;
+  }
+  th:first-child, td:first-child { text-align: left; }
+  th { background: #1a1a28; color: var(--muted); font-weight: normal; }
+  .big-number {
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--accent);
+  }
+  .sub-number { font-size: 13px; color: var(--muted); }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ok);
+    color: #1a1a28;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 10;
+  }
+  .toast.show { opacity: 1; }
+  textarea {
+    width: 100%;
+    min-height: 90px;
+    background: #1a1a28;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 8px;
+    font-family: monospace;
+  }
+  .full { flex-basis: 100%; }
+  .impact-positive { color: var(--danger); }
+  .impact-negative { color: var(--ok); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>円安家計インパクトシミュレーター</h1>
+  <p>為替（円/ドル）の変動が、自分の家計の支出カテゴリにどれくらい影響するかをざっくり試算するツールです。ニュースで為替レートを見た時に「自分の生活にどう関係あるか」を数字でイメージするために使います。</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel" style="flex-basis:100%;">
+    <h2>① 為替レートの設定</h2>
+    <div class="row">
+      <div>
+        <label for="baseRate">基準レート（自分が意識していた頃の円/ドル）</label>
+        <input type="number" id="baseRate" value="130" step="0.01">
+      </div>
+      <div>
+        <label for="currentRate">現在の為替レート（円/ドル）</label>
+        <input type="number" id="currentRate" value="159" step="0.01">
+      </div>
+      <div>
+        <label>円安の進行度</label>
+        <div id="rateDiffBox" class="sub-number">-</div>
+      </div>
+    </div>
+    <p class="muted">※ 最新の為替レートは自動取得しません。ニュースなどで確認した数値をご自身で入力してください。</p>
+  </div>
+
+  <div class="panel" style="flex-basis:100%;">
+    <h2>② 支出カテゴリごとの輸入依存度を登録</h2>
+    <p class="muted">月々の支出額と「その支出がどれくらい輸入・為替の影響を受けるか（輸入依存度%）」を登録します。例: 海外通販は100%に近く、国産中心の食費は10〜20%程度が目安です。</p>
+    <div id="catList"></div>
+    <div class="row">
+      <div style="flex:2 1 160px;">
+        <label for="newCatName">カテゴリ名</label>
+        <input type="text" id="newCatName" placeholder="例: 海外通販・サブスク">
+      </div>
+      <div>
+        <label for="newCatAmount">月額支出（円）</label>
+        <input type="number" id="newCatAmount" placeholder="例: 5000" min="0">
+      </div>
+      <div>
+        <label for="newCatDep">輸入依存度（%）</label>
+        <input type="number" id="newCatDep" placeholder="例: 80" min="0" max="100">
+      </div>
+    </div>
+    <button onclick="addCategory()">＋ カテゴリを追加</button>
+    <button class="secondary" onclick="addPresetCategories()">主要カテゴリを一括で追加</button>
+  </div>
+
+  <div class="panel">
+    <h2>③ 現在の負担インパクト</h2>
+    <div class="big-number" id="impactMonthly">¥0 / 月</div>
+    <div class="sub-number">基準レート時と比べた、現在の為替水準での追加負担額（概算）</div>
+    <hr style="border-color: var(--border); margin: 14px 0;">
+    <div class="sub-number">為替が1円動くと…</div>
+    <div class="big-number" id="sensitivityPerYen" style="font-size:20px;">¥0 / 月</div>
+    <div class="sub-number" id="totalSpendNote">-</div>
+  </div>
+
+  <div class="panel">
+    <h2>④ 今後のシナリオ比較</h2>
+    <p class="muted">為替が下記の水準まで動いた場合の、基準レート比の追加負担額（月額）です。</p>
+    <table id="scenarioTable">
+      <thead><tr><th>想定レート</th><th>追加負担額/月</th><th>年換算</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel full">
+    <h2>⑤ 結果のコピー・データの保存</h2>
+    <button onclick="copyMarkdown()">結果をMarkdown表でコピー</button>
+    <button class="secondary" onclick="exportData()">登録データをエクスポート</button>
+    <button class="secondary" onclick="document.getElementById('importArea').style.display='block'">インポート欄を表示</button>
+    <div id="importArea" style="display:none; margin-top:10px;">
+      <label for="importText">エクスポートしたテキストを貼り付けてインポート</label>
+      <textarea id="importText" placeholder="ここに貼り付け"></textarea>
+      <button onclick="importData()">インポートする</button>
+    </div>
+    <textarea id="exportOutput" style="margin-top:10px; display:none;" readonly></textarea>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">コピーしました</div>
+
+<script>
+// ---------- 状態管理（localStorage不使用。JS変数のみ） ----------
+let categories = [];
+let catIdSeq = 1;
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function toNumber(v, fallback) {
+  const n = parseFloat(v);
+  if (isNaN(n) || !isFinite(n)) return fallback;
+  return n;
+}
+
+function clamp(n, min, max) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function formatYen(n) {
+  const rounded = Math.round(n);
+  return "¥" + rounded.toLocaleString("ja-JP");
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+// ---------- カテゴリ管理 ----------
+function addCategory(name, amount, dep) {
+  name = name !== undefined ? name : document.getElementById("newCatName").value.trim();
+  amount = amount !== undefined ? amount : document.getElementById("newCatAmount").value;
+  dep = dep !== undefined ? dep : document.getElementById("newCatDep").value;
+
+  if (!name) {
+    showToast("カテゴリ名を入力してください");
+    return;
+  }
+  const amt = clamp(toNumber(amount, 0), 0, 100000000);
+  const depVal = clamp(toNumber(dep, 0), 0, 100);
+
+  categories.push({ id: catIdSeq++, name: name.slice(0, 60), amount: amt, dep: depVal });
+
+  document.getElementById("newCatName").value = "";
+  document.getElementById("newCatAmount").value = "";
+  document.getElementById("newCatDep").value = "";
+
+  renderCategories();
+  calcAll();
+}
+
+function addPresetCategories() {
+  const presets = [
+    { name: "食料品（輸入食材・コーヒー等）", amount: 8000, dep: 30 },
+    { name: "ガソリン・電気・ガス代", amount: 15000, dep: 40 },
+    { name: "海外通販・サブスク（Amazon.com等）", amount: 3000, dep: 90 },
+    { name: "PC・スマホ・家電", amount: 2000, dep: 60 }
+  ];
+  presets.forEach(p => addCategory(p.name, p.amount, p.dep));
+  showToast("主要カテゴリを追加しました");
+}
+
+function removeCategory(id) {
+  categories = categories.filter(c => c.id !== id);
+  renderCategories();
+  calcAll();
+}
+
+function updateCategory(id, field, value) {
+  const c = categories.find(c => c.id === id);
+  if (!c) return;
+  if (field === "amount") c.amount = clamp(toNumber(value, 0), 0, 100000000);
+  if (field === "dep") c.dep = clamp(toNumber(value, 0), 0, 100);
+  if (field === "name") c.name = String(value).slice(0, 60);
+  calcAll();
+}
+
+function renderCategories() {
+  const box = document.getElementById("catList");
+  if (categories.length === 0) {
+    box.innerHTML = '<p class="muted">まだカテゴリが登録されていません。下のフォームから追加してください。</p>';
+    return;
+  }
+  box.innerHTML = categories.map(c => {
+    const safeName = escapeHtml(c.name);
+    return `
+    <div class="cat-item">
+      <div class="cat-head">
+        <strong>${safeName}</strong>
+        <button class="danger" onclick="removeCategory(${c.id})">削除</button>
+      </div>
+      <div class="row">
+        <div>
+          <label>月額支出（円）</label>
+          <input type="number" min="0" value="${c.amount}" oninput="updateCategory(${c.id}, 'amount', this.value)">
+        </div>
+        <div style="flex:2 1 200px;">
+          <label>輸入依存度: <span id="depLabel${c.id}">${c.dep}</span>%</label>
+          <input type="range" min="0" max="100" value="${c.dep}" oninput="document.getElementById('depLabel${c.id}').textContent=this.value; updateCategory(${c.id}, 'dep', this.value)">
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ---------- 計算ロジック ----------
+function getRates() {
+  const base = clamp(toNumber(document.getElementById("baseRate").value, 130), 1, 100000);
+  const current = clamp(toNumber(document.getElementById("currentRate").value, 130), 1, 100000);
+  return { base, current };
+}
+
+function calcImpactAtRate(rate, base) {
+  // 為替が base -> rate に変化した時の円安率
+  const ratio = rate / base - 1; // 例: 0.2 なら20%円安（コスト増）
+  let total = 0;
+  categories.forEach(c => {
+    const affected = c.amount * (c.dep / 100);
+    total += affected * ratio;
+  });
+  return total;
+}
+
+function calcAll() {
+  const { base, current } = getRates();
+
+  // 円安の進行度表示
+  const diffBox = document.getElementById("rateDiffBox");
+  if (base <= 0) {
+    diffBox.textContent = "基準レートを正しく入力してください";
+  } else {
+    const pct = (current / base - 1) * 100;
+    const sign = pct >= 0 ? "+" : "";
+    diffBox.textContent = `${base}円 → ${current}円（${sign}${pct.toFixed(1)}%）`;
+    diffBox.className = "sub-number " + (pct >= 0 ? "impact-positive" : "impact-negative");
+  }
+
+  const totalSpend = categories.reduce((s, c) => s + c.amount, 0);
+  document.getElementById("totalSpendNote").textContent =
+    `登録済みの月間支出合計: ${formatYen(totalSpend)}（うち輸入影響を受ける想定額: ${formatYen(categories.reduce((s,c)=>s+c.amount*(c.dep/100),0))}）`;
+
+  // 現在の負担インパクト
+  const impact = calcImpactAtRate(current, base);
+  const impactEl = document.getElementById("impactMonthly");
+  impactEl.textContent = (impact >= 0 ? "+" : "") + formatYen(impact) + " / 月";
+  impactEl.className = "big-number " + (impact >= 0 ? "impact-positive" : "impact-negative");
+
+  // 為替1円あたりの感応度（現在レート付近での近似値）
+  const perYen = base > 0
+    ? categories.reduce((s, c) => s + c.amount * (c.dep / 100) / base, 0)
+    : 0;
+  document.getElementById("sensitivityPerYen").textContent = formatYen(perYen) + " / 月 / 円";
+
+  // シナリオ比較
+  const scenarios = [150, 155, 160, 165, 170];
+  const tbody = document.querySelector("#scenarioTable tbody");
+  tbody.innerHTML = scenarios.map(rate => {
+    const imp = calcImpactAtRate(rate, base);
+    const yearly = imp * 12;
+    const cls = imp >= 0 ? "impact-positive" : "impact-negative";
+    return `<tr>
+      <td>${rate}円</td>
+      <td class="${cls}">${imp >= 0 ? "+" : ""}${formatYen(imp)}</td>
+      <td class="${cls}">${imp >= 0 ? "+" : ""}${formatYen(yearly)}</td>
+    </tr>`;
+  }).join("");
+}
+
+// ---------- コピー・エクスポート/インポート ----------
+function buildMarkdown() {
+  const { base, current } = getRates();
+  const impact = calcImpactAtRate(current, base);
+  let md = `## 円安家計インパクトシミュレーター結果\n\n`;
+  md += `- 基準レート: ${base}円 / 現在レート: ${current}円\n`;
+  md += `- 現在の追加負担額: ${(impact >= 0 ? "+" : "")}${formatYen(impact)} / 月\n\n`;
+  md += `| カテゴリ | 月額支出 | 輸入依存度 |\n|---|---:|---:|\n`;
+  categories.forEach(c => {
+    md += `| ${c.name} | ${formatYen(c.amount)} | ${c.dep}% |\n`;
+  });
+  md += `\n| 想定レート | 追加負担額/月 | 年換算 |\n|---|---:|---:|\n`;
+  [150, 155, 160, 165, 170].forEach(rate => {
+    const imp = calcImpactAtRate(rate, base);
+    md += `| ${rate}円 | ${(imp >= 0 ? "+" : "")}${formatYen(imp)} | ${(imp >= 0 ? "+" : "")}${formatYen(imp * 12)} |\n`;
+  });
+  return md;
+}
+
+function copyToClipboardFallback(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch (e) {
+    ok = false;
+  }
+  document.body.removeChild(ta);
+  return ok;
+}
+
+function copyMarkdown() {
+  const md = buildMarkdown();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(md).then(() => {
+      showToast("Markdown表をコピーしました");
+    }).catch(() => {
+      const ok = copyToClipboardFallback(md);
+      showToast(ok ? "Markdown表をコピーしました" : "コピーに失敗しました");
+    });
+  } else {
+    const ok = copyToClipboardFallback(md);
+    showToast(ok ? "Markdown表をコピーしました" : "コピーに失敗しました");
+  }
+}
+
+function exportData() {
+  const { base, current } = getRates();
+  const payload = {
+    baseRate: base,
+    currentRate: current,
+    categories: categories.map(c => ({ name: c.name, amount: c.amount, dep: c.dep }))
+  };
+  const text = JSON.stringify(payload);
+  const out = document.getElementById("exportOutput");
+  out.style.display = "block";
+  out.value = text;
+  out.select();
+  showToast("下のテキストをコピーして保存してください");
+}
+
+function importData() {
+  const raw = document.getElementById("importText").value.trim();
+  if (!raw) {
+    showToast("インポートするテキストを貼り付けてください");
+    return;
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    showToast("読み込めませんでした。テキストの形式を確認してください");
+    return;
+  }
+  if (!data || typeof data !== "object") {
+    showToast("読み込めませんでした（形式エラー）");
+    return;
+  }
+  if (typeof data.baseRate === "number" && isFinite(data.baseRate)) {
+    document.getElementById("baseRate").value = data.baseRate;
+  }
+  if (typeof data.currentRate === "number" && isFinite(data.currentRate)) {
+    document.getElementById("currentRate").value = data.currentRate;
+  }
+  if (Array.isArray(data.categories)) {
+    categories = [];
+    data.categories.forEach(c => {
+      if (c && typeof c.name === "string") {
+        categories.push({
+          id: catIdSeq++,
+          name: c.name.slice(0, 60),
+          amount: clamp(toNumber(c.amount, 0), 0, 100000000),
+          dep: clamp(toNumber(c.dep, 0), 0, 100)
+        });
+      }
+    });
+  }
+  renderCategories();
+  calcAll();
+  showToast("インポートしました");
+}
+
+// ---------- イベント登録・初期化 ----------
+document.getElementById("baseRate").addEventListener("input", calcAll);
+document.getElementById("currentRate").addEventListener("input", calcAll);
+
+renderCategories();
+calcAll();
+
+// デバッグ/テスト用アクセサ（UI動作には影響しない）
+window.__debugGetCategories = function () { return categories; };
+window.__debugSetCategories = function (list) { categories = list; renderCategories(); calcAll(); };
+</script>
+
+</body>
+</html>
