@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>発表原稿タイムシミュレーター</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel: #262638;
+    --accent: #e0a458;
+    --text: #e8e6f2;
+    --muted: #9a97b5;
+    --border: #3a3a52;
+    --danger: #e05a5a;
+    --ok: #4dbd8c;
+    --warn: #e0c458;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    padding: 20px;
+  }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+  .layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .col-left { flex: 1 1 380px; min-width: 300px; }
+  .col-right { flex: 1 1 380px; min-width: 300px; }
+  textarea {
+    width: 100%;
+    min-height: 260px;
+    background: #1a1a28;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 14px;
+    resize: vertical;
+    font-family: inherit;
+  }
+  label { font-size: 13px; color: var(--muted); display: block; margin: 12px 0 4px; }
+  input[type="range"] { width: 100%; }
+  input[type="number"] {
+    width: 100%;
+    background: #1a1a28;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+  }
+  .badge.ok { background: var(--ok); color: #0d1f17; }
+  .badge.warn { background: var(--warn); color: #2a230a; }
+  .badge.danger { background: var(--danger); color: #2a0a0a; }
+  .dashboard { text-align: center; padding: 12px 0; }
+  .dashboard .big { font-size: 34px; font-weight: bold; }
+  .dashboard .sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: normal; }
+  .bar-wrap { background: #1a1a28; border-radius: 4px; height: 8px; overflow: hidden; margin-top: 4px; }
+  .bar { height: 100%; background: var(--accent); }
+  button {
+    background: var(--accent);
+    color: #2a1c05;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary { background: var(--border); color: var(--text); }
+  #copyToast {
+    display: none;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--ok);
+  }
+  .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>発表原稿タイムシミュレーター</h1>
+  <p>発表原稿を貼り付けて、持ち時間に収まるかを声に出す前に確認できます</p>
+</header>
+
+<div class="layout">
+  <div class="col-left panel">
+    <label for="script">発表原稿（空行で段落・セクションを区切ってください）</label>
+    <textarea id="script" placeholder="ここに原稿を貼り付けてください。&#10;&#10;空行を挟むとセクションごとに集計されます。"></textarea>
+
+    <div class="row">
+      <div>
+        <label for="speed">話す速度: <span id="speedLabel">300</span>字/分</label>
+        <input type="range" id="speed" min="200" max="400" step="10" value="300">
+      </div>
+      <div>
+        <label for="target">目標時間（分）</label>
+        <input type="number" id="target" min="0" step="0.5" value="5">
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="pauses">間・一時停止の合計秒数</label>
+        <input type="number" id="pauses" min="0" step="1" value="0">
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button type="button" class="secondary" id="clearBtn">原稿をクリア</button>
+      </div>
+    </div>
+    <div class="note">※ 入力内容はこの画面の中だけで処理され、どこにも送信されません。ページを閉じると内容は消えます。</div>
+  </div>
+
+  <div class="col-right panel">
+    <div class="dashboard">
+      <div class="big" id="bigTime">0分0秒</div>
+      <div class="sub" id="subInfo">総文字数: 0字 / 目標: 5分</div>
+      <div id="statusBadge"></div>
+    </div>
+
+    <div id="sectionsWrap">
+      <div class="empty">原稿を入力するとセクション別の集計が表示されます</div>
+    </div>
+
+    <button type="button" id="copyBtn">結果をコピー</button>
+    <div id="copyToast">コピーしました</div>
+  </div>
+</div>
+
+<textarea id="fallbackArea" style="position:absolute; left:-9999px; top:-9999px;"></textarea>
+
+<script>
+(function () {
+  var scriptEl = document.getElementById('script');
+  var speedEl = document.getElementById('speed');
+  var speedLabelEl = document.getElementById('speedLabel');
+  var targetEl = document.getElementById('target');
+  var pausesEl = document.getElementById('pauses');
+  var clearBtn = document.getElementById('clearBtn');
+  var copyBtn = document.getElementById('copyBtn');
+  var copyToast = document.getElementById('copyToast');
+  var fallbackArea = document.getElementById('fallbackArea');
+
+  var bigTime = document.getElementById('bigTime');
+  var subInfo = document.getElementById('subInfo');
+  var statusBadge = document.getElementById('statusBadge');
+  var sectionsWrap = document.getElementById('sectionsWrap');
+
+  var lastResult = null;
+
+  // 文字数換算: 半角英数字は日本語の概算文字数として0.5換算(=速く読める)、それ以外(日本語・記号・絵文字等)は1文字として数える
+  function countChars(text) {
+    if (!text) return 0;
+    var chars = Array.from(text);
+    var total = 0;
+    for (var i = 0; i < chars.length; i++) {
+      var ch = chars[i];
+      if (/^[A-Za-z0-9]$/.test(ch)) {
+        total += 0.5;
+      } else if (/\s/.test(ch)) {
+        // 空白・改行は発話時間にほぼ影響しないため加算しない
+      } else {
+        total += 1;
+      }
+    }
+    return total;
+  }
+
+  function splitSections(text) {
+    if (!text || text.trim() === '') return [];
+    // 空行(連続する改行)で分割
+    var raw = text.split(/\n\s*\n+/);
+    var sections = [];
+    for (var i = 0; i < raw.length; i++) {
+      var trimmed = raw[i].replace(/^\n+|\n+$/g, '');
+      if (trimmed.trim() === '') continue;
+      sections.push(trimmed);
+    }
+    return sections;
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function formatMinSec(totalSeconds) {
+    var s = Math.max(0, Math.round(totalSeconds));
+    var m = Math.floor(s / 60);
+    var sec = s % 60;
+    return m + '分' + sec + '秒';
+  }
+
+  function safeNumber(v, fallback) {
+    var n = Number(v);
+    if (isNaN(n) || !isFinite(n)) return fallback;
+    return n;
+  }
+
+  function compute() {
+    var text = scriptEl.value || '';
+    var speed = safeNumber(speedEl.value, 300);
+    if (speed <= 0) speed = 300;
+    var targetMin = safeNumber(targetEl.value, 0);
+    if (targetMin < 0) targetMin = 0;
+    var pauseSec = safeNumber(pausesEl.value, 0);
+    if (pauseSec < 0) pauseSec = 0;
+
+    var sections = splitSections(text);
+    var sectionData = [];
+    var totalChars = 0;
+
+    for (var i = 0; i < sections.length; i++) {
+      var chars = countChars(sections[i]);
+      totalChars += chars;
+      var secForSection = (chars / speed) * 60;
+      sectionData.push({
+        index: i + 1,
+        chars: chars,
+        seconds: secForSection,
+        preview: sections[i].replace(/\n/g, ' ').slice(0, 24)
+      });
+    }
+
+    var speakingSeconds = (totalChars / speed) * 60;
+    var totalSeconds = speakingSeconds + pauseSec;
+    var targetSeconds = targetMin * 60;
+
+    var diff = totalSeconds - targetSeconds;
+    var status = 'ok';
+    if (targetSeconds > 0) {
+      var ratio = Math.abs(diff) / targetSeconds;
+      if (diff > 0) {
+        status = 'danger'; // 超過
+      } else if (ratio <= 0.05) {
+        status = 'ok'; // 目標の5%以内(ぴったり)
+      } else {
+        status = 'warn'; // 余裕あり
+      }
+    } else {
+      status = totalSeconds > 0 ? 'warn' : 'ok';
+    }
+
+    return {
+      totalChars: totalChars,
+      totalSeconds: totalSeconds,
+      speakingSeconds: speakingSeconds,
+      pauseSec: pauseSec,
+      targetMin: targetMin,
+      targetSeconds: targetSeconds,
+      diff: diff,
+      status: status,
+      sections: sectionData,
+      speed: speed
+    };
+  }
+
+  function statusLabel(status, diff) {
+    if (status === 'danger') return { text: '目標を超過 (+' + formatMinSec(diff) + ')', cls: 'danger' };
+    if (status === 'warn') return { text: '余裕あり (残り' + formatMinSec(-diff) + ')', cls: 'warn' };
+    return { text: 'ほぼ目標どおり', cls: 'ok' };
+  }
+
+  function render() {
+    var r = compute();
+    lastResult = r;
+
+    bigTime.textContent = formatMinSec(r.totalSeconds);
+    subInfo.textContent = '総文字数(概算): ' + Math.round(r.totalChars) + '字 / 話す時間: ' + formatMinSec(r.speakingSeconds) +
+      (r.pauseSec > 0 ? ' + 間 ' + Math.round(r.pauseSec) + '秒' : '') +
+      ' / 目標: ' + r.targetMin + '分';
+
+    if (r.totalChars === 0) {
+      statusBadge.innerHTML = '';
+    } else {
+      var lbl = statusLabel(r.status, r.diff);
+      statusBadge.innerHTML = '<span class="badge ' + lbl.cls + '">' + escapeHtml(lbl.text) + '</span>';
+    }
+
+    if (r.sections.length === 0) {
+      sectionsWrap.innerHTML = '<div class="empty">原稿を入力するとセクション別の集計が表示されます</div>';
+      return;
+    }
+
+    var maxSec = 0;
+    for (var i = 0; i < r.sections.length; i++) {
+      if (r.sections[i].seconds > maxSec) maxSec = r.sections[i].seconds;
+    }
+    if (maxSec <= 0) maxSec = 1;
+
+    var html = '<table><thead><tr><th>#</th><th>内容(先頭)</th><th>文字数</th><th>推定時間</th></tr></thead><tbody>';
+    for (var j = 0; j < r.sections.length; j++) {
+      var s = r.sections[j];
+      var widthPct = Math.max(2, Math.round((s.seconds / maxSec) * 100));
+      html += '<tr><td>' + s.index + '</td><td>' + escapeHtml(s.preview || '(空)') +
+        '</td><td>' + Math.round(s.chars) + '字</td><td>' + formatMinSec(s.seconds) +
+        '<div class="bar-wrap"><div class="bar" style="width:' + widthPct + '%"></div></div></td></tr>';
+    }
+    html += '</tbody></table>';
+    sectionsWrap.innerHTML = html;
+  }
+
+  function buildMarkdown() {
+    var r = lastResult || compute();
+    var lines = [];
+    lines.push('# 発表原稿タイムシミュレーター 結果');
+    lines.push('');
+    lines.push('- 総文字数(概算): ' + Math.round(r.totalChars) + '字');
+    lines.push('- 話す時間: ' + formatMinSec(r.speakingSeconds) + '（速度 ' + r.speed + '字/分）');
+    if (r.pauseSec > 0) lines.push('- 間・一時停止: ' + Math.round(r.pauseSec) + '秒');
+    lines.push('- 合計推定時間: ' + formatMinSec(r.totalSeconds));
+    lines.push('- 目標時間: ' + r.targetMin + '分');
+    var lbl = statusLabel(r.status, r.diff);
+    lines.push('- 判定: ' + lbl.text);
+    if (r.sections.length > 0) {
+      lines.push('');
+      lines.push('| # | 内容(先頭) | 文字数 | 推定時間 |');
+      lines.push('|---|---|---|---|');
+      for (var i = 0; i < r.sections.length; i++) {
+        var s = r.sections[i];
+        lines.push('| ' + s.index + ' | ' + (s.preview || '(空)').replace(/\|/g, '\\|') + ' | ' + Math.round(s.chars) + '字 | ' + formatMinSec(s.seconds) + ' |');
+      }
+    }
+    return lines.join('\n');
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showToast, function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    try {
+      fallbackArea.value = text;
+      fallbackArea.style.left = '0px';
+      fallbackArea.focus();
+      fallbackArea.select();
+      document.execCommand('copy');
+      fallbackArea.style.left = '-9999px';
+      showToast();
+    } catch (e) {
+      // コピーに失敗しても画面は壊さない
+      copyToast.textContent = 'コピーできませんでした。手動で選択してください';
+      copyToast.style.display = 'block';
+      copyToast.style.color = 'var(--danger)';
+      setTimeout(function () { copyToast.style.display = 'none'; }, 2500);
+    }
+  }
+
+  function showToast() {
+    copyToast.textContent = 'コピーしました';
+    copyToast.style.color = 'var(--ok)';
+    copyToast.style.display = 'block';
+    setTimeout(function () { copyToast.style.display = 'none'; }, 1800);
+  }
+
+  speedEl.addEventListener('input', function () {
+    speedLabelEl.textContent = speedEl.value;
+    render();
+  });
+  scriptEl.addEventListener('input', render);
+  targetEl.addEventListener('input', render);
+  pausesEl.addEventListener('input', render);
+  clearBtn.addEventListener('click', function () {
+    scriptEl.value = '';
+    render();
+  });
+  copyBtn.addEventListener('click', function () {
+    copyText(buildMarkdown());
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
