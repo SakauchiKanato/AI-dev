@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>荒天お休み判断＆連絡文メーカー</title>
+<style>
+:root{--bg:#1e1e2e;--panel:#262638;--accent:#4fb3d9;--text:#e8e6f2;--muted:#9a97b5;--border:#3a3a52;--ok:#4caf7d;--warn:#e0b040;--ng:#e05c5c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;line-height:1.6;padding:16px}
+header{max-width:1100px;margin:0 auto 16px}
+h1{font-size:20px;margin:0 0 4px}
+header p{font-size:13px;color:var(--muted);margin:0}
+.layout{max-width:1100px;margin:0 auto;display:flex;gap:20px;flex-wrap:wrap}
+.col{flex:1 1 420px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
+.panel h2{font-size:15px;margin:0 0 10px;color:var(--accent)}
+label{display:block;font-size:13px;color:var(--muted);margin:8px 0 3px}
+input[type=text],input[type=time],input[type=number],select,textarea{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:14px;font-family:inherit}
+textarea{min-height:170px;resize:vertical}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1 1 110px;min-width:0}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);margin:6px 0}
+.chk input{width:auto}
+button{background:var(--accent);color:#10222b;border:none;border-radius:6px;padding:8px 14px;font-size:14px;font-weight:700;cursor:pointer;margin:6px 6px 0 0}
+button.sub{background:transparent;color:var(--text);border:1px solid var(--border)}
+button.del{background:transparent;color:var(--ng);border:1px solid var(--ng);padding:4px 10px;font-size:12px}
+.plan{border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px}
+.plan.sel{border-color:var(--accent)}
+.plan-head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;cursor:pointer}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:700;color:#10222b}
+.b-ok{background:var(--ok)}.b-warn{background:var(--warn)}.b-ng{background:var(--ng)}
+.score{font-size:12px;color:var(--muted)}
+ul.reasons{margin:6px 0 0;padding-left:20px;font-size:13px}
+.note{font-size:12px;color:var(--muted)}
+.empty{color:var(--muted);font-size:13px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--accent);color:#10222b;padding:8px 18px;border-radius:20px;font-weight:700;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>荒天お休み判断＆連絡文メーカー</h1>
+  <p>台風・大雨の日に「行く／時間をずらす／休む」の目安を出し、大学・バイト先への連絡文を作ります。最終判断は自分自身と、学校・職場・気象庁・鉄道会社の公式情報で行ってください。</p>
+</header>
+<div class="layout">
+  <div class="col">
+    <div class="panel">
+      <h2>1. 荒天の状況</h2>
+      <div class="row">
+        <div><label for="warn">気象警報の状況</label>
+          <select id="warn"><option value="0">警報・注意報なし</option><option value="1">注意報</option><option value="3">警報</option><option value="8">特別警報</option></select></div>
+        <div><label for="level">警戒レベル（自治体発表）</label>
+          <select id="level"><option value="1">1〜2（発表なし）</option><option value="3">3 高齢者等避難</option><option value="4">4 避難指示</option><option value="5">5 緊急安全確保</option></select></div>
+      </div>
+      <div class="row">
+        <div><label for="transit">電車・バスの状況</label>
+          <select id="transit"><option value="0">平常運転</option><option value="2">遅延・本数減の可能性</option><option value="6">計画運休・運転見合わせ</option></select></div>
+        <div><label for="mode">主な移動手段</label>
+          <select id="mode"><option value="0">電車・バス</option><option value="1">徒歩中心</option><option value="2">自転車・バイク</option></select></div>
+      </div>
+      <div class="chk"><input type="checkbox" id="ret"><label for="ret" style="margin:0;color:var(--text)">帰る時間帯も荒れる予報</label></div>
+      <div class="chk"><input type="checkbox" id="risk"><label for="risk" style="margin:0;color:var(--text)">経路に川沿い・冠水しやすい道・がけ地がある</label></div>
+      <div class="chk"><input type="checkbox" id="long"><label for="long" style="margin:0;color:var(--text)">駅までの徒歩区間が長い（15分以上）</label></div>
+      <p class="note">※ 台風は「コンパクトで急に強まる」ことがあります。数時間おきに最新の予報を確認しましょう。</p>
+    </div>
+    <div class="panel">
+      <h2>2. 予定を追加</h2>
+      <div class="row">
+        <div><label for="ptype">種類</label><select id="ptype"><option value="大学">大学の授業</option><option value="バイト">バイト</option><option value="その他">その他</option></select></div>
+        <div><label for="pname">名前（科目・バイト先）</label><input type="text" id="pname" maxlength="60" placeholder="例: 機械学習 / ○○店"></div>
+      </div>
+      <div class="row">
+        <div><label for="pstart">開始時刻</label><input type="time" id="pstart" value="09:00"></div>
+        <div><label for="ptravel">片道の移動（分）</label><input type="number" id="ptravel" value="40" min="0" max="600"></div>
+      </div>
+      <div class="chk"><input type="checkbox" id="pkey"><label for="pkey" style="margin:0;color:var(--text)">試験・必修など欠席しにくい予定</label></div>
+      <button id="addBtn">予定を追加</button>
+      <button class="sub" id="sampleBtn">サンプルを入れる</button>
+    </div>
+  </div>
+  <div class="col">
+    <div class="panel">
+      <h2>3. 判断の目安</h2>
+      <div id="plans"><div class="empty">予定を追加すると、ここに判断が表示されます。</div></div>
+      <button class="sub" id="copyAll">判断結果をまとめてコピー</button>
+    </div>
+    <div class="panel">
+      <h2>4. 連絡文</h2>
+      <p class="note" id="selInfo">上の予定をクリックして選ぶと、連絡文を作ります。</p>
+      <div class="row">
+        <div><label for="myname">自分の名前</label><input type="text" id="myname" placeholder="例: 坂内"></div>
+        <div><label for="mkind">連絡の種類</label><select id="mkind"><option value="auto">判断に合わせる</option><option value="absent">欠席・休みの連絡</option><option value="late">遅れる連絡</option><option value="consult">休んでよいか相談</option></select></div>
+      </div>
+      <div class="row">
+        <div><label for="mto">宛先</label><input type="text" id="mto" placeholder="例: ○○先生 / 店長"></div>
+        <div><label for="meta">到着見込み（遅れる場合）</label><input type="time" id="meta"></div>
+      </div>
+      <label for="mreason">理由</label><input type="text" id="mreason">
+      <label for="mbody">連絡文（編集できます）</label>
+      <textarea id="mbody"></textarea>
+      <button id="copyMsg">連絡文をコピー</button>
+      <button class="sub" id="regen">連絡文を作り直す</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script>
+var plans=[],nextId=1,selectedId=null;
+function $(id){return document.getElementById(id)}
+function num(v){var n=parseFloat(v);return isNaN(n)?0:n}
+function toast(t){var e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(function(){e.classList.remove('show')},1600)}
+function getCond(){
+  return {warn:num($('warn').value),level:num($('level').value),transit:num($('transit').value),mode:num($('mode').value),
+    ret:$('ret').checked,risk:$('risk').checked,long:$('long').checked,
+    warnText:$('warn').options[$('warn').selectedIndex].text,transitText:$('transit').options[$('transit').selectedIndex].text}
+}
+function judge(p,c){
+  var s=0,r=[];
+  s+=c.warn; if(c.warn>=3)r.push('気象'+c.warnText+'が出ています');else if(c.warn===1)r.push('注意報が出ています（+1）');
+  if(c.level>=3){s+=c.level===3?3:(c.level===4?6:10);r.push('警戒レベル'+c.level+'相当の発表があります');}
+  s+=c.transit; if(c.transit>=6)r.push('電車・バスが計画運休・運転見合わせです');else if(c.transit>=2)r.push('電車・バスに遅延・本数減の可能性があります');
+  if(c.mode===2){s+=2;r.push('自転車・バイクは強風・視界不良で危険度が上がります');}
+  else if(c.mode===1){s+=1;r.push('徒歩は風雨の影響を直接受けます');}
+  if(c.ret){s+=2;r.push('帰りの時間帯も荒れる予報です');}
+  if(c.risk){s+=2;r.push('経路に冠水・土砂災害のおそれのある場所があります');}
+  if(c.long){s+=1;r.push('駅までの徒歩が長く、屋外にいる時間が増えます');}
+  var t=Math.max(0,Math.min(600,num(p.travel)));
+  if(t>=60){s+=1;r.push('移動が長め（'+t+'分）で、途中で状況が悪化しやすいです');}
+  var lv,label;
+  var hard=(c.warn>=8||c.level>=4||c.transit>=6);
+  if(hard||s>=8){lv='ng';label='休む・行かない方向で（連絡を）';}
+  else if(s>=4){lv='warn';label='時間をずらす・早めに切り上げる';}
+  else{lv='ok';label='行けそう（注意しながら）';}
+  if(r.length===0)r.push('目立ったリスクは入力されていません');
+  if(p.key&&lv!=='ok')r.push('試験・必修など欠席しにくい予定です。早めに担当へ相談し、代替措置を確認しましょう');
+  if(lv==='ng'&&c.level>=4)r.push('避難情報が出ている場合は、移動より身の安全を最優先にしてください');
+  return {score:s,lv:lv,label:label,reasons:r};
+}
+function badgeClass(lv){return lv==='ok'?'b-ok':(lv==='warn'?'b-warn':'b-ng')}
+function timeToMin(t){if(!t||t.indexOf(':')<0)return null;var a=t.split(':');return num(a[0])*60+num(a[1])}
+function minToTime(m){m=((m%1440)+1440)%1440;var h=Math.floor(m/60),mi=m%60;return (h<10?'0':'')+h+':'+(mi<10?'0':'')+mi}
+function render(){
+  var box=$('plans');box.textContent='';
+  if(plans.length===0){var d=document.createElement('div');d.className='empty';d.textContent='予定を追加すると、ここに判断が表示されます。';box.appendChild(d);return}
+  var c=getCond();
+  plans.forEach(function(p){
+    var j=judge(p,c);p._j=j;
+    var w=document.createElement('div');w.className='plan'+(p.id===selectedId?' sel':'');
+    var h=document.createElement('div');h.className='plan-head';
+    var title=document.createElement('div');
+    title.textContent='【'+p.type+'】'+(p.name||'（名称なし）')+'　'+(p.start||'--:--')+'開始';
+    var bd=document.createElement('span');bd.className='badge '+badgeClass(j.lv);bd.textContent=j.label;
+    h.appendChild(title);h.appendChild(bd);
+    h.addEventListener('click',function(){selectedId=p.id;render();fillMsg()});
+    w.appendChild(h);
+    var sc=document.createElement('div');sc.className='score';sc.textContent='リスク点数: '+j.score+'（8以上、または運休・避難指示等で「休む」寄り）';
+    w.appendChild(sc);
+    var ul=document.createElement('ul');ul.className='reasons';
+    j.reasons.forEach(function(x){var li=document.createElement('li');li.textContent=x;ul.appendChild(li)});
+    w.appendChild(ul);
+    var b=document.createElement('button');b.className='del';b.textContent='削除';
+    b.addEventListener('click',function(e){e.stopPropagation();removePlan(p.id)});
+    w.appendChild(b);
+    box.appendChild(w);
+  });
+}
+function removePlan(id){
+  plans=plans.filter(function(p){return p.id!==id});
+  if(selectedId===id){selectedId=plans.length?plans[0].id:null}
+  render();fillMsg();
+}
+function addPlan(){
+  var name=$('pname').value.trim();
+  var start=$('pstart').value;
+  var travel=Math.max(0,Math.min(600,num($('ptravel').value)));
+  if(plans.length>=20){toast('予定は20件までです');return}
+  var p={id:nextId++,type:$('ptype').value,name:name,start:start,travel:travel,key:$('pkey').checked};
+  plans.push(p);selectedId=p.id;
+  $('pname').value='';$('pkey').checked=false;
+  render();fillMsg();
+}
+function reasonText(c){
+  var a=[];
+  if(c.transit>=6)a.push('電車・バスが運休・運転見合わせになっている');
+  else if(c.transit>=2)a.push('電車・バスの遅延が見込まれる');
+  if(c.warn>=3)a.push('気象'+c.warnText+'が発表されている');
+  if(c.level>=4)a.push('避難情報が出ており身の安全を優先したい');
+  if(a.length===0)return '台風・大雨の影響で通常どおりの移動が難しいため';
+  return a.join('こと、')+'ため';
+}
+function fillMsg(){
+  var p=plans.filter(function(x){return x.id===selectedId})[0];
+  if(!p){$('selInfo').textContent='上の予定をクリックして選ぶと、連絡文を作ります。';$('mbody').value='';return}
+  $('selInfo').textContent='選択中: 【'+p.type+'】'+(p.name||'（名称なし）');
+  var c=getCond();
+  $('mreason').value=reasonText(c);
+  if(!$('mto').value){/* 宛先は空のままにして未入力でも文になるようにする */}
+  regen();
+}
+function regen(){
+  var p=plans.filter(function(x){return x.id===selectedId})[0];
+  if(!p){return}
+  var c=getCond(),j=judge(p,c);
+  var kind=$('mkind').value;
+  if(kind==='auto'){kind=(j.lv==='ng')?(p.key?'consult':'absent'):(j.lv==='warn'?'late':'late')}
+  var me=$('myname').value.trim();
+  var to=$('mto').value.trim();
+  var reason=$('mreason').value.trim()||'台風・大雨の影響のため';
+  var target=p.name?(p.type==='大学'?'「'+p.name+'」の授業':(p.type==='バイト'?p.name+'でのシフト':'「'+p.name+'」')):(p.type==='大学'?'授業':(p.type==='バイト'?'シフト':'予定'));
+  var when=p.start?(p.start+'開始の'):'';
+  var greet=to?(to+'様\n\nお世話になっております。'):'お世話になっております。';
+  var who=me?(me+'です。'):'';
+  var body='';
+  if(kind==='absent'){
+    body=greet+who+'\n本日'+when+target+'について、'+reason+'、安全を考えて欠席（お休み）させていただきたく、ご連絡いたしました。\n急なご連絡となり申し訳ございません。'+(p.type==='大学'?'\n授業内容や課題については、後ほど自分で確認いたします。':(p.type==='バイト'?'\nシフトに穴をあけてしまい申し訳ございません。代わりの対応が必要でしたらご指示ください。':''))+'\nどうぞよろしくお願いいたします。';
+  }else if(kind==='late'){
+    var eta=$('meta').value;
+    if(!eta&&p.start){var sm=timeToMin(p.start);if(sm!==null)eta=minToTime(sm+30)}
+    body=greet+who+'\n本日'+when+target+'に向かっておりますが、'+reason+'、'+(eta?eta+'ごろの到着になる見込みです。':'到着が遅れる見込みです。')+'\n状況が変わり次第、改めてご連絡いたします。ご迷惑をおかけして申し訳ございません。\nどうぞよろしくお願いいたします。';
+  }else{
+    body=greet+who+'\n本日'+when+target+'について、'+reason+'、参加（出勤）が難しい状況です。\n欠席してもよいか、また代わりの対応（資料の共有・振替・後日の実施など）が可能かご相談させてください。\nお忙しいところ恐れ入りますが、ご確認のほどよろしくお願いいたします。';
+  }
+  if(me)body+='\n\n'+me;
+  $('mbody').value=body;
+}
+function copyText(text,okMsg){
+  function fallback(){
+    var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    var ok=false;try{ok=document.execCommand('copy')}catch(e){ok=false}
+    document.body.removeChild(ta);
+    toast(ok?okMsg:'コピーできませんでした。手動で選択してください');
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){toast(okMsg)},fallback);
+  }else fallback();
+}
+function copyAll(){
+  if(plans.length===0){toast('コピーする予定がありません');return}
+  var c=getCond();
+  var lines=['【荒天お休み判断】（目安）','警報: '+c.warnText+' / 電車: '+c.transitText];
+  plans.forEach(function(p){
+    var j=judge(p,c);
+    lines.push('','■ '+p.type+' '+(p.name||'（名称なし）')+' '+(p.start||'')+' → '+j.label+'（点数'+j.score+'）');
+    j.reasons.forEach(function(x){lines.push('- '+x)});
+  });
+  copyText(lines.join('\n'),'判断結果をコピーしました');
+}
+function sample(){
+  plans=[];nextId=1;
+  [{type:'大学',name:'機械学習',start:'09:00',travel:45,key:false},{type:'バイト',name:'アルバイト',start:'17:30',travel:30,key:false}].forEach(function(p){p.id=nextId++;plans.push(p)});
+  selectedId=plans[0].id;
+  $('warn').value='3';$('transit').value='2';$('ret').checked=true;
+  render();fillMsg();toast('サンプルを入れました');
+}
+['warn','level','transit','mode','ret','risk','long'].forEach(function(id){$(id).addEventListener('change',function(){render();fillMsg()})});
+['mkind','meta','mto','myname','mreason'].forEach(function(id){$(id).addEventListener('input',regen);$(id).addEventListener('change',regen)});
+$('addBtn').addEventListener('click',addPlan);
+$('sampleBtn').addEventListener('click',sample);
+$('copyAll').addEventListener('click',copyAll);
+$('copyMsg').addEventListener('click',function(){
+  var t=$('mbody').value;if(!t){toast('先に予定を選んでください');return}
+  copyText(t,'連絡文をコピーしました');
+});
+$('regen').addEventListener('click',function(){fillMsg();toast('作り直しました')});
+</script>
+</body>
+</html>
