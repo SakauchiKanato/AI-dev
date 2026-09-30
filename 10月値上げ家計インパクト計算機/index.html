@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10月値上げ家計インパクト計算機</title>
+<style>
+:root{--bg:#1e1e2e;--panel:#262638;--accent:#f0a04b;--text:#e8e6f2;--muted:#9a97b5;--border:#3a3a52;--red:#e5626b;--green:#5fbf8f;--yellow:#e8c95a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;padding:16px}
+header{max-width:1000px;margin:0 auto 16px}
+h1{font-size:20px;margin:0 0 4px}
+header p{font-size:13px;color:var(--muted);margin:0}
+.layout{max-width:1000px;margin:0 auto;display:flex;gap:20px;flex-wrap:wrap}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;flex:1 1 340px;min-width:0}
+h2{font-size:15px;margin:0 0 10px;color:var(--accent)}
+label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+input,button{font:inherit;color:var(--text)}
+input{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 8px;width:100%}
+.row{display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed var(--border)}
+.row>div{flex:1 1 90px;min-width:0}
+.row>div.nm{flex:2 1 120px}
+button{background:var(--accent);color:#1e1e2e;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;font-weight:bold}
+button.sub{background:transparent;color:var(--text);border:1px solid var(--border)}
+button.del{background:transparent;color:var(--red);border:1px solid var(--border);padding:7px 10px}
+.cards{display:flex;gap:10px;flex-wrap:wrap}
+.card{flex:1 1 140px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px}
+.card small{color:var(--muted);font-size:11px;display:block}
+.card b{font-size:20px}
+.warn{color:var(--red)}.ok{color:var(--green)}.mid{color:var(--yellow)}
+.rank{margin:8px 0 0;padding:0;list-style:none}
+.rank li{margin-bottom:6px;font-size:13px}
+.bar{height:8px;background:var(--accent);border-radius:4px;margin-top:2px}
+.note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5}
+textarea{width:100%;min-height:80px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;font:inherit;font-size:12px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--accent);color:#1e1e2e;padding:8px 16px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+<h1>10月値上げ家計インパクト計算機</h1>
+<p>費目ごとの月の支出と想定値上げ率から、負担増を月・年・バイト時間で試算します。</p>
+</header>
+<div class="layout">
+<section class="panel">
+<h2>① 費目と想定値上げ率</h2>
+<div id="rows"></div>
+<div class="btns"><button id="addBtn" type="button">＋ 費目を追加</button></div>
+<label for="income">手取り月収（円・任意）</label>
+<input id="income" type="number" inputmode="numeric" placeholder="例: 80000">
+<label for="wage">バイト時給（円・任意）</label>
+<input id="wage" type="number" inputmode="numeric" placeholder="例: 1200">
+<label for="cut">増加分のうち節約でカバーできる割合（%）</label>
+<input id="cut" type="number" inputmode="numeric" value="0">
+<p class="note">値上げ率の初期値は目安の仮置きです。公式データではないため、実際のレシートや公式発表を見て自分の実感に合わせて調整してください。</p>
+</section>
+<section class="panel">
+<h2>② 試算結果</h2>
+<div class="cards">
+<div class="card"><small>月の増加額</small><b id="rMonth">-</b></div>
+<div class="card"><small>年間の増加額</small><b id="rYear">-</b></div>
+<div class="card"><small>値上げ後の月支出</small><b id="rAfter">-</b></div>
+</div>
+<div class="cards" style="margin-top:10px">
+<div class="card"><small>手取りに占める増加額</small><b id="rShare">-</b></div>
+<div class="card"><small>バイト何時間分（月）</small><b id="rHours">-</b></div>
+<div class="card"><small>節約後の残り負担（月）</small><b id="rRest">-</b></div>
+</div>
+<h2 style="margin-top:16px">増加額が大きい費目</h2>
+<ul class="rank" id="rank"></ul>
+<div class="btns"><button id="copyBtn" type="button">結果をMarkdownでコピー</button></div>
+<h2 style="margin-top:16px">③ 入力データの保存・復元</h2>
+<textarea id="io" placeholder="ここに書き出し／貼り付け"></textarea>
+<div class="btns"><button class="sub" id="expBtn" type="button">書き出し</button><button class="sub" id="impBtn" type="button">読み込み</button></div>
+<p class="note">ブラウザに自動保存はしません。次回使う時は書き出したテキストを貼り付けてください。試算は目安であり、実際の家計を保証するものではありません。</p>
+</section>
+</div>
+<div id="toast"></div>
+<script>
+var MAX=1e9;
+var items=[
+{name:"食費",spend:25000,rate:3},
+{name:"日用品",spend:5000,rate:3},
+{name:"光熱費",spend:8000,rate:2},
+{name:"交通費",spend:6000,rate:1},
+{name:"通信費",spend:3000,rate:0}
+];
+function el(id){return document.getElementById(id);}
+function num(v,lo,hi){var n=parseFloat(v);if(!isFinite(n))return 0;return Math.min(Math.max(n,lo),hi);}
+function yen(n){return Math.round(n).toLocaleString("ja-JP")+"円";}
+function calc(){
+  var res=items.map(function(it){var sp=num(it.spend,0,MAX),r=num(it.rate,-100,1000);return{name:String(it.name||"（名称なし）"),spend:sp,rate:r,inc:sp*r/100};});
+  var month=res.reduce(function(a,b){return a+b.inc;},0);
+  var base=res.reduce(function(a,b){return a+b.spend;},0);
+  var income=num(el("income").value,0,MAX),wage=num(el("wage").value,0,MAX),cut=num(el("cut").value,0,100);
+  return{res:res,month:month,year:month*12,base:base,after:base+month,income:income,wage:wage,cut:cut,
+    share:income>0?month/income*100:null,hours:wage>0?month/wage:null,rest:month*(1-cut/100)};
+}
+function render(){
+  var c=calc();
+  el("rMonth").textContent=yen(c.month);el("rYear").textContent=yen(c.year);el("rAfter").textContent=yen(c.after);
+  var sh=el("rShare");
+  if(c.share===null){sh.textContent="収入未入力";sh.className="";}
+  else{sh.textContent=c.share.toFixed(1)+"%";sh.className=c.share>=5?"warn":(c.share>=2?"mid":"ok");}
+  el("rHours").textContent=c.hours===null?"時給未入力":c.hours.toFixed(1)+"時間";
+  el("rRest").textContent=yen(c.rest);
+  var rk=el("rank");rk.textContent="";
+  var sorted=c.res.slice().sort(function(a,b){return b.inc-a.inc;});
+  var mx=sorted.length&&sorted[0].inc>0?sorted[0].inc:1;
+  sorted.forEach(function(r){
+    var li=document.createElement("li");
+    li.textContent=r.name+"："+sg(r.inc)+"/月（"+r.rate+"%）";
+    var b=document.createElement("div");b.className="bar";b.style.width=Math.max(0,Math.min(100,r.inc/mx*100))+"%";
+    li.appendChild(b);rk.appendChild(li);
+  });
+  return c;
+}
+function buildRows(){
+  var box=el("rows");box.textContent="";
+  items.forEach(function(it,i){
+    var row=document.createElement("div");row.className="row";
+    function field(cls,lab,type,val,key){
+      var d=document.createElement("div");if(cls)d.className=cls;
+      var l=document.createElement("label");l.textContent=lab;
+      var inp=document.createElement("input");inp.type=type;if(type==="number")inp.setAttribute("inputmode","decimal");
+      inp.value=val;
+      inp.addEventListener("input",function(){items[i][key]=inp.value;render();});
+      d.appendChild(l);d.appendChild(inp);row.appendChild(d);
+    }
+    field("nm","費目","text",it.name,"name");
+    field("","月の支出（円）","number",it.spend,"spend");
+    field("","値上げ率（%）","number",it.rate,"rate");
+    var d=document.createElement("div");d.style.flex="0 0 auto";
+    var del=document.createElement("button");del.type="button";del.className="del";del.textContent="削除";
+    del.addEventListener("click",function(){items.splice(i,1);buildRows();render();});
+    d.appendChild(del);row.appendChild(d);box.appendChild(row);
+  });
+}
+function toast(m){var t=el("toast");t.textContent=m;t.className="show";setTimeout(function(){t.className="";},1800);}
+function copyText(text){
+  function fb(){var ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();var ok=false;try{ok=document.execCommand("copy");}catch(e){}document.body.removeChild(ta);toast(ok?"コピーしました":"コピーに失敗しました");}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){toast("コピーしました");},fb);}else{fb();}
+}
+function sg(n){var v=Math.round(n);return (v>0?"+":"")+v.toLocaleString("ja-JP")+"円";}
+function esc(s){return String(s).replace(/\|/g,"／").replace(/[\r\n]+/g," ");}
+function markdown(){
+  var c=calc();
+  var L=["# 10月値上げ家計インパクト試算","","| 費目 | 月の支出 | 値上げ率 | 月の増加額 |","|---|---|---|---|"];
+  c.res.forEach(function(r){L.push("| "+esc(r.name)+" | "+yen(r.spend)+" | "+r.rate+"% | +"+yen(r.inc)+" |");});
+  L.push("","- 月の増加額: "+yen(c.month),"- 年間の増加額: "+yen(c.year),"- 値上げ後の月支出: "+yen(c.after));
+  if(c.share!==null)L.push("- 手取りに占める増加額: "+c.share.toFixed(1)+"%");
+  if(c.hours!==null)L.push("- バイト換算: "+c.hours.toFixed(1)+"時間/月");
+  L.push("- 節約"+c.cut+"%後の月の残り負担: "+yen(c.rest),"","※目安の試算です。");
+  return L.join("\n");
+}
+el("addBtn").addEventListener("click",function(){items.push({name:"新しい費目",spend:0,rate:0});buildRows();render();});
+el("copyBtn").addEventListener("click",function(){copyText(markdown());});
+["income","wage","cut"].forEach(function(id){el(id).addEventListener("input",render);});
+el("expBtn").addEventListener("click",function(){
+  el("io").value=JSON.stringify({items:items,income:el("income").value,wage:el("wage").value,cut:el("cut").value});toast("書き出しました");
+});
+el("impBtn").addEventListener("click",function(){
+  try{
+    var o=JSON.parse(el("io").value);
+    if(!o||!Array.isArray(o.items))throw new Error("形式");
+    items=o.items.slice(0,50).map(function(x){return{name:String((x&&x.name)||""),spend:(x&&x.spend)||0,rate:(x&&x.rate)||0};});
+    el("income").value=o.income||"";el("wage").value=o.wage||"";el("cut").value=o.cut||0;
+    buildRows();render();toast("読み込みました");
+  }catch(e){toast("読み込めませんでした（形式を確認）");}
+});
+buildRows();render();
+</script>
+</body>
+</html>
