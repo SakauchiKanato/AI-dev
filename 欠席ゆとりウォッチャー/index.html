@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>欠席ゆとりウォッチャー</title>
+<style>
+  :root { --bg:#1e1e2e; --panel:#262638; --accent:#6aa9e0; --text:#e8e6f2; --muted:#9a97b5; --border:#3a3a52; --ok:#4dbd8c; --warn:#e0c458; --danger:#e05a5a; --over:#b04ae0; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; padding:20px; }
+  header h1 { font-size:20px; margin:0 0 4px; }
+  header p { font-size:13px; color:var(--muted); margin:0 0 20px; }
+  .layout { display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:20px; }
+  .col-left { flex:1 1 300px; min-width:280px; }
+  .col-right { flex:2 1 400px; min-width:300px; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  label { font-size:13px; color:var(--muted); display:block; margin:10px 0 4px; }
+  input[type=text], input[type=number], textarea { width:100%; background:#1a1a28; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px; font-size:14px; font-family:inherit; }
+  textarea { min-height:90px; resize:vertical; }
+  button { background:var(--accent); color:#10202e; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; font-weight:bold; margin:4px 4px 0 0; }
+  button.sub { background:#34344d; color:var(--text); font-weight:normal; }
+  button.danger { background:#4a2a2a; color:#f0b0b0; font-weight:normal; }
+  .note { font-size:12px; color:var(--muted); margin-top:6px; line-height:1.5; }
+  .row2 { display:flex; gap:8px; flex-wrap:wrap; }
+  .row2 > div { flex:1 1 100px; }
+  .cards { display:flex; flex-wrap:wrap; gap:10px; }
+  .card { flex:1 1 220px; border:1px solid var(--border); border-left:6px solid var(--ok); border-radius:8px; padding:10px; background:#202033; cursor:pointer; }
+  .card.sel { outline:2px solid var(--accent); }
+  .card .t { font-weight:bold; font-size:14px; word-break:break-all; }
+  .card .s { font-size:12px; color:var(--muted); margin-top:4px; }
+  .lv-ok { border-left-color:var(--ok); } .lv-warn { border-left-color:var(--warn); } .lv-danger { border-left-color:var(--danger); } .lv-over { border-left-color:var(--over); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:12px; color:#10202e; font-weight:bold; }
+  .b-ok { background:var(--ok); } .b-warn { background:var(--warn); } .b-danger { background:var(--danger); color:#fff; } .b-over { background:var(--over); color:#fff; }
+  .bar { height:10px; background:#1a1a28; border-radius:6px; overflow:hidden; margin-top:6px; }
+  .bar > div { height:100%; background:var(--ok); width:0; }
+  .grid { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .cell { width:56px; padding:6px 0; text-align:center; border-radius:8px; border:1px solid var(--border); background:#1a1a28; cursor:pointer; font-size:12px; user-select:none; }
+  .cell b { display:block; font-size:15px; }
+  .st-none { color:var(--muted); } .st-att { border-color:var(--ok); color:var(--ok); } .st-abs { border-color:var(--danger); color:var(--danger); background:#2c1a1a; } .st-late { border-color:var(--warn); color:var(--warn); } .st-off { border-color:#6a6a8a; color:#8a8aa8; text-decoration:line-through; }
+  .res { font-size:14px; line-height:1.8; }
+  .big { font-size:28px; font-weight:bold; }
+  #toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#34344d; padding:8px 16px; border-radius:20px; font-size:13px; display:none; }
+  .empty { color:var(--muted); font-size:13px; }
+  @media (max-width:480px) { body { padding:12px; } .cell { width:48px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🗓️ 欠席ゆとりウォッチャー</h1>
+  <p>科目ごとの出欠を記録して「あと何回休めるか」をひと目で確認。データはこのブラウザ内だけで処理されます。</p>
+</header>
+
+<div class="panel">
+  <h2>全科目ダッシュボード（余裕の少ない順）</h2>
+  <div id="dash" class="cards"></div>
+</div>
+
+<div class="layout">
+  <div class="col-left">
+    <div class="panel">
+      <h2>科目を登録</h2>
+      <label for="subName">科目名</label>
+      <input type="text" id="subName" maxlength="40" placeholder="例: データサイエンス入門">
+      <div class="row2">
+        <div><label for="subTotal">授業の総回数</label><input type="number" id="subTotal" value="15" min="1" max="60"></div>
+        <div><label for="subLimit">欠席上限（空欄で総回数の1/3）</label><input type="number" id="subLimit" min="0" max="60" placeholder="自動"></div>
+        <div><label for="subLate">遅刻◯回で欠席1回</label><input type="number" id="subLate" value="3" min="0" max="20"></div>
+      </div>
+      <button id="btnAdd">追加する</button>
+      <div class="note">遅刻の換算を使わない場合は 0 にしてください。欠席上限は大学・授業ごとに異なるため、履修要項・シラバスで確認してください（例: 15回なら5回まで）。</div>
+      <div id="addMsg" class="note"></div>
+    </div>
+    <div class="panel">
+      <h2>エクスポート / インポート</h2>
+      <textarea id="ioText" placeholder="エクスポートしたテキストをここに貼ってインポート"></textarea>
+      <button id="btnExport" class="sub">エクスポート</button>
+      <button id="btnImport" class="sub">インポート</button>
+      <div class="note">ブラウザには保存しません。閉じる前にエクスポートして、次回貼り付けて復元してください。</div>
+      <div id="ioMsg" class="note"></div>
+    </div>
+  </div>
+  <div class="col-right">
+    <div class="panel" id="detail"><div class="empty">科目を登録すると、ここに出欠の記録欄が表示されます。</div></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+var subjects = [];
+var selected = -1;
+var STATES = ['none','att','abs','late','off'];
+var LABELS = { none:'未記録', att:'出席', abs:'欠席', late:'遅刻', off:'休講' };
+
+function $(id){ return document.getElementById(id); }
+function toast(msg){ var t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toast._t); toast._t=setTimeout(function(){ t.style.display='none'; },1800); }
+function toInt(v, def, min, max){
+  var n = parseInt(v,10);
+  if (isNaN(n)) return def;
+  if (n<min) n=min; if (n>max) n=max;
+  return n;
+}
+
+function calc(s){
+  var abs=0, late=0, off=0, att=0, rec=0, i;
+  for (i=0;i<s.records.length;i++){
+    var r=s.records[i];
+    if (r==='abs') abs++; else if (r==='late') late++; else if (r==='off') off++; else if (r==='att') att++;
+    if (r!=='none') rec++;
+  }
+  var effTotal = Math.max(s.total - off, 0);
+  var limit = (s.limit===null) ? Math.floor(effTotal/3) : s.limit;
+  var lateAbs = (s.lateRate>0) ? Math.floor(late/s.lateRate) : 0;
+  var used = abs + lateAbs;
+  var remain = limit - used;
+  var level = 'ok';
+  if (remain < 0) level='over'; else if (remain===0) level='danger'; else if (remain<=2) level='warn';
+  var ratio = limit>0 ? Math.min(used/limit,1) : (used>0?1:0);
+  var left = Math.max(s.total - rec - 0, 0); // 未記録の回数（休講は記録済み扱い）
+  return { abs:abs, late:late, off:off, att:att, rec:rec, effTotal:effTotal, limit:limit, lateAbs:lateAbs, used:used, remain:remain, level:level, ratio:ratio, left:left };
+}
+function levelText(l){ return { ok:'余裕あり', warn:'注意', danger:'危険（これ以上休めない）', over:'上限超過' }[l]; }
+
+function addSubject(){
+  var name = $('subName').value.replace(/^\s+|\s+$/g,'');
+  if (!name){ $('addMsg').textContent='科目名を入力してください。'; return; }
+  var total = toInt($('subTotal').value, 15, 1, 60);
+  var limRaw = $('subLimit').value.replace(/\s/g,'');
+  var limit = (limRaw==='') ? null : toInt(limRaw, 0, 0, 60);
+  var lateRate = toInt($('subLate').value, 3, 0, 20);
+  var recs=[]; for (var i=0;i<total;i++) recs.push('none');
+  subjects.push({ name:name, total:total, limit:limit, lateRate:lateRate, records:recs });
+  selected = subjects.length-1;
+  $('subName').value=''; $('addMsg').textContent='「'+name+'」を追加しました。';
+  render();
+}
+
+function render(){
+  renderDash(); renderDetail();
+}
+
+function sortedIdx(){
+  var idx=[]; for (var i=0;i<subjects.length;i++) idx.push(i);
+  idx.sort(function(a,b){ return calc(subjects[a]).remain - calc(subjects[b]).remain; });
+  return idx;
+}
+
+function renderDash(){
+  var box=$('dash'); box.innerHTML='';
+  if (!subjects.length){ box.innerHTML='<div class="empty">まだ科目がありません。左のフォームから追加してください。</div>'; return; }
+  var idx=sortedIdx();
+  idx.forEach(function(i){
+    var s=subjects[i], c=calc(s);
+    var d=document.createElement('div'); d.className='card lv-'+c.level+(i===selected?' sel':'');
+    var t=document.createElement('div'); t.className='t'; t.textContent=s.name;
+    var st=document.createElement('div'); st.className='s';
+    st.textContent = c.remain>=0 ? ('あと '+c.remain+' 回休める（上限'+c.limit+'回）') : ('上限を '+(-c.remain)+' 回超過（上限'+c.limit+'回）');
+    var b=document.createElement('span'); b.className='badge b-'+c.level; b.textContent=levelText(c.level);
+    d.appendChild(t); d.appendChild(st); d.appendChild(b);
+    d.onclick=function(){ selected=i; render(); };
+    box.appendChild(d);
+  });
+}
+
+function renderDetail(){
+  var box=$('detail'); box.innerHTML='';
+  if (selected<0 || !subjects[selected]){ box.innerHTML='<div class="empty">科目を登録・選択すると、ここに出欠の記録欄が表示されます。</div>'; return; }
+  var s=subjects[selected], c=calc(s);
+  var h=document.createElement('h2'); h.textContent=s.name+'（全'+s.total+'回）'; box.appendChild(h);
+  var res=document.createElement('div'); res.className='res';
+  var big=document.createElement('div'); big.className='big';
+  big.style.color = {ok:'var(--ok)',warn:'var(--warn)',danger:'var(--danger)',over:'var(--over)'}[c.level];
+  big.textContent = c.remain>=0 ? ('あと '+c.remain+' 回') : ('超過 '+(-c.remain)+' 回');
+  res.appendChild(big);
+  var lines=[
+    '欠席 '+c.abs+' 回／遅刻 '+c.late+' 回（欠席換算 '+c.lateAbs+' 回）／休講 '+c.off+' 回',
+    '欠席換算 '+c.used+' 回 ／ 上限 '+c.limit+' 回'+(s.limit===null?'（休講を除く'+c.effTotal+'回の1/3）':'（手動設定）'),
+    '未記録の回数: '+c.left+' 回　状態: '+levelText(c.level)
+  ];
+  lines.forEach(function(l){ var p=document.createElement('div'); p.textContent=l; res.appendChild(p); });
+  var bar=document.createElement('div'); bar.className='bar'; var f=document.createElement('div');
+  f.style.width=Math.round(c.ratio*100)+'%'; f.style.background={ok:'var(--ok)',warn:'var(--warn)',danger:'var(--danger)',over:'var(--over)'}[c.level];
+  bar.appendChild(f); res.appendChild(bar);
+  box.appendChild(res);
+
+  var g=document.createElement('div'); g.className='grid';
+  s.records.forEach(function(r,k){
+    var cell=document.createElement('div'); cell.className='cell st-'+r;
+    var b=document.createElement('b'); b.textContent=String(k+1);
+    cell.appendChild(b); cell.appendChild(document.createTextNode(LABELS[r]));
+    cell.onclick=function(){ s.records[k]=STATES[(STATES.indexOf(r)+1)%STATES.length]; render(); };
+    g.appendChild(cell);
+  });
+  box.appendChild(g);
+  var n=document.createElement('div'); n.className='note'; n.textContent='回数のマスをタップすると 未記録→出席→欠席→遅刻→休講 の順に切り替わります。'; box.appendChild(n);
+
+  var sim=document.createElement('div'); sim.className='note';
+  var after = c.remain - 1;
+  sim.textContent = c.remain>0 ? ('もし次の回を欠席すると、残りは '+after+' 回になります。') : (c.remain===0 ? 'もう1回欠席すると上限を超えます。出席を優先しましょう。' : '既に上限を超えています。担当教員・履修要項で救済の有無を確認してください。');
+  box.appendChild(sim);
+
+  var bs=[['回数を増やす',function(){ if (s.total<60){ s.total++; s.records.push('none'); render(); } }],
+          ['回数を減らす',function(){ if (s.total>1){ s.total--; s.records.pop(); render(); } }],
+          ['Markdownコピー',copyMd],
+          ['この科目を削除',function(){ subjects.splice(selected,1); selected=subjects.length?0:-1; render(); }]];
+  bs.forEach(function(x,i){ var bt=document.createElement('button'); bt.textContent=x[0]; bt.className=(i===3?'danger':'sub'); bt.onclick=x[1]; box.appendChild(bt); });
+  var ds=document.createElement('div'); ds.className='note'; ds.textContent='欠席の基準は大学・授業ごとに異なります。必ず履修要項・シラバスで確認してください（あくまで目安）。'; box.appendChild(ds);
+}
+
+function mdText(){
+  var out='| 科目 | 欠席換算 | 上限 | 残り | 状態 |\n|---|---|---|---|---|\n';
+  sortedIdx().forEach(function(i){
+    var s=subjects[i], c=calc(s);
+    out+='| '+s.name.replace(/\|/g,'/')+' | '+c.used+' | '+c.limit+' | '+c.remain+' | '+levelText(c.level)+' |\n';
+  });
+  return out;
+}
+function copyText(text){
+  function fb(){
+    var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    var ok=false; try{ ok=document.execCommand('copy'); }catch(e){}
+    document.body.removeChild(ta); toast(ok?'コピーしました':'コピーに失敗しました');
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){ toast('コピーしました'); }, fb);
+  } else fb();
+}
+function copyMd(){ if(!subjects.length){ toast('科目がありません'); return; } copyText(mdText()); }
+
+function doExport(){
+  $('ioText').value = JSON.stringify({ app:'kesseki-yutori', v:1, subjects:subjects });
+  $('ioMsg').textContent='エクスポートしました。このテキストを保存してください。';
+}
+function doImport(){
+  var raw=$('ioText').value;
+  if (!raw.replace(/\s/g,'')){ $('ioMsg').textContent='インポートするテキストを貼ってください。'; return; }
+  try{
+    var d=JSON.parse(raw);
+    if (!d || d.app!=='kesseki-yutori' || !Array.isArray(d.subjects)) throw new Error('形式が違います');
+    var list=[];
+    d.subjects.forEach(function(s){
+      if (!s || typeof s.name!=='string') return;
+      var total=toInt(s.total,15,1,60);
+      var recs=[]; for (var i=0;i<total;i++){ var r=(s.records&&s.records[i]); recs.push(STATES.indexOf(r)>=0?r:'none'); }
+      var lim=(s.limit===null||s.limit===undefined)?null:toInt(s.limit,0,0,60);
+      list.push({ name:s.name.slice(0,40), total:total, limit:lim, lateRate:toInt(s.lateRate,3,0,20), records:recs });
+    });
+    subjects=list; selected=list.length?0:-1; render();
+    $('ioMsg').textContent=list.length+'科目をインポートしました。';
+  }catch(e){ $('ioMsg').textContent='インポートに失敗しました: テキストが正しくありません。'; }
+}
+
+$('btnAdd').onclick=addSubject;
+$('btnExport').onclick=doExport;
+$('btnImport').onclick=doImport;
+$('subName').addEventListener('keydown',function(e){ if(e.key==='Enter') addSubject(); });
+render();
+</script>
+</body>
+</html>
