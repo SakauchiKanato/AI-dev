@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>停電あんしん冷蔵庫チェッカー</title>
+<style>
+:root{--bg:#1e1e2e;--panel:#262638;--accent:#4fc3f7;--text:#e8e6f2;--muted:#9a97b5;--border:#3a3a52;--ok:#5ecb8a;--warn:#f0b64a;--ng:#ef6a6a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;padding:16px}
+header{max-width:960px;margin:0 auto 16px}
+h1{font-size:20px;margin:0 0 4px}
+header p{font-size:13px;color:var(--muted);margin:0}
+.layout{max-width:960px;margin:0 auto;display:flex;gap:20px;flex-wrap:wrap}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;flex:1 1 320px;min-width:0}
+h2{font-size:15px;margin:0 0 12px;color:var(--accent)}
+label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+input[type=number],select{width:100%;padding:9px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:15px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1 1 120px}
+.chk{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;color:var(--text)}
+button{background:var(--accent);color:#0b2a36;border:0;border-radius:6px;padding:10px 16px;font-size:14px;font-weight:bold;cursor:pointer;margin:14px 8px 0 0}
+button.sub{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.err{color:var(--ng);font-size:13px;min-height:18px;margin-top:8px}
+.sum{padding:10px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;font-size:14px}
+.item{display:flex;gap:10px;align-items:flex-start;border-top:1px solid var(--border);padding:10px 0}
+.badge{flex:0 0 auto;min-width:74px;text-align:center;font-size:12px;font-weight:bold;padding:4px 6px;border-radius:12px;color:#10101a}
+.b-ok{background:var(--ok)}.b-warn{background:var(--warn)}.b-ng{background:var(--ng)}
+.item b{font-size:14px}.item small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.note{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--accent);color:#0b2a36;padding:8px 16px;border-radius:20px;font-size:13px;opacity:0;transition:.3s;pointer-events:none}
+#toast.show{opacity:1}
+.empty{color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧊 停電あんしん冷蔵庫チェッカー</h1>
+  <p>停電のあと、冷蔵庫・冷凍庫の中身を食べてよいか迷ったときの「目安」を出します。</p>
+</header>
+<div class="layout">
+  <section class="panel">
+    <h2>停電の状況を入力</h2>
+    <label for="hours">停電していた時間（時間）</label>
+    <input type="number" id="hours" min="0" max="240" step="0.5" placeholder="例: 5">
+    <div class="row">
+      <div><label for="temp">室温（℃）</label>
+      <input type="number" id="temp" min="-10" max="50" step="1" value="25"></div>
+      <div><label for="opens">扉を開けた回数</label>
+      <input type="number" id="opens" min="0" max="100" step="1" value="0"></div>
+    </div>
+    <label for="freezer">冷凍庫の中身</label>
+    <select id="freezer"><option value="full">ぎっしり（8割以上）</option><option value="half" selected>半分くらい</option><option value="low">少なめ</option></select>
+    <div class="chk"><input type="checkbox" id="ice"><label for="ice" style="margin:0;color:var(--text)">保冷剤・氷・クーラーボックスで保冷した</label></div>
+    <div class="chk"><input type="checkbox" id="thawed"><label for="thawed" style="margin:0;color:var(--text)">冷凍食品が一度溶けて柔らかくなっていた</label></div>
+    <button id="go" type="button">判定する</button>
+    <button id="reset" type="button" class="sub">リセット</button>
+    <div class="err" id="err"></div>
+  </section>
+  <section class="panel">
+    <h2>判定結果</h2>
+    <div id="result"><p class="empty">左の入力をして「判定する」を押してください。</p></div>
+    <button id="copy" type="button" class="sub" style="display:none">結果をコピー</button>
+    <p class="note">※一般的な目安（扉を閉めたままの冷蔵庫は約4時間、冷凍庫は満杯で約48時間・半分で約24時間）をもとにした簡易判定です。においや見た目に異常があるときは、判定に関わらず食べないでください。体調や持病が心配な場合や、乳幼児・高齢者・妊娠中の方は特に慎重に。</p>
+  </section>
+</div>
+<div id="toast"></div>
+<script>
+var FOODS=[
+ {n:"生肉・生魚・刺身",c:"fr",lim:2,hi:true,tip:"傷みやすい食品。迷ったら捨てる"},
+ {n:"ハム・ソーセージ・練り物",c:"fr",lim:4,tip:"開封済みは特に早めに"},
+ {n:"牛乳・ヨーグルト・生クリーム",c:"fr",lim:3,tip:"開封済みは温度上昇に弱い"},
+ {n:"チーズ（ハード・プロセス）",c:"fr",lim:8,tip:"水分が少なく比較的もちやすい"},
+ {n:"卵（殻つき）",c:"fr",lim:6,tip:"加熱調理で食べるのが安心"},
+ {n:"作り置き・惣菜・お弁当",c:"fr",lim:2,hi:true,tip:"調理済みは菌が増えやすい"},
+ {n:"豆腐・納豆・漬物",c:"fr",lim:4,tip:"豆腐は特に傷みやすい"},
+ {n:"野菜・果物",c:"fr",lim:12,tip:"多少の温度上昇には強い"},
+ {n:"マヨネーズ・ケチャップ・みそ等の調味料",c:"fr",lim:24,tip:"塩分・酸が多く比較的安全"},
+ {n:"冷凍肉・冷凍魚",c:"fz",lim:1,tip:"完全に解けて常温近いなら再冷凍しない"},
+ {n:"冷凍食品・アイス",c:"fz",lim:1,tip:"アイスは溶けたら再凍結せず廃棄"},
+ {n:"冷凍野菜・冷凍ごはん",c:"fz",lim:1,tip:"氷の結晶が残っていれば比較的安心"}
+];
+function $(id){return document.getElementById(id)}
+var lastText="";
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function toast(m){var t=$("toast");t.textContent=m;t.className="show";setTimeout(function(){t.className=""},1800)}
+function fzLimit(kind){return kind==="full"?48:kind==="half"?24:12}
+function judge(){
+  var h=parseFloat($("hours").value),t=parseFloat($("temp").value),o=parseFloat($("opens").value);
+  var err=$("err");err.textContent="";
+  if(!isFinite(h)||h<0){err.textContent="停電時間を0以上の数字で入力してください。";return}
+  if(h>240){err.textContent="停電時間は240時間以内で入力してください。";return}
+  if(!isFinite(t))t=25; if(!isFinite(o)||o<0)o=0;
+  t=Math.max(-10,Math.min(50,t)); o=Math.min(100,Math.floor(o));
+  var f=1;
+  if(t>=30)f*=1.4; else if(t>=25)f*=1.15; else if(t<=15)f*=0.8;
+  f*=1+Math.min(o,10)*0.06;
+  if($("ice").checked)f*=0.6;
+  var eff=h*f;
+  var fzKind=$("freezer").value,fzLim=fzLimit(fzKind);
+  var fzEff=eff*(fzKind==="full"?1:fzKind==="half"?1:1);
+  var thawed=$("thawed").checked;
+  var html="",lines=[],ng=0,warn=0;
+  FOODS.forEach(function(x){
+    var s,msg;
+    if(x.c==="fr"){
+      var ratio=eff/x.lim;
+      var ngAt=x.hi?0.9:1.5;
+      if(ratio<=0.9){s="ok"}else if(ratio<=ngAt){s="warn"}else{s="ng"}
+      msg="冷蔵 目安 "+x.lim+"時間 / 換算停電 "+eff.toFixed(1)+"時間";
+    }else{
+      var lim=fzLim;
+      if(thawed){s=(x.n.indexOf("アイス")>=0||x.n.indexOf("肉")>=0)?"ng":"warn"}
+      else if(fzEff<=lim*0.6){s="ok"}else if(fzEff<=lim){s="warn"}else{s="ng"}
+      msg="冷凍 目安 "+lim+"時間 / 換算停電 "+fzEff.toFixed(1)+"時間"+(thawed?"（一度溶けた報告あり）":"");
+    }
+    var label=s==="ok"?"食べてOK":s==="warn"?"加熱して早めに":"捨てる";
+    if(s==="ng")ng++;if(s==="warn")warn++;
+    lines.push("・"+x.n+"：「"+label+"」");
+    html+='<div class="item"><span class="badge b-'+s+'">'+label+'</span><div><b>'+esc(x.n)+'</b><small>'+esc(msg)+'｜'+esc(x.tip)+'</small></div></div>';
+  });
+  var head=h===0?"停電時間が0時間のため、通常どおりの管理で問題ありません。":
+    "換算停電時間 約"+eff.toFixed(1)+"時間（実際 "+h+"時間・室温"+t+"℃・扉"+o+"回"+($("ice").checked?"・保冷あり":"")+"）。捨てる "+ng+"件／要注意 "+warn+"件。";
+  $("result").innerHTML='<div class="sum">'+esc(head)+'</div>'+html;
+  lastText="【停電あんしん冷蔵庫チェッカー】\n"+head+"\n"+lines.join("\n")+"\n※目安です。異臭・変色があれば食べないでください。";
+  $("copy").style.display="inline-block";
+}
+function resetAll(){
+  $("hours").value="";$("temp").value=25;$("opens").value=0;$("freezer").value="half";
+  $("ice").checked=false;$("thawed").checked=false;$("err").textContent="";
+  $("result").innerHTML='<p class="empty">左の入力をして「判定する」を押してください。</p>';
+  $("copy").style.display="none";lastText="";
+}
+function copyText(){
+  if(!lastText)return;
+  function fb(){var ta=document.createElement("textarea");ta.value=lastText;document.body.appendChild(ta);ta.select();var ok=false;try{ok=document.execCommand("copy")}catch(e){}document.body.removeChild(ta);toast(ok?"コピーしました":"コピーできませんでした")}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(lastText).then(function(){toast("コピーしました")},fb)}else{fb()}
+}
+$("go").addEventListener("click",judge);
+$("reset").addEventListener("click",resetAll);
+$("copy").addEventListener("click",copyText);
+</script>
+</body>
+</html>
