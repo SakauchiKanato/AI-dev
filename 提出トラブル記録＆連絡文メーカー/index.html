@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>提出トラブル記録＆連絡文メーカー</title>
+<style>
+:root{--bg:#1e1e2e;--panel:#262638;--accent:#ff9f6b;--text:#e8e6f2;--muted:#9a97b5;--border:#3a3a52;--ok:#5ecb8a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;padding:16px}
+header{max-width:1000px;margin:0 auto 16px}
+h1{font-size:20px;margin:0 0 4px}
+header p{font-size:13px;color:var(--muted);margin:0}
+.layout{max-width:1000px;margin:0 auto;display:flex;gap:20px;flex-wrap:wrap}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;flex:1 1 320px;min-width:0}
+h2{font-size:15px;margin:0 0 12px;color:var(--accent)}
+label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+input[type=text],input[type=datetime-local],select,textarea{width:100%;padding:9px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:15px;font-family:inherit}
+textarea{min-height:70px;resize:vertical}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1 1 140px}
+.chk{display:flex;align-items:flex-start;gap:8px;margin-top:8px;font-size:14px}
+button{background:var(--accent);color:#3a1a05;border:0;border-radius:6px;padding:10px 16px;font-size:14px;font-weight:bold;cursor:pointer;margin:14px 8px 0 0}
+button.sub{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+pre{white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:14px;line-height:1.7;font-family:inherit;margin:8px 0 0}
+.tabs button{margin-top:0}
+.msg{color:var(--muted);font-size:13px}
+.err{color:#ef6a6a;font-size:13px;margin-top:8px;min-height:1em}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#06240f;padding:8px 16px;border-radius:20px;font-size:14px;display:none}
+.note{font-size:12px;color:var(--muted);margin-top:12px}
+</style>
+</head>
+<body>
+<header>
+<h1>提出トラブル記録＆連絡文メーカー</h1>
+<p>LMSやClassroomの不具合で課題が出せない時に、「いつ・何が起きたか」の記録と、先生・事務への連絡文をまとめます。データはこの画面の中だけで扱われ、送信されません。</p>
+</header>
+<div class="layout">
+<section class="panel">
+<h2>1. 状況を入力</h2>
+<label for="name">あなたの名前（任意・学籍番号も可）</label>
+<input type="text" id="name" placeholder="例：坂内 奏斗（s0000000）">
+<label for="course">科目名</label>
+<input type="text" id="course" placeholder="例：簿記2">
+<label for="teacher">宛先の先生名（任意）</label>
+<input type="text" id="teacher" placeholder="例：山田">
+<label for="task">課題名</label>
+<input type="text" id="task" placeholder="例：授業の振り返り（第3回）">
+<div class="row">
+<div><label for="deadline">締切日時</label><input type="datetime-local" id="deadline"></div>
+<div><label for="happened">トラブルに気づいた日時</label><input type="datetime-local" id="happened"></div>
+</div>
+<label for="system">使ったシステム</label>
+<select id="system"><option>MU-LMS</option><option>Google Classroom</option><option>Moodle</option><option>メール提出</option><option>その他の提出システム</option></select>
+<label for="symptom">症状</label>
+<select id="symptom">
+<option value="error">エラー表示が出て課題が開けない・出せない</option>
+<option value="login">ログインできない</option>
+<option value="upload">ファイルをアップロードできない</option>
+<option value="slow">画面が固まる・読み込みが終わらない</option>
+<option value="network">自分の通信環境のトラブル</option>
+</select>
+<label for="errtext">表示されたエラー文言（あればそのまま）</label>
+<input type="text" id="errtext" placeholder="例：コーディングエラーが検出されました。">
+<label>試したこと</label>
+<div class="chk"><input type="checkbox" id="t1"><label for="t1" style="margin:0;color:inherit">再読み込み・再ログイン</label></div>
+<div class="chk"><input type="checkbox" id="t2"><label for="t2" style="margin:0;color:inherit">別のブラウザ・端末で試した</label></div>
+<div class="chk"><input type="checkbox" id="t3"><label for="t3" style="margin:0;color:inherit">時間を置いて再試行</label></div>
+<div class="chk"><input type="checkbox" id="t4"><label for="t4" style="margin:0;color:inherit">スマホ回線など別の回線で試した</label></div>
+<label for="extra">補足（任意）</label>
+<textarea id="extra" placeholder="例：課題ファイルは完成済みで、手元に保存してあります。"></textarea>
+<button id="go">記録と連絡文を作る</button>
+<button class="sub" id="clear">入力をクリア</button>
+<div class="err" id="err"></div>
+</section>
+<section class="panel">
+<h2>2. 結果</h2>
+<div class="msg" id="empty">左の入力後に「作る」を押すと、ここに表示されます。</div>
+<div id="out" style="display:none">
+<div class="tabs">
+<button class="sub" data-tab="log">記録メモ</button>
+<button class="sub" data-tab="teacher">先生向け連絡文</button>
+<button class="sub" data-tab="office">学務課向け連絡文</button>
+<button class="sub" data-tab="check">証拠チェック</button>
+</div>
+<div id="state" class="msg" style="margin-top:12px"></div>
+<pre id="view"></pre>
+<button id="copy">この内容をコピー</button>
+<div class="note">※ 連絡文はたたき台です。送る前に内容を読み返し、実際の状況に合わせて直してください。提出が間に合ったかどうかの判断は、先生・事務の回答に従ってください。</div>
+</div>
+</section>
+</div>
+<div id="toast">コピーしました</div>
+<script>
+var texts={log:"",teacher:"",office:"",check:""};
+var current="log";
+function $(id){return document.getElementById(id);}
+function pad(n){return n<10?"0"+n:""+n;}
+function fmt(v){
+  if(!v)return "";
+  var d=(v instanceof Date)?v:new Date(v);
+  if(isNaN(d.getTime()))return "";
+  return d.getFullYear()+"年"+(d.getMonth()+1)+"月"+d.getDate()+"日 "+pad(d.getHours())+":"+pad(d.getMinutes());
+}
+function symptomText(k,err){
+  var m={error:"エラー表示が出て、課題を開く／提出することができませんでした",login:"ログインができませんでした",upload:"ファイルのアップロードができませんでした",slow:"画面が固まる・読み込みが終わらない状態になりました",network:"通信環境のトラブルにより操作ができませんでした"};
+  var s=m[k]||m.error;
+  if(err)s+="（表示された文言：「"+err+"」）";
+  return s;
+}
+function build(){
+  var v={name:$("name").value.trim(),course:$("course").value.trim(),teacher:$("teacher").value.trim(),task:$("task").value.trim(),
+    deadline:$("deadline").value,happened:$("happened").value,system:$("system").value,symptom:$("symptom").value,
+    err:$("errtext").value.trim(),extra:$("extra").value.trim()};
+  var tried=[];
+  if($("t1").checked)tried.push("再読み込み・再ログイン");
+  if($("t2").checked)tried.push("別のブラウザ・端末での操作");
+  if($("t3").checked)tried.push("時間を置いての再試行");
+  if($("t4").checked)tried.push("別の回線での操作");
+  if(!v.course||!v.task){return {error:"科目名と課題名は入力してください。"};}
+  var dl=fmt(v.deadline),hp=fmt(v.happened);
+  if(v.deadline&&!dl)return {error:"締切日時の形式が正しくありません。"};
+  var after=false;
+  if(v.deadline&&v.happened){after=new Date(v.happened).getTime()>new Date(v.deadline).getTime();}
+  var symp=symptomText(v.symptom,v.err);
+  var triedTxt=tried.length?tried.join("、"):"（未入力）";
+  var who=v.name?v.name:"（氏名）";
+  var to=v.teacher?(v.teacher+"先生"):"担当の先生";
+  var state=!v.deadline||!v.happened?"締切またはトラブル日時が未入力のため、締切前後の判定は省略しています。":(after?"トラブルに気づいたのは締切の後です。事後の連絡文になっています。":"トラブルに気づいたのは締切の前です。締切前の連絡文になっています。");
+  var log="【提出トラブル記録】\n"
+    +"科目：「"+v.course+"」\n課題：「"+v.task+"」\n"
+    +(dl?"締切：「"+dl+"」\n":"")+(hp?"気づいた日時：「"+hp+"」\n":"")
+    +"システム："+v.system+"\n症状："+symp+"\n試したこと："+triedTxt+"\n"
+    +(v.extra?"補足："+v.extra+"\n":"")
+    +"※ 記録作成日時："+fmt(new Date()) +"（この時刻は端末の時計に基づきます）";
+  var head=to+"\n\nお世話になっております。"+(v.course)+"を受講している"+who+"です。\n\n";
+  var core=(hp?hp+"頃、":"")+v.system+"で課題「"+v.task+"」を"+(after?"提出しようとした際、":"確認・提出しようとした際、")+symp+"。";
+  var tryLine=tried.length?"こちらで試したことは、"+tried.join("、")+"です。":"";
+  var teacherMsg=head+core+tryLine+"\n";
+  if(dl){
+    if(after)teacherMsg+="締切（"+dl+"）を過ぎてしまいましたが、上記の事情で提出できませんでした。";
+    else teacherMsg+="締切（"+dl+"）までに提出できない可能性があるため、ご連絡いたしました。";
+  }
+  teacherMsg+="\n提出方法（メール添付など）や期限の扱いについてご指示をいただけますでしょうか。\n"
+    +(v.extra?v.extra+"\n":"")
+    +"状況の分かる記録（スクリーンショットなど）は保存しておりますので、必要でしたらお送りします。\n\nお忙しいところ恐れ入りますが、ご確認のほどよろしくお願いいたします。\n\n"+who;
+  var officeMsg="学務課 ご担当者様\n\nお世話になっております。"+who+"です。\n\n"
+    +(hp?hp+"頃、":"")+v.system+"において、"+symp+"。\n科目「"+v.course+"」の課題「"+v.task+"」に関わる事象です。"
+    +(dl?"（締切："+dl+"）":"")+"\n"+(tryLine?tryLine+"\n":"")
+    +"システム側の不具合かどうか、また同様の報告が他にあるかをご確認いただけますでしょうか。あわせて、担当の先生へ状況を共有いただけると助かります。\n\nどうぞよろしくお願いいたします。\n\n"+who;
+  var check="【証拠チェックリスト】（できたものに印を付けて保管）\n"
+    +"□ エラー画面のスクリーンショット（日時が分かる状態で）\n□ 課題ファイルの保存（ファイル名と更新日時が分かるもの）\n□ 試した操作と時刻のメモ（この記録メモ）\n□ 別回線・別端末で試した結果\n□ 大学からのお知らせ・不具合告知のメール／掲示の保存\n□ 先生・学務課へ連絡した日時（送信済み画面の保存）\n□ 提出方法の指示を受けたら、その返信の保存";
+  return {texts:{log:log,teacher:teacherMsg,office:officeMsg,check:check},state:state};
+}
+function show(tab){
+  current=tab;
+  $("view").textContent=texts[tab]||"";
+  var bs=document.querySelectorAll(".tabs button");
+  for(var i=0;i<bs.length;i++){bs[i].style.background=bs[i].getAttribute("data-tab")===tab?"var(--accent)":"transparent";bs[i].style.color=bs[i].getAttribute("data-tab")===tab?"#3a1a05":"var(--accent)";}
+}
+function toast(){var t=$("toast");t.style.display="block";setTimeout(function(){t.style.display="none";},1500);}
+function copyText(s){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(s).then(toast,function(){fallback(s);});
+  }else fallback(s);
+}
+function fallback(s){
+  var ta=document.createElement("textarea");ta.value=s;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();
+  try{document.execCommand("copy");toast();}catch(e){}
+  document.body.removeChild(ta);
+}
+$("go").onclick=function(){
+  var r=build();
+  if(r.error){$("err").textContent=r.error;return;}
+  $("err").textContent="";
+  texts=r.texts;
+  $("empty").style.display="none";$("out").style.display="block";
+  $("state").textContent=r.state;
+  show("log");
+};
+$("clear").onclick=function(){
+  var ids=["name","course","teacher","task","deadline","happened","errtext","extra"];
+  for(var i=0;i<ids.length;i++)$(ids[i]).value="";
+  for(var j=1;j<=4;j++)$("t"+j).checked=false;
+  $("err").textContent="";$("out").style.display="none";$("empty").style.display="block";
+};
+$("copy").onclick=function(){copyText(texts[current]||"");};
+var tb=document.querySelectorAll(".tabs button");
+for(var k=0;k<tb.length;k++){tb[k].onclick=function(){show(this.getAttribute("data-tab"));};}
+</script>
+</body>
+</html>
