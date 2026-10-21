@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>欠航に備える延泊コストシミュレーター</title>
+<style>
+:root{--bg:#1e1e2e;--panel:#262638;--accent:#3fb6d8;--text:#e8e6f2;--muted:#9a97b5;--border:#3a3a52;--warn:#f0a050;--bad:#e5677d;--good:#5fcf9a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;padding:16px}
+header{max-width:1000px;margin:0 auto 16px}
+h1{font-size:20px;margin:0 0 4px}
+header p{font-size:13px;color:var(--muted);margin:0}
+.layout{max-width:1000px;margin:0 auto;display:flex;gap:20px;flex-wrap:wrap}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;flex:1 1 320px;min-width:0}
+h2{font-size:15px;margin:0 0 12px;color:var(--accent)}
+label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+input,select,textarea{width:100%;background:#1a1a29;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:14px;font-family:inherit}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1 1 120px;min-width:0}
+.chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px}.chk input{width:auto}
+button{background:var(--accent);color:#0e1a20;border:0;border-radius:6px;padding:9px 14px;font-weight:bold;cursor:pointer;font-size:14px;margin:8px 8px 0 0}
+button.sub{background:transparent;color:var(--text);border:1px solid var(--border)}
+.verdict{border-radius:8px;padding:12px;margin-bottom:12px;font-weight:bold;font-size:15px}
+.v-go{background:rgba(229,103,125,.15);border:1px solid var(--bad)}
+.v-mid{background:rgba(240,160,80,.15);border:1px solid var(--warn)}
+.v-stay{background:rgba(95,207,154,.15);border:1px solid var(--good)}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
+th,td{border-bottom:1px solid var(--border);padding:6px 4px;text-align:right}th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:normal}
+ul{padding-left:18px;margin:6px 0;font-size:13px}li{margin:4px 0}
+.note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
+.err{color:var(--bad);font-size:12px;min-height:16px;margin-top:6px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#0e1a20;padding:8px 16px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.big{font-size:20px}
+</style>
+</head>
+<body>
+<header>
+<h1>欠航に備える延泊コストシミュレーター</h1>
+<p>台風で帰りの便が欠航したら何泊延びて、いくら・何日分の予定に響くか。前倒し帰宅と比べて判断する材料を出します。</p>
+</header>
+<div class="layout">
+<section class="panel">
+<h2>1. 状況を入力</h2>
+<label for="transport">帰りの交通手段</label>
+<select id="transport">
+<option value="air">飛行機（離島便・LCC含む）</option>
+<option value="ferry">フェリー・高速船</option>
+<option value="bus">高速バス</option>
+<option value="rail">新幹線・特急（計画運休あり）</option>
+</select>
+<label for="impact">台風の影響予報（帰りの日）</label>
+<select id="impact">
+<option value="0">影響なし・遠い</option>
+<option value="1" selected>注意（接近の可能性）</option>
+<option value="2">暴風域に入る予報</option>
+<option value="3">直撃・警報級の予報</option>
+</select>
+<div class="row">
+<div><label for="stormDays">荒天が続く見込み（日）</label><input id="stormDays" type="number" min="0" max="14" step="1" value="2"></div>
+<div><label for="advDays">前倒しできる日数（日）</label><input id="advDays" type="number" min="0" max="7" step="1" value="1"></div>
+</div>
+<div class="chk"><input id="crowded" type="checkbox"><label for="crowded" style="margin:0;color:var(--text)">連休・繁忙期で振替便が取りにくい（延泊+1日）</label></div>
+<h2 style="margin-top:18px">2. お金・予定への影響（1日あたり）</h2>
+<div class="row">
+<div><label for="hotel">宿泊費（円/泊）</label><input id="hotel" type="number" min="0" step="100" value="8000"></div>
+<div><label for="meal">食費・雑費（円/日）</label><input id="meal" type="number" min="0" step="100" value="3000"></div>
+</div>
+<div class="row">
+<div><label for="lost">バイト等の逸失収入（円/日）</label><input id="lost" type="number" min="0" step="100" value="6000"></div>
+<div><label for="fee">振替・変更手数料（円）</label><input id="fee" type="number" min="0" step="100" value="0"></div>
+</div>
+<div class="row">
+<div><label for="advFee">前倒し変更の追加料金（円）</label><input id="advFee" type="number" min="0" step="100" value="3000"></div>
+<div><label for="lostHotel">前倒しで払戻不可の宿泊費（円）</label><input id="lostHotel" type="number" min="0" step="100" value="8000"></div>
+</div>
+<label for="classDays">延泊で欠席になりそうな授業・予定（件）</label>
+<input id="classDays" type="number" min="0" max="30" step="1" value="2">
+<button id="calc">試算する</button><button class="sub" id="reset">サンプルに戻す</button>
+<div class="err" id="err"></div>
+</section>
+<section class="panel" id="resultPanel">
+<h2>3. 結果</h2>
+<div id="result"><p class="note">左の条件を入れて「試算する」を押してください。</p></div>
+</section>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+//<logic>
+var PROB={air:[0.02,0.15,0.5,0.85],ferry:[0.05,0.3,0.7,0.95],bus:[0.02,0.12,0.4,0.75],rail:[0.01,0.08,0.3,0.65]};
+var TNAME={air:'飛行機',ferry:'フェリー・高速船',bus:'高速バス',rail:'新幹線・特急'};
+function num(v,min,max){var n=Number(v);if(!isFinite(n)||v===''||v===null||v===undefined)n=0;if(n<min)n=min;if(n>max)n=max;return n}
+function yen(n){return Math.round(n).toLocaleString('ja-JP')+'円'}
+function calc(inp){
+  var t=PROB[inp.transport]?inp.transport:'air';
+  var imp=Math.floor(num(inp.impact,0,3));
+  var p=PROB[t][imp];
+  var storm=Math.floor(num(inp.stormDays,0,14));
+  var adv=Math.floor(num(inp.advDays,0,7));
+  var hotel=num(inp.hotel,0,1e7),meal=num(inp.meal,0,1e7),lost=num(inp.lost,0,1e7),fee=num(inp.fee,0,1e7);
+  var advFee=num(inp.advFee,0,1e7),lostHotel=num(inp.lostHotel,0,1e7);
+  var cls=Math.floor(num(inp.classDays,0,30));
+  var extra=inp.crowded?1:0;
+  var perDay=hotel+meal+lost;
+  function scen(d){return {days:d,cost:d>0?d*perDay+fee:0}}
+  var base=Math.max(storm,1)+extra;
+  var opt=scen(Math.max(storm-1,1)+extra);
+  var std=scen(base);
+  var pes=scen(base+1);
+  var expDays=p*std.days;
+  var expCost=p*std.cost;
+  var advCost=adv>0?advFee+lostHotel:0;
+  var verdict,kind,reasons=[];
+  if(adv<=0){
+    kind=p>=0.25?'mid':'stay';
+    verdict=p>=0.25?'前倒しはできない前提です。延泊の予備費を確保して備えましょう':'予定どおり帰る計画で大丈夫そうです。直前の運航情報だけ確認を';
+    reasons.push('前倒し日数が0のため、前倒し案との比較はしていません');
+  }else if(p>=0.5||expCost>=advCost&&p>=0.25){
+    kind='go';verdict='前倒しで帰る案を優先して検討しましょう';
+  }else if(p>=0.25){
+    kind='mid';verdict='今すぐ前倒しするほどではないが、判断の締切を決めて備えましょう';
+  }else{
+    kind='stay';verdict='予定どおり帰る計画で大丈夫そうです。直前の運航情報だけ確認を';
+  }
+  reasons.push('欠航確率の目安は約'+Math.round(p*100)+'%（'+TNAME[t]+'・影響予報レベル'+imp+'）');
+  reasons.push('標準ケースの延泊は'+std.days+'泊・追加'+yen(std.cost)+'（期待値で約'+yen(expCost)+'）');
+  if(adv>0)reasons.push('前倒し案のコストは'+yen(advCost)+'（変更料金＋払戻不可の宿泊費）');
+  if(cls>0&&std.days>0)reasons.push('標準ケースでは授業・予定'+cls+'件に影響するおそれ');
+  var reserve=pes.cost;
+  return {p:p,t:t,imp:imp,opt:opt,std:std,pes:pes,expDays:expDays,expCost:expCost,advCost:advCost,kind:kind,verdict:verdict,reasons:reasons,reserve:reserve,cls:cls,adv:adv,perDay:perDay,storm:storm};
+}
+//</logic>
+var last=null;
+function $(id){return document.getElementById(id)}
+function toast(m){var t=$('toast');t.textContent=m;t.className='toast show';setTimeout(function(){t.className='toast'},1600)}
+function copyText(s){
+  function fb(){var ta=document.createElement('textarea');ta.value=s;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();var ok=false;try{ok=document.execCommand('copy')}catch(e){}document.body.removeChild(ta);toast(ok?'コピーしました':'コピーできませんでした。手動で選択してください')}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(s).then(function(){toast('コピーしました')},fb)}else fb();
+}
+function readInputs(){return {transport:$('transport').value,impact:$('impact').value,stormDays:$('stormDays').value,advDays:$('advDays').value,crowded:$('crowded').checked,hotel:$('hotel').value,meal:$('meal').value,lost:$('lost').value,fee:$('fee').value,advFee:$('advFee').value,lostHotel:$('lostHotel').value,classDays:$('classDays').value}}
+function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
+function msgText(r){
+  return ['お疲れさまです。台風の影響で帰りの便が欠航する可能性があり、帰宅が最大'+r.pes.days+'日ほど遅れるかもしれません。','もし欠航した場合は、授業・予定'+(r.cls>0?'約'+r.cls+'件':'')+'を欠席または調整させていただく可能性があります。','運航状況が確定しましたら、あらためてご連絡します。ご迷惑をおかけして申し訳ありません。'].join('\n');
+}
+function render(r){
+  var box=$('result');box.textContent='';
+  var v=el('div','verdict v-'+r.kind,r.verdict);box.appendChild(v);
+  var ul=el('ul');r.reasons.forEach(function(x){ul.appendChild(el('li',null,x))});box.appendChild(ul);
+  var tb=el('table');var h=el('tr');['ケース','延泊','追加費用'].forEach(function(x){h.appendChild(el('th',null,x))});tb.appendChild(h);
+  [['楽観',r.opt],['標準',r.std],['悲観',r.pes]].forEach(function(a){var tr=el('tr');tr.appendChild(el('td',null,a[0]));tr.appendChild(el('td',null,a[1].days+'泊'));tr.appendChild(el('td',null,yen(a[1].cost)));tb.appendChild(tr)});
+  if(r.adv>0){var tr2=el('tr');tr2.appendChild(el('td',null,'前倒し帰宅'));tr2.appendChild(el('td',null,'-'));tr2.appendChild(el('td',null,yen(r.advCost)));tb.appendChild(tr2)}
+  box.appendChild(tb);
+  box.appendChild(el('div','big','予備費の目安：'+yen(r.reserve)));
+  box.appendChild(el('p','note','悲観ケース（標準＋1泊）で確保しておくと安心な金額です。'));
+  var h2=el('h2',null,'チェックリスト');h2.style.marginTop='14px';box.appendChild(h2);
+  var cl=el('ul');
+  ['航空会社・フェリー会社の運航情報ページと気象庁の警報・注意報を前日と当日朝に確認する','振替・払戻の条件（無料か、手数料か）を予約サイトで確認する','延泊に備え、今の宿の延長可否と空室を聞いておく','バイト先・授業の担当へ、早めに遅れる可能性を伝える','モバイルバッテリー・常備薬・現金を多めに確保する'].forEach(function(x){cl.appendChild(el('li',null,x))});
+  box.appendChild(cl);
+  var ta=el('textarea');ta.id='msg';ta.rows=6;ta.value=msgText(r);box.appendChild(ta);
+  var b1=el('button',null,'連絡文をコピー');b1.onclick=function(){copyText($('msg').value)};box.appendChild(b1);
+  var b2=el('button','sub','結果をコピー');b2.onclick=function(){copyText(summary(r))};box.appendChild(b2);
+  box.appendChild(el('p','note','欠航確率は一般的な傾向をもとにした仮の目安で、実際の運航判断を示すものではありません。必ず運航会社・気象庁の最新情報を確認してください。'));
+}
+function summary(r){
+  var s=['【欠航に備える延泊コスト試算】',r.verdict,'欠航確率の目安：約'+Math.round(r.p*100)+'%','延泊 楽観'+r.opt.days+'泊'+yen(r.opt.cost)+' / 標準'+r.std.days+'泊'+yen(r.std.cost)+' / 悲観'+r.pes.days+'泊'+yen(r.pes.cost)];
+  if(r.adv>0)s.push('前倒し帰宅のコスト：'+yen(r.advCost));
+  s.push('予備費の目安：'+yen(r.reserve));return s.join('\n');
+}
+function run(){
+  var inp=readInputs();var bad=false;
+  ['stormDays','advDays','hotel','meal','lost','fee','advFee','lostHotel','classDays'].forEach(function(k){if(Number(inp[k])<0)bad=true});
+  $('err').textContent=bad?'マイナスの値は0として扱いました':'';
+  last=calc(inp);render(last);
+}
+function resetAll(){
+  var d={transport:'air',impact:'1',stormDays:'2',advDays:'1',hotel:'8000',meal:'3000',lost:'6000',fee:'0',advFee:'3000',lostHotel:'8000',classDays:'2'};
+  Object.keys(d).forEach(function(k){$(k).value=d[k]});$('crowded').checked=false;$('err').textContent='';
+  $('result').textContent='';$('result').appendChild(el('p','note','左の条件を入れて「試算する」を押してください。'));
+}
+$('calc').onclick=run;$('reset').onclick=resetAll;
+</script>
+</body>
+</html>
