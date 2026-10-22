@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>短期留学・海外研修 資金プランナー</title>
+<style>
+:root{--bg:#1e1e2e;--panel:#262638;--accent:#4fc3b0;--text:#e8e6f2;--muted:#9a97b5;--border:#3a3a52;--warn:#f0a35e;--bad:#e56b6f;--ok:#6fd08c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;line-height:1.6}
+header{padding:20px 20px 4px}
+h1{font-size:20px;margin:0}
+header p{font-size:13px;color:var(--muted);margin:4px 0 0}
+.layout{display:flex;gap:20px;flex-wrap:wrap;padding:16px 20px 40px}
+.col{flex:1 1 340px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
+.panel h2{font-size:15px;margin:0 0 10px;color:var(--accent)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.f{flex:1 1 140px;min-width:0}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+input{width:100%;background:#1a1a28;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font-size:14px}
+input:focus{outline:2px solid var(--accent)}
+.note{font-size:12px;color:var(--muted);margin:6px 0 0}
+button{background:var(--accent);color:#102a26;border:0;border-radius:6px;padding:9px 14px;font-weight:700;cursor:pointer;font-size:14px}
+button.sub{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.big{font-size:28px;font-weight:800;margin:2px 0}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:13px;font-weight:700}
+.b-ok{background:rgba(111,208,140,.18);color:var(--ok)}
+.b-warn{background:rgba(240,163,94,.18);color:var(--warn)}
+.b-bad{background:rgba(229,107,111,.18);color:var(--bad)}
+.bar{display:flex;height:22px;border-radius:6px;overflow:hidden;margin:10px 0;background:#1a1a28}
+.bar span{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:6px 4px;border-bottom:1px solid var(--border);text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:600}
+ul{margin:6px 0 0;padding-left:20px;font-size:13px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#102a26;padding:8px 16px;border-radius:99px;font-weight:700;display:none}
+textarea.fb{position:fixed;left:-9999px}
+</style>
+</head>
+<body>
+<header>
+  <h1>短期留学・海外研修 資金プランナー</h1>
+  <p>総費用を為替込みで試算し、出発までにいくら貯めればよいかを出します。金額はすべて仮の初期値です。募集要項の数字に書き換えてください。</p>
+</header>
+<div class="layout">
+  <div class="col">
+    <div class="panel">
+      <h2>1. 費用の入力（円）</h2>
+      <div class="row">
+        <div class="f"><label for="fee">プログラム費用（授業料・宿泊込みなど）</label><input id="fee" type="number" inputmode="numeric" value="300000"></div>
+        <div class="f"><label for="air">航空券</label><input id="air" type="number" inputmode="numeric" value="150000"></div>
+      </div>
+      <div class="row">
+        <div class="f"><label for="ins">海外保険</label><input id="ins" type="number" inputmode="numeric" value="30000"></div>
+        <div class="f"><label for="visa">ビザ・ESTA・パスポート等</label><input id="visa" type="number" inputmode="numeric" value="10000"></div>
+      </div>
+      <div class="row">
+        <div class="f"><label for="other">その他（スーツケース・SIMなど）</label><input id="other" type="number" inputmode="numeric" value="20000"></div>
+        <div class="f"><label for="buf">予備費（％）</label><input id="buf" type="number" inputmode="decimal" value="10"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>2. 現地での生活費（外貨）</h2>
+      <div class="row">
+        <div class="f"><label for="days">滞在日数</label><input id="days" type="number" inputmode="numeric" value="28"></div>
+        <div class="f"><label for="daily">1日あたりの現地費用（外貨）</label><input id="daily" type="number" inputmode="decimal" value="40"></div>
+        <div class="f"><label for="rate">為替レート（円／1外貨）</label><input id="rate" type="number" inputmode="decimal" value="150"></div>
+      </div>
+      <p class="note">食費・交通・お土産など。レートは現在の実勢に合わせて入力。外貨は米ドルなら「USD」と読み替えてください。</p>
+    </div>
+    <div class="panel">
+      <h2>3. 貯金計画</h2>
+      <div class="row">
+        <div class="f"><label for="saved">今の貯金（この旅行用）</label><input id="saved" type="number" inputmode="numeric" value="50000"></div>
+        <div class="f"><label for="monthly">毎月積み立てられる額</label><input id="monthly" type="number" inputmode="numeric" value="20000"></div>
+      </div>
+      <div class="row">
+        <div class="f"><label for="dep">出発予定日</label><input id="dep" type="date" value="2027-02-20"></div>
+        <div class="f"><label for="supp">親などからの援助・奨学金</label><input id="supp" type="number" inputmode="numeric" value="0"></div>
+      </div>
+      <div class="row"><button id="go" type="button">計算する</button><button id="reset" class="sub" type="button">初期値に戻す</button></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="panel" id="result">
+      <h2>結果</h2>
+      <div id="total" class="big">-</div>
+      <div id="verdict"></div>
+      <div id="bar" class="bar"></div>
+      <div id="legend" class="legend"></div>
+    </div>
+    <div class="panel">
+      <h2>為替が動いたらいくら変わる？</h2>
+      <table id="sens"><thead><tr><th>レート</th><th>現地費用</th><th>総額</th><th>差額</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="panel">
+      <h2>積立プラン</h2>
+      <div id="plan"></div>
+      <ul id="tips"></ul>
+    </div>
+    <div class="panel">
+      <button id="copy" type="button">結果をコピー</button>
+      <p class="note">コピーした内容は家族への相談やメモ用に使えます。</p>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script>
+var DEFAULTS={fee:300000,air:150000,ins:30000,visa:10000,other:20000,buf:10,days:28,daily:40,rate:150,saved:50000,monthly:20000,supp:0,dep:"2027-02-20"};
+var lastText="";
+function num(v,min){var n=parseFloat(v);if(!isFinite(n))n=0;if(n<min)n=min;return n}
+function yen(n){return Math.round(n).toLocaleString("ja-JP")+"円"}
+function calc(i,today){
+  var fee=num(i.fee,0),air=num(i.air,0),ins=num(i.ins,0),visa=num(i.visa,0),other=num(i.other,0);
+  var buf=Math.min(num(i.buf,0),100),days=Math.floor(num(i.days,0)),daily=num(i.daily,0),rate=num(i.rate,0);
+  var saved=num(i.saved,0),monthly=num(i.monthly,0),supp=num(i.supp,0);
+  var local=daily*days*rate;
+  var base=fee+air+ins+visa+other+local;
+  var bufAmt=base*buf/100;
+  var total=base+bufAmt;
+  var months=null;
+  if(i.dep){var d=new Date(i.dep+"T00:00:00");if(!isNaN(d.getTime())){months=(d.getFullYear()-today.getFullYear())*12+(d.getMonth()-today.getMonth());if(d.getDate()<today.getDate())months-=1;if(months<0)months=0}}
+  var need=Math.max(0,total-saved-supp);
+  var projected=saved+supp+(months===null?0:monthly*months);
+  var gap=total-projected;
+  var required=(months===null||months<=0)?null:Math.ceil(need/months/1000)*1000;
+  var sens=[-20,-10,0,10,20].map(function(dr){var r=Math.max(0,rate+dr);var l=daily*days*r;var t=(fee+air+ins+visa+other+l)*(1+buf/100);return{rate:r,local:l,total:t,diff:t-total}});
+  var parts=[{k:"プログラム費用",v:fee},{k:"航空券",v:air},{k:"保険・ビザ・その他",v:ins+visa+other},{k:"現地生活費",v:local},{k:"予備費",v:bufAmt}];
+  return{total:total,local:local,bufAmt:bufAmt,months:months,need:need,projected:projected,gap:gap,required:required,sens:sens,parts:parts,monthly:monthly,days:days,daily:daily,rate:rate,buf:buf,saved:saved,supp:supp}
+}
+function verdictOf(r){
+  if(r.total<=0)return{cls:"b-warn",txt:"費用を入力してください"};
+  if(r.months===null)return{cls:"b-warn",txt:"出発日を入力すると積立計画を判定できます"};
+  if(r.gap<=0)return{cls:"b-ok",txt:"今のペースで間に合う見込みです"};
+  if(r.gap<=r.total*0.2)return{cls:"b-warn",txt:"少し不足：あと"+yen(r.gap)+"の上積みが必要"};
+  return{cls:"b-bad",txt:"大きく不足：あと"+yen(r.gap)+"。計画の見直しを"};
+}
+function tipsOf(r){
+  var t=[];
+  if(r.days>0&&r.daily>0&&r.rate>0){var perDay=r.daily*r.rate;t.push("滞在を1日短くすると現地費用が約"+yen(perDay)+"減ります。");}
+  if(r.rate>0&&r.days*r.daily>0){var s=r.sens[3];t.push("円安が10円進むと総額は約"+yen(s.diff)+"増えます。早めに外貨を少しずつ用意する手もあります。");}
+  if(r.gap>0&&r.months>0){t.push("毎月"+yen(r.required)+"以上の積立で、援助なしでも不足を埋められます（現在は月"+yen(r.monthly)+"）。");}
+  if(r.gap>0)t.push("奨学金・大学の研修支援制度・短期のアルバイトなど、使える制度を学外学修推進センターで確認しましょう。");
+  if(r.buf<5)t.push("予備費が5%未満です。為替や急な出費に備えて見直しを。");
+  if(t.length===0)t.push("現在の計画で問題なさそうです。募集要項の金額が変わったら入力し直してください。");
+  return t;
+}
+var COLORS=["#4fc3b0","#6c8cff","#b58cf5","#f0a35e","#9a97b5"];
+function $(id){return document.getElementById(id)}
+function read(){var o={};["fee","air","ins","visa","other","buf","days","daily","rate","saved","monthly","supp","dep"].forEach(function(k){o[k]=$(k).value});return o}
+function clear(el){while(el.firstChild)el.removeChild(el.firstChild)}
+function render(){
+  var r=calc(read(),new Date());
+  $("total").textContent=r.total>0?yen(r.total):"-";
+  var v=verdictOf(r);var vb=$("verdict");clear(vb);var sp=document.createElement("span");sp.className="badge "+v.cls;sp.textContent=v.txt;vb.appendChild(sp);
+  var bar=$("bar"),lg=$("legend");clear(bar);clear(lg);
+  r.parts.forEach(function(p,idx){
+    if(p.v<=0||r.total<=0)return;
+    var s=document.createElement("span");s.style.width=(p.v/r.total*100)+"%";s.style.background=COLORS[idx];s.title=p.k;bar.appendChild(s);
+    var d=document.createElement("div");var i=document.createElement("i");i.style.background=COLORS[idx];d.appendChild(i);d.appendChild(document.createTextNode(p.k+" "+yen(p.v)+"（"+Math.round(p.v/r.total*100)+"%）"));lg.appendChild(d);
+  });
+  var tb=document.querySelector("#sens tbody");clear(tb);
+  r.sens.forEach(function(s){
+    var tr=document.createElement("tr");
+    var cells=[s.rate+"円",yen(s.local),yen(s.total),(s.diff>0?"+":"")+yen(s.diff)];
+    cells.forEach(function(c){var td=document.createElement("td");td.textContent=c;tr.appendChild(td)});
+    if(s.diff===0)tr.style.fontWeight="700";
+    tb.appendChild(tr);
+  });
+  var plan=$("plan");clear(plan);
+  var lines=[];
+  if(r.months===null){lines.push("出発日が未入力です。")}
+  else{
+    lines.push("出発まで：約"+r.months+"か月");
+    lines.push("このペースで貯まる額：約"+yen(r.projected)+"（貯金＋援助＋月"+yen(r.monthly)+"×"+r.months+"か月）");
+    lines.push(r.gap>0?"不足：約"+yen(r.gap):"余裕：約"+yen(-r.gap));
+    if(r.required!==null&&r.need>0)lines.push("援助なしで間に合わせる月額の目安：約"+yen(r.required));
+    if(r.months===0&&r.need>0)lines.push("出発月です。必要な不足額は"+yen(r.need)+"。");
+  }
+  lines.forEach(function(l){var p=document.createElement("div");p.textContent=l;plan.appendChild(p)});
+  var tp=$("tips");clear(tp);
+  tipsOf(r).forEach(function(t){var li=document.createElement("li");li.textContent=t;tp.appendChild(li)});
+  lastText=["【短期留学・海外研修 資金プラン】","総額の目安："+yen(r.total)+"（予備費"+r.buf+"%込み）","内訳："+r.parts.map(function(p){return p.k+" "+yen(p.v)}).join(" / "),"現地費用："+r.daily+"×"+r.days+"日×"+r.rate+"円","判定："+v.txt].concat(lines).join("\n");
+}
+function toast(m){var t=$("toast");t.textContent=m;t.style.display="block";setTimeout(function(){t.style.display="none"},1800)}
+function copy(){
+  var done=function(){toast("コピーしました")};
+  var fallback=function(){var ta=document.createElement("textarea");ta.className="fb";ta.value=lastText;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");done()}catch(e){toast("コピーできませんでした")}document.body.removeChild(ta)};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(lastText).then(done,fallback)}else{fallback()}
+}
+if(typeof document!=="undefined"&&document.getElementById("go")){
+  $("go").addEventListener("click",render);
+  $("reset").addEventListener("click",function(){Object.keys(DEFAULTS).forEach(function(k){$(k).value=DEFAULTS[k]});render()});
+  $("copy").addEventListener("click",copy);
+  Array.prototype.forEach.call(document.querySelectorAll("input"),function(el){el.addEventListener("input",render)});
+  render();
+}
+if(typeof module!=="undefined")module.exports={calc:calc,verdictOf:verdictOf,tipsOf:tipsOf};
+</script>
+</body>
+</html>
